@@ -1,0 +1,14 @@
+{
+  "extends": "@repo/typescript-config/node.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["node"],
+    "outDir": "build",
+    "declaration": true,
+    "removeComments": false
+  },
+  "include": ["src"]
+}

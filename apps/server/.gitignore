@@ -1,0 +1,5 @@
+/.turbo
+/build
+/.conf
+static
+node_modules

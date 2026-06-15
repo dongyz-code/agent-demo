@@ -1,0 +1,6 @@
+*.log
+.turbo
+.claude
+.codex
+node_modules
+/.omc

@@ -1,0 +1,87 @@
+import type { RouteItem } from '@repo/ui';
+import type { RouteName, Meta } from './type';
+
+export const routes: RouteItem<RouteName, Meta>[] = [
+  {
+    path: '/main',
+    name: 'main',
+    component: () => import('@/views/main/index.vue'),
+    meta: {
+      withAuth: true,
+    },
+    children: [
+      /** ============ 业务相关 ============ */
+      {
+        path: 'app-list',
+        name: 'app.list',
+        component: () => import('@/views/app.list/index.vue'),
+        root: true,
+        meta: {
+          box: false,
+        },
+      },
+      /** ============ 系统管理相关 ============ */
+      {
+        path: 'user',
+        name: 'sys.user',
+        component: () => import('@/views/sys.user/index.vue'),
+      },
+      {
+        path: 'role',
+        name: 'sys.role',
+        component: () => import('@/views/sys.role/index.vue'),
+      },
+      {
+        path: 'app',
+        name: 'sys.app',
+        component: () => import('@/views/sys.app/index.vue'),
+      },
+      {
+        path: 'app-log',
+        name: 'sys.app-log',
+        component: () => import('@/views/sys.app-log/index.vue'),
+      },
+      {
+        path: 'user-log',
+        name: 'sys.user-log',
+        component: () => import('@/views/sys.user-log/index.vue'),
+      },
+      {
+        path: 'task',
+        name: 'sys.task',
+        component: () => import('@/views/sys.task/index.vue'),
+      },
+      {
+        path: 'table',
+        name: 'sys.table',
+        component: () => import('@/views/sys.table/index.vue'),
+      },
+    ],
+    root: true,
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/login/index.vue'),
+    meta: {
+      withAuth: false,
+    },
+  },
+  {
+    path: '/sys-login',
+    name: 'sys-login',
+    component: () => import('@/views/login/SysLogin.vue'),
+    meta: {
+      withAuth: false,
+    },
+  },
+  {
+    path: '/404',
+    name: 'not-found',
+    component: () => import('@/views/not-found/index.vue'),
+    meta: {
+      withAuth: false,
+    },
+    pathMatch: true,
+  },
+];

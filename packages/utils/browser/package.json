@@ -1,0 +1,23 @@
+{
+  "name": "@repo/utils-browser",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": "./build/index.js",
+  "scripts": {
+    "build": "rimraf build && tsc && tsc-alias",
+    "lint": "npm run build"
+  },
+  "dependencies": {
+    "@repo/utils-common": "workspace:^",
+    "axios": "^1.15.1",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:^",
+    "@repo/typescript-config": "workspace:^",
+    "eslint": "^10.2.1",
+    "tsc-alias": "1.8.16",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}

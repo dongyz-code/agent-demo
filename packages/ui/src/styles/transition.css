@@ -1,0 +1,13 @@
+.fade-leave-to,
+.fade-leave-from,
+.fade-leave-active {
+  display: none;
+}
+.fade-enter-from {
+  opacity: 0;
+}
+.fade-enter-active {
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}

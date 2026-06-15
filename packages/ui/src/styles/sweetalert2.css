@@ -1,0 +1,57 @@
+.swal2-toast {
+  width: auto !important;
+  min-width: 200px !important;
+  max-width: 600px !important;
+}
+
+.swal2-container {
+  z-index: 999999 !important;
+}
+
+.swal2-container .swal2-error {
+  border-color: var(--color-danger) !important;
+  color: var(--color-danger) !important;
+}
+
+.swal2-container .swal2-error [class^='swal2-x-mark-line'] {
+  background-color: var(--color-danger) !important;
+}
+
+.swal2-container .swal2-success {
+  border-color: var(--color-success) !important;
+  color: var(--color-success) !important;
+}
+
+.swal2-container .swal2-success [class^='swal2-x-mark-line'] {
+  background-color: var(--color-success) !important;
+}
+
+.swal2-container .swal2-warning {
+  border-color: var(--color-warning) !important;
+  color: var(--color-warning) !important;
+}
+
+.swal2-container .swal2-warning [class^='swal2-x-mark-line'] {
+  background-color: var(--color-warning) !important;
+}
+
+.swal2-container .swal2-info {
+  border-color: var(--color-info) !important;
+  color: var(--color-info) !important;
+}
+
+.swal2-container .swal2-info [class^='swal2-x-mark-line'] {
+  background-color: var(--color-info) !important;
+}
+
+.swal2-container .swal2-confirm {
+  background-color: var(--color-primary) !important;
+}
+
+.swal2-container .swal2-cancel {
+  background-color: var(--color-danger) !important;
+}
+
+.swal2-container .swal2-deny {
+  background-color: var(--color-info) !important;
+}
