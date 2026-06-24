@@ -14,6 +14,12 @@ export const { routerGo, routerGoHome, routerGoLogin, blank } =
       url: '/',
     },
     loginPage: () => {
+      if (location.pathname.endsWith('/login')) {
+        return {
+          name: loginName,
+        };
+      }
+
       return {
         name: loginName,
         query: {

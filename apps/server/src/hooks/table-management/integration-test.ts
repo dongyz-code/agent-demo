@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { ROOT } from '@/configs/index.js';
 import { db, pool, schema, sql } from '@/database/index.js';
-import { configuredTableSchema } from '@/database/schema-path.js';
 import {
   applyRenamePlan,
   applyResetPlan,
@@ -12,6 +12,9 @@ import {
   getVisibleTableDetail,
   listVisibleTables,
 } from './index.js';
+
+/** 集成验证使用当前数据库连接配置中的 PostgreSQL schema。 */
+const testTableSchema = ROOT.pg.path?.trim() || 'public';
 
 /** 断言集成验证条件成立，失败时让验证进程退出非 0。 */
 function assert(condition: unknown, message: string) {
@@ -120,7 +123,7 @@ async function verifyRenameApply() {
     confirm: plan.confirmText,
   });
   const catalog = await getTableCatalog({
-    schemaName: configuredTableSchema,
+    schemaName: testTableSchema,
     tableName: 'ai_app_version',
   });
   assert(catalog.exists, 'rename apply 后目标表应存在');
@@ -161,11 +164,11 @@ async function verifyRenameRollback() {
   assert(failed, '重复字段名应导致 rename apply 失败');
 
   const sourceCatalog = await getTableCatalog({
-    schemaName: configuredTableSchema,
+    schemaName: testTableSchema,
     tableName: 'ai_app_version_tx_old',
   });
   const targetCatalog = await getTableCatalog({
-    schemaName: configuredTableSchema,
+    schemaName: testTableSchema,
     tableName: 'ai_app_version',
   });
   assert(sourceCatalog.exists, '事务失败后源表名应保持不变');
@@ -215,13 +218,13 @@ async function verifyResetApply() {
   assert(rows.rows[0]?.count === 1, 'reset 后目标表行数应保持一致');
 
   const backup = await getTableCatalog({
-    schemaName: configuredTableSchema,
+    schemaName: testTableSchema,
     tableName: result.backupTableName!,
   });
   assert(backup.exists, 'reset 后备份表应保留');
 
   const target = await getTableCatalog({
-    schemaName: configuredTableSchema,
+    schemaName: testTableSchema,
     tableName: 'apps',
   });
   assert(

@@ -4,7 +4,6 @@ import type { RouteMeta } from '@repo/ui';
 
 export const routeNameMap = {
   login: '登录',
-  'sys-login': '登录',
   'not-found': '404',
   main: '',
 

@@ -34,4 +34,4 @@
 - [x] 5.2 删除 `apps/tables` 包目录并移除 `@repo/deploy-tables` 依赖。
 - [x] 5.3 移除 `apps/server` 对 `@repo/tables` 数据库 helper 的运行时依赖；如 `packages/tables` 无其他用途则同步下线或标记废弃。
 - [x] 5.4 运行类型检查、构建和相关 lint，确保 `apps/client`、`apps/server`、`packages/types` 均通过。
-- [ ] 5.5 在测试数据库执行 Drizzle migration，并验证核心路由的查询、写入、事务和日志流程。
+- [x] 5.5 在测试数据库执行 Drizzle migration，并验证核心路由的查询、写入、事务和日志流程。

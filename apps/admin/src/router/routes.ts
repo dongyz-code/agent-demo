@@ -68,14 +68,6 @@ export const routes: RouteItem<RouteName, Meta>[] = [
     },
   },
   {
-    path: '/sys-login',
-    name: 'sys-login',
-    component: () => import('@/views/login/SysLogin.vue'),
-    meta: {
-      withAuth: false,
-    },
-  },
-  {
     path: '/404',
     name: 'not-found',
     component: () => import('@/views/not-found/index.vue'),

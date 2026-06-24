@@ -1,5 +1,5 @@
+import { ROOT } from '@/configs/index.js';
 import { schema } from '@/database/index.js';
-import { configuredTableSchema } from '@/database/schema-path.js';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 
 import { isSensitiveColumn } from './sensitive.js';
@@ -9,7 +9,7 @@ import type { ManagedTableSchema } from './types.js';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 /** 默认 PostgreSQL schema 名称，Drizzle 未指定 schema 时使用数据库连接配置。 */
-export const defaultTableSchema = configuredTableSchema;
+export const defaultTableSchema = ROOT.pg.path?.trim() || 'public';
 
 /** 返回所有允许表管理功能处理的 Drizzle 表 schema。 */
 export function listManagedTableSchemas(): ManagedTableSchema[] {

@@ -1,7 +1,7 @@
 import { getAxios } from '@repo/utils-browser';
 import { routerGoLogin } from '@/router';
 import { API_BASE } from '@/configs';
-import { AxiosError } from 'axios';
+import { AxiosError, AxiosHeaders } from 'axios';
 
 import { progress } from '@/plugins/progress';
 import { notify } from '@/plugins/notify';
@@ -55,6 +55,11 @@ export const { api } = getAxios<API>({
   callback(instance) {
     instance.interceptors.request.use(
       async function (config) {
+        const token = localStorage.getItem('token');
+        if (token) {
+          config.headers = AxiosHeaders.from(config.headers);
+          config.headers.set('token', token);
+        }
         progress.start(true);
         return config;
       },
