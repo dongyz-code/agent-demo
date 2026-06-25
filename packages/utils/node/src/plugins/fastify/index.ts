@@ -4,7 +4,6 @@ import cors from '@fastify/cors';
 import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import '@fastify/multipart';
-import pino from 'pino';
 import { pathToFileURL } from 'node:url';
 import { join, relative, sep } from 'node:path';
 import { readdir } from 'node:fs/promises';
@@ -247,27 +246,4 @@ export async function creatFastify({
   configs.callback?.({ listen: configs.listen, fastify });
 
   return fastify;
-}
-
-export function initPinoLogger({
-  devPretty,
-}: {
-  logDir?: string;
-  devPretty?: boolean;
-}) {
-  const fastifyLogger = pino({
-    level: devPretty ? 'debug' : 'info',
-  });
-  const logger = {
-    log: (...args: unknown[]) => fastifyLogger.info(args),
-    info: (...args: unknown[]) => fastifyLogger.info(args),
-    warn: (...args: unknown[]) => fastifyLogger.warn(args),
-    error: (...args: unknown[]) => fastifyLogger.error(args),
-  };
-  return {
-    logger,
-    fastifyLogger,
-    LOGGER: {},
-    LOGGER_CONF: {},
-  };
 }

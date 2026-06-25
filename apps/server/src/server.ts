@@ -1,8 +1,20 @@
 import { creatFastify, pickObj } from '@repo/utils-node';
-import { fastifyLogger, ROOT_SCHEDULE, ROOT, PORT } from '@/configs/index.js';
+import {
+  fastifyLogger,
+  logger,
+  ROOT_SCHEDULE,
+  ROOT,
+  PORT,
+} from '@/configs/index.js';
 import { getRoutes, callback } from '@/router/index.js';
 
-console.log('CONF:', pickObj(ROOT, ['MEDO_PROD', 'MEDO_ENV']));
+logger.info(
+  {
+    event: 'server.config_loaded',
+    config: pickObj(ROOT, ['MEDO_PROD', 'MEDO_ENV']),
+  },
+  'server config loaded',
+);
 
 async function createServer() {
   await creatFastify({
@@ -26,7 +38,13 @@ async function createServer() {
     configs: {
       listen: PORT,
       callback({ listen }) {
-        console.log('server:', `http://localhost:${listen}/`);
+        logger.info(
+          {
+            event: 'server.listen',
+            url: `http://localhost:${listen}/`,
+          },
+          'server started',
+        );
       },
     },
   });
@@ -36,7 +54,21 @@ async function createServer() {
 
 createServer();
 
-process.on('uncaughtException', console.error);
-process.on('unhandledRejection', console.error);
-process.on('uncaughtExceptionMonitor', console.error);
-process.on('exit', (code) => console.log('exit', code));
+process.on('uncaughtException', (error) => {
+  logger.error({ event: 'process.uncaught_exception', err: error }, 'uncaught exception');
+});
+process.on('unhandledRejection', (error) => {
+  logger.error(
+    { event: 'process.unhandled_rejection', err: error },
+    'unhandled rejection',
+  );
+});
+process.on('uncaughtExceptionMonitor', (error) => {
+  logger.error(
+    { event: 'process.uncaught_exception_monitor', err: error },
+    'uncaught exception monitor',
+  );
+});
+process.on('exit', (code) => {
+  logger.info({ event: 'process.exit', code }, 'process exit');
+});
