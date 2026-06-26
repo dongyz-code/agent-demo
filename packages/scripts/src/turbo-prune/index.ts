@@ -127,7 +127,7 @@ run(async () => {
             'node',
             '--max-old-space-size=16000',
             'apps/server/build/index.js',
-            '--DEBUG-ID="$MEDO_COMPOSE_NAME:$MEDO_CONTAINER_NAME:$HOSTNAME"',
+            '--DEBUG-ID="$HOSTNAME"',
           ],
         },
       ],

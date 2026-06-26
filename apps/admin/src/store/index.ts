@@ -8,7 +8,6 @@ import type { PKey } from '@/permission';
 const defaultData: StoreData = {
   permission: [],
   SYS_CONF: {},
-  MEDO_ENV: 'default',
   user: null,
   NAV_MODE: 'horizontal',
   NAV_COLLAPSE: false,

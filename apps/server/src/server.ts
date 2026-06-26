@@ -1,4 +1,4 @@
-import { creatFastify, pickObj } from '@repo/utils-node';
+import { createFastify, pickObj } from '@repo/utils-node';
 import {
   fastifyLogger,
   logger,
@@ -11,13 +11,13 @@ import { getRoutes, callback } from '@/router/index.js';
 logger.info(
   {
     event: 'server.config_loaded',
-    config: pickObj(ROOT, ['MEDO_PROD', 'MEDO_ENV']),
+    config: pickObj(ROOT, ['APP_PROD']),
   },
   'server config loaded',
 );
 
 async function createServer() {
-  await creatFastify({
+  await createFastify({
     fastify: {
       options: {
         loggerInstance: fastifyLogger,
@@ -25,7 +25,7 @@ async function createServer() {
         bodyLimit: 2 ** 20 * 100, // 100MB
       },
       cors: {
-        origin: ROOT.MEDO_PROD ? [] : true,
+        origin: ROOT.APP_PROD ? [] : true,
         methods: ['GET', 'POST', 'OPTIONS'],
         credentials: true,
       },

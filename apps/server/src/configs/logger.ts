@@ -8,7 +8,7 @@ const LOGGING_FILE = LOGGING.file ?? {};
 
 /** 服务端本地日志实例和 Fastify logger。 */
 export const { logger, fastifyLogger } = initPinoLogger({
-  devPretty: !ROOT.MEDO_PROD,
+  devPretty: !ROOT.APP_PROD,
   fastifyLevel: LOGGING.fastifyLevel ?? LOGGING.level ?? 'info',
   file: {
     enabled: LOGGING_FILE.enabled ?? true,
@@ -17,5 +17,5 @@ export const { logger, fastifyLogger } = initPinoLogger({
   logDir: DIRS.LOG,
   schedule: ROOT_SCHEDULE,
   systemLevel:
-    LOGGING.systemLevel ?? LOGGING.level ?? (ROOT.MEDO_PROD ? 'error' : 'debug'),
+    LOGGING.systemLevel ?? LOGGING.level ?? (ROOT.APP_PROD ? 'error' : 'debug'),
 });

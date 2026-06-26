@@ -1,11 +1,10 @@
 /**
  * 1. 获取配置文件
- * 2. 初始化数据库
- * 3. 启动服务
+ * 2. 启动服务
+ *
+ * 数据库迁移请使用 db:migrate 显式执行，避免多实例启动时重复执行 DDL。
  */
 async function init() {
-  const { runMigrations } = await import('@/database/index.js');
-  await runMigrations();
   await import('./server.js');
 }
 

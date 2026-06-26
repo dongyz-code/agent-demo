@@ -4,12 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "rimraf build && npm run route:make && tsc && tsc-alias --outDir build",
+    "build": "rimraf build && tsc && tsc-alias --outDir build",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "tsx src/database/migrate.ts",
     "dev": "tsx src/index.ts",
-    "lint": "npm run route:make && tsc",
-    "route:make": "tsx src/router/make.ts",
+    "lint": "tsc",
     "table:integration-test": "tsx src/hooks/table-management/integration-test.ts",
     "table:self-test": "tsx src/hooks/table-management/self-test.ts"
   },

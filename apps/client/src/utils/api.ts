@@ -1,4 +1,5 @@
 import { getAxios } from '@repo/utils-browser';
+import { AxiosError } from 'axios';
 
 import type { API } from '@repo/types';
 
@@ -24,12 +25,25 @@ export const { api, axios: http } = getAxios<API>({
     timeout: 30_000,
   },
   callback(instance) {
-    instance.interceptors.response.use((response) => {
-      const error = response.data?.error as ApiErrorPayload | undefined;
+    const handleErrorPayload = (payload: unknown) => {
+      const error = (payload as { error?: ApiErrorPayload } | undefined)?.error;
       if (error) {
-        return Promise.reject(new ApiResponseError(error));
+        return new ApiResponseError(error);
       }
-      return response;
-    });
+    };
+
+    instance.interceptors.response.use(
+      (response) => {
+        const error = handleErrorPayload(response.data);
+        if (error) {
+          return Promise.reject(error);
+        }
+        return response;
+      },
+      (error: AxiosError) => {
+        const responseError = handleErrorPayload(error.response?.data);
+        return Promise.reject(responseError ?? error);
+      },
+    );
   },
 });

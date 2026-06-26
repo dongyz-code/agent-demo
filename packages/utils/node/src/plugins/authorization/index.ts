@@ -34,6 +34,20 @@ type TokenAndCookie = {
   } & { token: string };
 };
 
+export type AuthenticationContext<T extends Record<string, unknown>> =
+  | {
+      /** JWT 用户 token 身份。 */
+      type: 'jwt';
+      /** JWT 解析后的 token 数据。 */
+      token: T;
+    }
+  | {
+      /** Basic Auth 接口调用身份。 */
+      type: 'basic';
+      /** Basic Auth 返回的部分 token 数据。 */
+      token: Partial<T>;
+    };
+
 type AuthenticationOpts<T extends TokenAndCookie> = {
   /** 身份认证返回异常，定义函数如何抛出异常 */
   SET_ERROR: () => Error;
@@ -141,7 +155,7 @@ export function initAuthentication<T extends TokenAndCookie>({
     });
   }
 
-  /** 身份认证函数，信息写入 header __token
+  /** 身份认证函数，信息写入 request.auth
    *
    * 验证优先级
    *
@@ -177,7 +191,10 @@ export function initAuthentication<T extends TokenAndCookie>({
         throw SET_ERROR();
       }
 
-      Object.assign(req.headers, { __token });
+      req.auth = {
+        type: 'basic',
+        token: __token,
+      } satisfies AuthenticationContext<T['token']>;
     } else {
       const getToken = () => {
         if (req.headers['token']) {
@@ -200,12 +217,15 @@ export function initAuthentication<T extends TokenAndCookie>({
 
       const token = getToken();
       const __token = jwtVerify(token);
-      Object.assign(req.headers, { __token });
+      req.auth = {
+        type: 'jwt',
+        token: __token,
+      } satisfies AuthenticationContext<T['token']>;
     }
   }
 
   return {
-    /** 身份认证函数，信息写入 header __token */
+    /** 身份认证函数，信息写入 request.auth */
     authentication,
     /** jwt 签名 */
     jwtSign,

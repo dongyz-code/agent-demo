@@ -1,15 +1,11 @@
-import type { MEDO_ENV } from '@repo/types';
-
 export type * from '@repo/types';
 
 /** 环境变量 */
 export type ProcessEnv = {
   /** 性能优化（可选） */
   NODE_ENV?: 'production';
-  /** 环境标识 */
-  MEDO_ENV?: MEDO_ENV;
-  /** 是否是线上环境 */
-  MEDO_PROD?: '1';
+  /** 是否按生产环境行为运行，值为 '1' 时启用生产模式 */
+  APP_PROD?: '1';
 };
 
 /** 项目启动配置文件 */

@@ -4,7 +4,6 @@ import { router } from './router/router';
 import { globalComponents } from './components/root';
 
 import '@repo/ui/index.css';
-import '@repo/ui/dist.css';
 
 const app = createApp(App);
 

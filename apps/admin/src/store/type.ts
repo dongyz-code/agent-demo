@@ -1,11 +1,9 @@
-import type { MEDO_ENV, ApiLogin } from '@/types';
+import type { ApiLogin } from '@/types';
 
 export type SysConf = {};
 
 /** 必须有值，禁用可选 */
 export type StoreData = {
-  /** 环境 */
-  MEDO_ENV: MEDO_ENV;
   /** 系统配置 */
   SYS_CONF: SysConf;
   /** 当前用户 */

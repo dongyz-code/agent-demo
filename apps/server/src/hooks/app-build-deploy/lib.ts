@@ -314,7 +314,7 @@ export async function buildAndDeployFronend({
         });
 
         Object.assign(json.services[frontendImageName].environment, {
-          MEDO_HOST_SERVER: `${backendImageName}:8888`,
+          HOST_SERVER: `${backendImageName}:8888`,
         });
       }
 

@@ -1,4 +1,5 @@
-import { initRoutes, findFileByNameSync } from '@repo/utils-node';
+import { join } from 'node:path';
+import { initRoutes } from '@repo/utils-node';
 import { authentication } from './authentication.js';
 import {
   logger,
@@ -16,7 +17,7 @@ export const { getRoutes, callback } = initRoutes({
     logger,
   },
   routes: {
-    singleFile: findFileByNameSync(import.meta.dirname, 'routes-single-file'),
+    dir: join(import.meta.dirname, 'routes'),
   },
   static: {
     dist: DIRS.STATIC,

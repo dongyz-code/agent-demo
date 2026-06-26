@@ -1,12 +1,21 @@
 import fastifyStatic from '@fastify/static';
-import { getAPIBySingleFile, fastifyHooks } from '../fastify/index.js';
+import {
+  getAPIByDir,
+  getAPIBySingleFile,
+  registerResponseEnvelope,
+  sendErrorResponse,
+} from '../fastify/index.js';
 import { initAuthentication } from '@/plugins/authorization/index.js';
 import { byteConversion, dayJsformat } from '@repo/utils-common';
 
-import type { FastifyReply, FastifyInstance } from '../fastify/index.js';
+import type {
+  FastifyReply,
+  FastifyInstance,
+  RouteOptions,
+} from '../fastify/index.js';
 import type { ListDir, ListFile } from '@fastify/static';
 
-type FastifyRoute = Awaited<ReturnType<typeof getAPIBySingleFile>>[number];
+type FastifyRoute = RouteOptions;
 
 type Opts = {
   /** 基础配置 */
@@ -29,8 +38,10 @@ type Opts = {
   };
   /** 路由配置 */
   routes: {
-    /** 单文件 */
-    singleFile: string;
+    /** 路由目录，优先用于动态加载 route 文件 */
+    dir?: string;
+    /** 单文件，兼容旧 routes-single-file 模式 */
+    singleFile?: string;
     /** 路由前缀，默认 /api */
     prefix?: string;
     /** 是否打印路由列表 */
@@ -42,7 +53,7 @@ type Opts = {
     }) => FastifyRoute[];
   };
   /** 额外处理，注册插件，钩子函数等 */
-  callback?: typeof fastifyHooks.preSerialization;
+  callback?: (fastify: FastifyInstance) => void | Promise<void>;
   /** 错误终端打印函数 */
   errorLogger?: (
     error: Error & {
@@ -70,58 +81,48 @@ export function initRoutes<T extends Opts>({
   ...rest
 }: T): {
   getRoutes: () => Promise<FastifyRoute[]>;
-  callback: () => (fastify: FastifyInstance) => void;
+  callback: () => (fastify: FastifyInstance) => Promise<void>;
 } {
   errorLogger = errorLogger ?? logger.error;
 
   /** 错误处理 */
-  function errorHandle(reply: FastifyReply, _error: unknown) {
+  function errorHandle(
+    reply: FastifyReply,
+    _error: unknown,
+    statusCode?: number,
+  ) {
     const error = _error as Error & {
       code?: string;
     };
-
-    const errorData =
-      'code' in error
-        ? {
-            code: error.code,
-            msg: error.message,
-          }
-        : {
-            code: ROOT_ERROR_DEFAULT_CODE,
-            msg: error.message,
-          };
     errorLogger!(error);
 
-    reply.status(200).send(
-      /** 触发禁用 preSerialization */
-      JSON.stringify({
-        error: errorData,
-      }),
-    );
+    if (reply.sent) {
+      return;
+    }
+    sendErrorResponse({
+      reply,
+      error,
+      defaultCode: ROOT_ERROR_DEFAULT_CODE,
+      statusCode,
+    });
   }
 
   /** 路由加载 */
   async function getRoutes() {
-    const { singleFile, prefix = '/api', log, callback } = routes;
-    const routeList = await getAPIBySingleFile({
-      file: singleFile,
-      prefix,
-      log,
-    });
-    /** 对响应实体进行处理 data 包裹一层 */
-    routeList.forEach((item) => {
-      if (item.preSerialization) {
-        const errMsg = `${item.url}: preSerialization is not allowed`;
-        throw new Error(errMsg);
-      }
-      /** Note: The hook is NOT called if the payload is a string, a Buffer, a stream, or null.
-       *
-       * 异步忽略 done，非异步需要有
-       */
-      item.preSerialization = (req, reply, payload, done) => {
-        done(null, { data: payload });
-      };
-    });
+    const { dir, singleFile, prefix = '/api', log, callback } = routes;
+    const routeList = dir
+      ? await getAPIByDir({ dir, prefix, log })
+      : singleFile
+        ? await getAPIBySingleFile({
+            file: singleFile,
+            prefix,
+            log,
+          })
+        : undefined;
+
+    if (!routeList) {
+      throw new Error('routes.dir or routes.singleFile is required');
+    }
 
     if (callback) {
       return callback({ routes: routeList, prefix });
@@ -132,8 +133,10 @@ export function initRoutes<T extends Opts>({
 
   /** 额外处理 */
   function callback() {
-    const callback: typeof fastifyHooks.preSerialization = (fastify) => {
-      rest.callback?.(fastify);
+    const callback = async (fastify: FastifyInstance) => {
+      fastify.decorateRequest('auth', null);
+      registerResponseEnvelope(fastify);
+      await rest.callback?.(fastify);
 
       /** 权限校验等 */
       fastify.addHook('onRequest', async (req, reply) => {
@@ -142,13 +145,13 @@ export function initRoutes<T extends Opts>({
         try {
           await authentication(req);
           if (isNginx) {
-            reply.status(200).send('success');
+            return reply.status(200).send('success');
           }
         } catch (error) {
           if (isNginx) {
-            reply.status(401).send('401');
+            return reply.status(401).send('401');
           } else {
-            errorHandle(reply, error);
+            errorHandle(reply, error, 401);
           }
         }
       });

@@ -60,13 +60,13 @@ type FormType =
       type: 'select';
       options: OptionsFnWrap<
         SelectOptions<{
-          render?: () => VNode | string;
+          render?: VNode | string | (() => VNode | string);
         }>
       >;
       props?: Omit<InstanceType<typeof ElSelect>['$props'], 'modelValue'>;
       lazy?: Lazy<
         SelectOptions<{
-          render?: () => VNode | string;
+          render?: VNode | string | (() => VNode | string);
         }>
       >;
     }

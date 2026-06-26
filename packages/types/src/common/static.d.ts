@@ -1,9 +1,6 @@
 /** 主题标识 */
 export type Theme = 'light' | 'dark';
 
-/** 环境标识 */
-export type MEDO_ENV = 'default';
-
 export type ExtFirst =
   | 'audio'
   | 'video'

@@ -42,4 +42,4 @@ COPY packages/openid/build packages/openid/build
 COPY packages/utils/common/build packages/utils/common/build
 COPY packages/utils/node/build packages/utils/node/build
 ENTRYPOINT ["tini", "--"]
-CMD exec node --max-old-space-size=16000 apps/server/build/index.js --DEBUG-ID="$MEDO_COMPOSE_NAME:$MEDO_CONTAINER_NAME:$HOSTNAME"
+CMD exec node --max-old-space-size=16000 apps/server/build/index.js --DEBUG-ID="$HOSTNAME"

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { env, CONF_FILE } from './env.js';
 
-import type { CONF, MEDO_ENV } from './type.js';
+import type { CONF } from './type.js';
 import type { Simplify } from '@repo/types';
 
 export type * from './type.js';
@@ -9,9 +9,7 @@ export type * from './type.js';
 /** 根据已有条件补充的配置信息 */
 type CONF_ADD = {
   /** 是否是线上环境 */
-  MEDO_PROD: boolean;
-  /** 环境 */
-  MEDO_ENV: MEDO_ENV;
+  APP_PROD: boolean;
   /** 管理员账户的ID, 除登录判断以外的其它地方使用此ID */
   SYS_ADMIN_USER_ID: string;
 };
@@ -34,11 +32,14 @@ function getConf(file: string) {
   }
 }
 
+/** 读取进程环境变量，并转换为应用内部使用的运行时开关。
+ *
+ * @returns 标准化后的环境配置，`APP_PROD` 为 `true` 时启用生产环境行为。
+ */
 export function loadEnv() {
-  const { MEDO_ENV = 'default', MEDO_PROD = '0' } = env;
+  const { APP_PROD = '0' } = env;
   return {
-    MEDO_ENV,
-    MEDO_PROD: MEDO_PROD === '1',
+    APP_PROD: APP_PROD === '1',
   };
 }
 
@@ -57,7 +58,7 @@ export function getSysConf<
   /** 覆盖默认配置文件路径 */
   force?: string;
 } = {}) {
-  const { MEDO_PROD, MEDO_ENV } = loadEnv();
+  const { APP_PROD } = loadEnv();
 
   const confFile = force ?? CONF_FILE;
 
@@ -77,8 +78,7 @@ export function getSysConf<
 
   const ROOT: ConfWithAdd = {
     ...conf,
-    MEDO_PROD,
-    MEDO_ENV,
+    APP_PROD,
     SYS_ADMIN_USER_ID: '-',
   };
 

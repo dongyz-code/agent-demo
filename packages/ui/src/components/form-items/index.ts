@@ -3,7 +3,7 @@ import VFormItems from './index.vue';
 import { deepCopy } from '@repo/utils-browser';
 
 import type { FormItem } from '../form-item/type';
-import type { BeString } from '@/types';
+import type { BeString } from '../../types';
 import type { Props } from './props';
 import type { ShallowRef, ComputedRef } from 'vue';
 

@@ -1,4 +1,4 @@
-import type { LiteralUnion, BeString } from '@/types';
+import type { LiteralUnion, BeString } from '../../types';
 import type { TableProps } from 'element-plus';
 
 export type TableData = Record<string, unknown>[];

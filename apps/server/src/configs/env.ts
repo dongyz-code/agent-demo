@@ -3,10 +3,10 @@ import { configFile } from './dirs.js';
 
 import type { ConfExtra } from '@/types/index.js';
 
-const { MEDO_PROD } = loadEnv();
+const { APP_PROD } = loadEnv();
 
 export const ROOT = getSysConf<ConfExtra>(
-  MEDO_PROD
+  APP_PROD
     ? {
         /** 线上环境使用一份配置文件 */
         force: configFile,

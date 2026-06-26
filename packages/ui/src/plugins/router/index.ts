@@ -10,7 +10,7 @@ import type {
   RouteLocationNamedRaw,
   RouteLocationNormalized,
 } from 'vue-router';
-import type { BeString } from '@/types';
+import type { BeString } from '../../types';
 import type { RouteItem, RouteMeta } from './type';
 import type { App } from 'vue';
 import type { Progress } from '../progress';

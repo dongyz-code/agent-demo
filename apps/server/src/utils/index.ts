@@ -39,7 +39,7 @@ export function getStaticUrl(filePath: string) {
 
   let prefix = '';
 
-  if (ROOT.MEDO_PROD) {
+  if (ROOT.APP_PROD) {
     prefix = '/static';
   }
 

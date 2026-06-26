@@ -149,7 +149,6 @@ export const setup = defineComponent({
       [
         {
           label: '角色名称',
-          placeholder: '',
           data: {
             type: 'input',
           },

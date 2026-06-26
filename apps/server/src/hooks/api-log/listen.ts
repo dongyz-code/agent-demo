@@ -4,6 +4,7 @@ import type {
   FastifyReply,
   FastifyRequest,
   FastifyInstance,
+  AuthenticationContext,
 } from '@repo/utils-node';
 import type { ItemAdd } from './utils.js';
 import type { TokenDataWithExp } from '@/types/index.js';
@@ -22,10 +23,13 @@ async function _addApiListenLog({ request, reply, payload }: Params) {
   /** https://fastify.dev/docs/latest/Reference/Request/ */
 
   const { url, headers, body, ip, method } = request;
-  const { __token, authorization, ...rest } = (headers ?? {}) as unknown as {
+  const { authorization, ...rest } = (headers ?? {}) as {
     authorization?: string;
-    __token?: TokenDataWithExp;
   };
+  const auth = request.auth as
+    | AuthenticationContext<TokenDataWithExp>
+    | undefined;
+  const token = auth?.token;
 
   const { statusCode } = reply;
 
@@ -52,7 +56,7 @@ async function _addApiListenLog({ request, reply, payload }: Params) {
     duration,
     mode: 'passive',
     client_mark: null,
-    client_id: __token?.client_id ?? null,
+    client_id: token?.client_id ?? null,
     ip,
     detail: JSON.stringify(detail),
     url,

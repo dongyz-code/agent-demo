@@ -2,12 +2,19 @@
   "name": "@repo/utils-browser",
   "version": "0.0.0",
   "type": "module",
-  "exports": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "default": "./build/index.js"
+    }
+  },
   "scripts": {
     "build": "rimraf build && tsc && tsc-alias",
     "lint": "npm run build"
   },
   "dependencies": {
+    "@repo/types": "workspace:^",
     "@repo/utils-common": "workspace:^",
     "axios": "^1.15.1",
     "tslib": "^2.8.1"

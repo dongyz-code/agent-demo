@@ -92,9 +92,11 @@ export const setup = defineComponent({
         [
           {
             label: '姓名',
-            placeholder: '请输入姓名',
             data: {
               type: 'input',
+              props: {
+                placeholder: '请输入姓名',
+              },
             },
             key: 'nickname',
             required: true,
@@ -113,9 +115,11 @@ export const setup = defineComponent({
         [
           {
             label: '邮箱',
-            placeholder: '请输入邮箱',
             data: {
               type: 'input',
+              props: {
+                placeholder: '请输入邮箱',
+              },
             },
             key: 'email',
             required: true,
@@ -123,9 +127,11 @@ export const setup = defineComponent({
           },
           {
             label: '密码',
-            placeholder: '请输入密码',
             data: {
               type: 'input',
+              props: {
+                placeholder: '请输入密码',
+              },
             },
             key: 'password',
             required: true,
@@ -135,12 +141,12 @@ export const setup = defineComponent({
         [
           {
             label: '角色',
-            placeholder: '请选择角色',
             data: {
               type: 'select',
               options: computed(() => allOptions.value.role),
               props: {
                 multiple: true,
+                placeholder: '请选择角色',
               },
             },
             key: 'role_id',
@@ -183,7 +189,7 @@ export const setup = defineComponent({
         }
 
         if (item.required) {
-          if (item.data.props?.multiple) {
+          if (item.data.type === 'select' && item.data.props?.multiple) {
             if (!value?.length) {
               return `请选择${item.label}`;
             }

@@ -2,16 +2,23 @@ import type { Routes, RoutesSource, TokenDataWithExp } from '@/types/index.js';
 import type {
   FastifyRequest,
   FastifyReply,
+  FastifySchema,
   RouteOptions,
 } from '@repo/utils-node';
+import type { AuthenticationContext } from '@repo/utils-node';
+
+/** 当前服务端 route handler 使用的认证上下文类型。 */
+type RouteAuth = AuthenticationContext<TokenDataWithExp>;
 
 export function routerHandler<T extends keyof RoutesSource>({
   url,
   method,
+  schema,
   handler: _handler,
 }: {
   url: T;
   method: RoutesSource[T]['method'];
+  schema?: FastifySchema;
   handler: (opts: {
     /** 当前时间 */
     now: Date;
@@ -20,7 +27,13 @@ export function routerHandler<T extends keyof RoutesSource>({
     /** 操作人 */
     operator: string;
     /** 请求体 */
-    body: RoutesSource[T]['req'];
+    body: RoutesSource[T]['body'];
+    /** 查询字符串 */
+    query: RoutesSource[T]['query'];
+    /** 路径参数 */
+    params: RoutesSource[T]['params'];
+    /** 认证上下文 */
+    auth: RouteAuth | undefined;
     /** TokenData */
     __token: TokenDataWithExp;
     /** 请求 */
@@ -30,16 +43,18 @@ export function routerHandler<T extends keyof RoutesSource>({
   }) => Promise<RoutesSource[T]['resp']>;
 }) {
   const handler: RouteOptions['handler'] = async (request, reply) => {
-    const { headers, body, ip, query } = request;
-    const { __token } = headers as unknown as {
-      __token: TokenDataWithExp;
-    };
+    const { body, ip, query, params } = request;
+    const auth = request.auth as RouteAuth | undefined;
+    const __token = auth?.token as TokenDataWithExp;
 
     return await _handler({
       now: new Date(),
       ip,
-      operator: __token?.user_id,
-      body: (body ?? query) as any,
+      operator: __token?.user_id ?? '',
+      body: body as RoutesSource[T]['body'],
+      query: query as RoutesSource[T]['query'],
+      params: params as RoutesSource[T]['params'],
+      auth,
       __token,
       request,
       reply,
@@ -49,6 +64,7 @@ export function routerHandler<T extends keyof RoutesSource>({
   const api: RouteOptions = {
     method,
     url,
+    schema,
     handler,
   };
 

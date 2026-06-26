@@ -30,7 +30,13 @@ function errorOrRespHandle(payload: AxiosResponse | AxiosError<unknown>) {
   progress.close(true);
   /** HTTP 错误 */
   if (payload instanceof AxiosError) {
-    notify('error', payload.message);
+    const error = (payload.response?.data as { error?: RespError } | undefined)
+      ?.error;
+    if (error) {
+      respErrorHandle(error);
+    } else {
+      notify('error', payload.message);
+    }
     return Promise.reject(payload);
   } else {
     /** 自定义错误 */

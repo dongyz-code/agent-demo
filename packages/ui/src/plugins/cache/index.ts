@@ -5,7 +5,7 @@ import { arrUnique, arrObject } from '@repo/utils-browser';
 import { computed, shallowRef } from 'vue';
 
 import type { ComputedRef, ShallowRef } from 'vue';
-import type { Simplify } from '@/types/index';
+import type { Simplify } from '../../types/index';
 
 type GetForm<T extends string | number = string> = {
   /** 按ID列表获取，ID 默认仅数字或者字符串类型（其一），其它类型会忽略 */
@@ -108,7 +108,7 @@ export class CacheById<
     type Val = Simplify<Awaited<ReturnType<T>>[number] | null>;
     type CVal = Filter extends false ? Val : NonNullable<Val>;
 
-    let res: Val[] = [];
+    let res: Val[];
 
     /** 全量获取会清除ID的缓存 */
     if (full) {

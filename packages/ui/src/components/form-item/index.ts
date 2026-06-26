@@ -11,7 +11,7 @@ type OptionItem = {
   label: string;
   value: string | number;
   disabled?: boolean;
-  render?: () => VNode;
+  render?: VNode | string | (() => VNode | string);
 };
 
 /** 异步 options 处理 */

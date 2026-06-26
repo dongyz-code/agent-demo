@@ -15,7 +15,7 @@ export const authentication = initAuthentication<{
     expire: ROOT.authorization.jwt_exp,
     secret: ROOT.authorization.jwt_secret,
   },
-  prod: ROOT.MEDO_PROD,
+  prod: ROOT.APP_PROD,
   opts: {
     cookieModel: {
       token: '',
