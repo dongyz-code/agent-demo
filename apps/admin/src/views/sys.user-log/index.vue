@@ -1,9 +1,18 @@
 <template>
   <section v-loading="getListLoading">
     <div class="rounded-b bg-white p-4 shadow">
-      <search-component
-        @update:model-value="getListDebounce(true)"
-      ></search-component>
+      <v-schema-form
+        v-model="searchForm"
+        mode="search"
+        :columns="searchColumns"
+        :search="{
+          actionPlacement: 'inline',
+          collapsedRows: 1,
+          columns: 4,
+        }"
+        @reset="getListDebounce(true)"
+        @submit="getListDebounce(true)"
+      />
     </div>
 
     <div class="my-2 rounded bg-white p-4 shadow">
@@ -48,14 +57,15 @@ import {
   VDialog,
   VTable,
   // VJsonView,
-  useFormItems,
   VDatePickerRange,
+  VSchemaForm,
   usePage,
   loadingFunc,
 } from '@repo/ui';
 
 import type { ApiSys } from '@/types';
-import type { TableRow } from '@repo/ui';
+import type { DatePickerProps } from 'element-plus';
+import type { SchemaFormColumn, TableRow } from '@repo/ui';
 
 type Form = Required<ApiSys.Sys['user-log/list']['req']>['form'];
 type LogItem = ApiSys.Sys['user-log/list']['resp']['list'][number];
@@ -66,80 +76,82 @@ const actionsMap = computed(() => {
   return arrObject(typeOptions.value, 'value', 'label');
 });
 
-const { searchComponent, searchForm } = useFormItems<Form, 'search'>({
-  prefix: 'search',
-  form: {},
-  options: [
-    [
-      {
-        label: '',
-        data: {
-          type: 'select',
-          options: typeOptions,
-          props: {
-            clearable: true,
-            filterable: true,
-            placeholder: '分类',
-          },
-        },
-        key: 'key',
-      },
-      {
-        label: '',
-        data: {
-          type: 'input',
-          props: {
-            clearable: true,
-            placeholder: '检索: KEY',
-          },
-        },
-        key: 'search',
-      },
-      {
-        label: '',
-        data: {
-          type: 'select',
-          options: async () => {
-            const items = await httpCache.user.get({ full: true });
-            return handleSelectUserLabel(items);
-          },
-          props: {
-            clearable: true,
-            filterable: true,
-            placeholder: '用户',
-          },
-        },
-        key: 'user_id',
-      },
-      {
-        label: '',
-        data: {
-          type: 'input',
-          props: {
-            clearable: true,
-            placeholder: 'IP地址',
-          },
-        },
-        key: 'ip',
-      },
+const searchForm = shallowRef<Form>({});
 
-      {
-        label: '操作日期',
-        data: {
-          type: 'custom',
-          render(props: any) {
-            return h(VDatePickerRange, {
-              modelValue: props.modelValue,
-              'onUpdate:modelValue': props['onUpdate:modelValue'],
-            });
-          },
-        },
-        range: 2,
-        key: 'timestamp',
+const searchColumns: SchemaFormColumn<Form>[] = [
+  {
+    dataIndex: 'key',
+    data: {
+      type: 'select',
+      options: typeOptions,
+      props: {
+        clearable: true,
+        filterable: true,
+        placeholder: '分类',
       },
-    ],
-  ],
-});
+    },
+  },
+  {
+    dataIndex: 'search',
+    data: {
+      type: 'input',
+      props: {
+        clearable: true,
+        placeholder: '检索: KEY',
+      },
+    },
+  },
+  {
+    dataIndex: 'user_id',
+    data: {
+      type: 'select',
+      /** 加载用户选项，供日志查询按用户筛选。 */
+      async options() {
+        const items = await httpCache.user.get({ full: true });
+        return handleSelectUserLabel(items);
+      },
+      props: {
+        clearable: true,
+        filterable: true,
+        placeholder: '用户',
+      },
+    },
+  },
+  {
+    dataIndex: 'ip',
+    data: {
+      type: 'input',
+      props: {
+        clearable: true,
+        placeholder: 'IP地址',
+      },
+    },
+  },
+  {
+    colProps: {
+      span: 2,
+    },
+    dataIndex: 'timestamp',
+    data: {
+      type: 'custom',
+      /** 渲染旧查询表单中的日期范围控件，并透传 schema-form 的 v-model 协议。 */
+      render(fieldProps: {
+        modelValue: unknown;
+        'onUpdate:modelValue': (value: unknown) => void;
+      }) {
+        return h(VDatePickerRange, {
+          modelValue: fieldProps.modelValue as DatePickerProps['modelValue'],
+          'onUpdate:modelValue': (value: DatePickerProps['modelValue']) =>
+            fieldProps['onUpdate:modelValue'](value),
+        });
+      },
+    },
+    search: {
+      collapsed: true,
+    },
+    title: '操作日期',
+  },
+];
 
 const logs = shallowRef<LogItem[]>([]);
 

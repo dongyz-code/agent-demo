@@ -6,6 +6,7 @@ export { default as VTabs } from './tabs/index.vue';
 export { default as VDatePickerRange } from './date-picker-range/index.vue';
 
 export * from './form-items';
+export * from './schema-form';
 export * from './pagination';
 export * from './table';
 export * from './tabs';
