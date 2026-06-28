@@ -27,14 +27,12 @@ const plugins: PluginOption[] = [
 export default defineConfig({
   server: {
     host: true,
+    port: 3000,
   },
   plugins,
   resolve: {
     alias: [
       { find: '@', replacement: join(__dirname, 'src') },
-      // admin 直接消费 @repo/ui 源码（运行时 + HMR），不再走 dist 产物
-      // 精确匹配，避免误伤 '@repo/ui/index.css'（仍走 package exports）
-      { find: /^@repo\/ui$/, replacement: join(__dirname, '../../packages/ui/src/index.ts') },
     ],
   },
   build: {
