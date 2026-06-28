@@ -1,7 +1,21 @@
 <template>
   <section v-loading="getListLoading">
     <div class="rounded-b bg-white p-4 shadow">
-      <task-component @update:model-value="getListDebounce(true)" />
+      <v-schema-form
+        v-model="taskForm"
+        mode="search"
+        :columns="taskColumns"
+        :layout="{ labelWidth: '96px' }"
+        :search="{
+          actionAlign: 'right',
+          actionPlacement: 'bottom',
+          collapsedRows: 2,
+          columns: 4,
+          showCollapse: false,
+        }"
+        @reset="getListDebounce(true)"
+        @submit="getListDebounce(true)"
+      />
     </div>
 
     <div class="mt-2 rounded bg-white p-4 shadow">
@@ -100,7 +114,7 @@
 import VSchedule from './components/Schedule.vue';
 import VTaskAdd from './components/TaskAdd.vue';
 
-import { computed, h, onMounted, reactive, shallowRef } from 'vue';
+import { computed, onMounted, reactive, shallowRef } from 'vue';
 import {
   arrObject,
   dayJsformat,
@@ -116,9 +130,8 @@ import {
   VTable,
   VDialog,
   VIcon,
-  useFormItems,
   usePage,
-  VDatePickerRange,
+  VSchemaForm,
 } from '@repo/ui';
 
 import VJsonView from './JsonView.vue';
@@ -133,7 +146,7 @@ import IconParkOutlineRefresh from '~icons/icon-park-outline/refresh';
 import TablerPointFilled from '~icons/tabler/point-filled';
 
 import type { SearchForm, TaskItem, TaskType } from './type';
-import type { IconType, TableRow } from '@repo/ui';
+import type { IconType, SchemaFormColumn, TableRow } from '@repo/ui';
 
 const refresh = {
   icon: IconParkOutlineRefresh,
@@ -178,79 +191,66 @@ const { pageComponent, setPageData, pageRange } = usePage({
   },
 });
 
-/** 任务列表查询表单 */
-const { taskComponent, taskForm } = useFormItems<SearchForm, 'task'>({
-  prefix: 'task',
-  form: {},
-  options: [
-    [
-      {
-        label: '搜索',
-        key: 'search',
-        data: {
-          type: 'input',
-          props: {
-            placeholder: '输入关键词',
-          },
-        },
+const taskForm = shallowRef<SearchForm>({});
+
+/** 任务列表查询 schema。 */
+const taskColumns: SchemaFormColumn<SearchForm>[] = [
+  {
+    dataIndex: 'search',
+    fieldProps: {
+      clearable: true,
+      placeholder: '输入关键词',
+    },
+    title: '搜索',
+    valueType: 'text',
+  },
+  {
+    colProps: {
+      span: 2,
+    },
+    dataIndex: 'create_timestamp',
+    title: '任务添加时间',
+    valueType: 'dateRange',
+  },
+  {
+    data: {
+      type: 'select',
+      options: computed(() =>
+        taskType.value.map((self) => ({
+          label: self.name,
+          value: self.key,
+        })),
+      ),
+      props: {
+        clearable: true,
       },
-      {
-        label: '任务添加时间',
-        key: 'create_timestamp',
-        data: {
-          type: 'custom',
-          render(props: any) {
-            return h(VDatePickerRange, {
-              modelValue: props.modelValue,
-              'onUpdate:modelValue': props['onUpdate:modelValue'],
-            });
-          },
-        },
-        range: 2,
+    },
+    dataIndex: 'key',
+    title: '任务类型',
+  },
+  {
+    data: {
+      type: 'select',
+      options: staticOptions.task_status,
+      props: {
+        clearable: true,
       },
-    ],
-    [
-      {
-        label: '任务类型',
-        key: 'key',
-        data: {
-          type: 'select',
-          options: computed(() =>
-            taskType.value.map((self) => ({
-              label: self.name,
-              value: self.key,
-            })),
-          ),
-          props: {
-            clearable: true,
-          },
-        },
+    },
+    dataIndex: 'status',
+    title: '任务状态',
+  },
+  {
+    data: {
+      type: 'select',
+      options: staticOptions.task_update_mode,
+      props: {
+        clearable: true,
       },
-      {
-        label: '任务状态',
-        key: 'status',
-        data: {
-          type: 'select',
-          options: staticOptions.task_status,
-          props: {
-            clearable: true,
-          },
-        },
-      },
-      {
-        label: '触发方式',
-        key: 'trigger_method',
-        data: {
-          type: 'select',
-          options: staticOptions.task_update_mode,
-          props: {
-            clearable: true,
-          },
-        },
-      },
-    ],
-  ],
-});
+    },
+    dataIndex: 'trigger_method',
+    title: '触发方式',
+  },
+];
 
 /** 任务列表 */
 const tableData = computed(() => {

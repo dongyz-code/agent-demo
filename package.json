@@ -1,5 +1,5 @@
 {
-  "name": "ai-deploy",
+  "name": "deploy-console",
   "scripts": {
     "pkg:sort": "sort-package-json \"apps/*/package.json\" \"packages/*/package.json\" \"packages/*/*/package.json\"",
     "build:prune": "cd packages/scripts && tsx src/turbo-prune/index.ts"

@@ -1,12 +1,11 @@
 import { computed, defineComponent, onMounted, reactive, ref } from 'vue';
 import {
   usePage,
-  // VBtn,
-  VFormItems,
   VTable,
   VIcon,
+  VSchemaForm,
   type TableRow,
-  type FormItem,
+  type SchemaFormColumn,
 } from '@repo/ui';
 import { notify, confirm } from '@/plugins/notify';
 import { useStore } from '@/store';
@@ -30,83 +29,65 @@ type ApiUserListReq = ApiSys.UserAction['ids']['req'];
 
 /** options, 一定是经过了身份认证 */
 function useQueryForm() {
+  type Form = NonNullable<ApiUserListReq['form']>;
+
   const getDefaultVal = () => {
-    const val: ApiUserListReq['form'] = {};
+    const val: Form = {};
     return val;
   };
 
   const form = ref(getDefaultVal());
 
-  const formOptions = computed(() => {
-    const list: FormItem<keyof NonNullable<(typeof form)['value']>>[][] = [
-      [
-        {
-          label: '模糊查询',
-          data: {
-            type: 'input',
-            props: {
-              placeholder: 'K账户/姓名/邮箱',
-              clearable: true,
-            },
-          },
-          key: 'search',
-          range: 3,
+  const formColumns: SchemaFormColumn<Form>[] = [
+    {
+      dataIndex: 'search',
+      fieldProps: {
+        clearable: true,
+        placeholder: 'K账户/姓名/邮箱',
+      },
+      title: '模糊查询',
+      valueType: 'text',
+    },
+    {
+      data: {
+        type: 'select',
+        options: staticOptions.available,
+        props: {
+          clearable: true,
         },
-        {
-          label: '账户状态',
-          data: {
-            type: 'select',
-            options: staticOptions.available,
-            props: {
-              clearable: true,
-            },
-          },
-          key: 'available',
-          range: 3,
+      },
+      dataIndex: 'available',
+      title: '账户状态',
+    },
+    {
+      data: {
+        type: 'select',
+        options: computed(() => httpCache.role.selectOptions.value),
+        props: {
+          clearable: true,
+          filterable: true,
         },
-        {
-          label: '角色',
-          data: {
-            type: 'select',
-            options: computed(() => {
-              return httpCache.role.selectOptions.value;
-            }),
-            props: {
-              clearable: true,
-              filterable: true,
-            },
-          },
-          key: 'role_id',
-          range: 3,
-        },
-      ],
-      [
-        {
-          label: '最后更新日期',
-          data: {
-            type: 'date-picker',
-            props: {
-              type: 'daterange',
-            },
-          },
-          key: 'last_update_timestamp',
-          range: 3,
-        },
-        {
-          label: '最后登录日期',
-          data: {
-            type: 'date-picker',
-            props: {
-              type: 'daterange',
-            },
-          },
-          key: 'last_login_timestamp',
-          range: 3,
-        },
-      ],
-    ];
-    return list;
-  });
+      },
+      dataIndex: 'role_id',
+      title: '角色',
+    },
+    {
+      colProps: {
+        span: 2,
+      },
+      dataIndex: 'last_update_timestamp',
+      title: '最后更新日期',
+      valueType: 'dateRange',
+    },
+    {
+      colProps: {
+        span: 2,
+      },
+      dataIndex: 'last_login_timestamp',
+      title: '最后登录日期',
+      valueType: 'dateRange',
+    },
+  ];
 
   function formClear() {
     form.value = getDefaultVal();
@@ -114,7 +95,7 @@ function useQueryForm() {
 
   return {
     form,
-    formOptions,
+    formColumns,
     formClear,
   };
 }
@@ -467,10 +448,9 @@ function useUserList() {
 
 export const setup = defineComponent({
   components: {
-    VFormItems,
     VTable,
     VIcon,
-    // VBtn,
+    VSchemaForm,
     VOptions,
     ElButton,
     ElSwitch,

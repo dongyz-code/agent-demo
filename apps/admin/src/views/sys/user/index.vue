@@ -1,21 +1,20 @@
 <template>
   <div>
-    <div
-      class="flex items-center justify-between rounded-b bg-white p-4 shadow"
-    >
-      <v-form-items
-        class="w-full gap-4"
-        :options="formOptions"
+    <div class="rounded-b bg-white p-4 shadow">
+      <v-schema-form
         v-model="form"
-        @update:model-value="getUserListDebounce(true)"
+        mode="search"
+        :columns="formColumns"
+        :layout="{ labelWidth: '96px' }"
+        :search="{
+          actionAlign: 'right',
+          actionPlacement: 'bottom',
+          columns: 4,
+          showCollapse: false,
+        }"
+        @reset="reset"
+        @submit="getUserList(true)"
       />
-      <div class="min-w-50 text-center">
-        <el-button type="primary" class="mb-4" @click="getUserList(true)">
-          搜索
-        </el-button>
-        <br />
-        <el-button @click="reset">重置</el-button>
-      </div>
     </div>
 
     <v-options

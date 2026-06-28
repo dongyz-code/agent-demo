@@ -32,9 +32,9 @@ export function getAppDir(id: string) {
   const buildDir = join(DIRS.EXTRA.app, 'build', id);
   const historyDir = join(DIRS.EXTRA.app, 'history', id);
 
-  const stackName = `fsd-ai-deploy-${id}`;
-  const frontendImageName = `frontend-ai-deploy-${id}`;
-  const backendImageName = `backend-ai-deploy-${id}`;
+  const stackName = `deploy-console-${id}`;
+  const frontendImageName = `frontend-deploy-console-${id}`;
+  const backendImageName = `backend-deploy-console-${id}`;
 
   return {
     deployDir,

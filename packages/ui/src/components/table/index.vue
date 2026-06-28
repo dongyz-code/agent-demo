@@ -1,6 +1,6 @@
 <template>
   <el-table
-    class="medomino-table"
+    class="repo-table"
     ref="table"
     @selection-change="emits('selection-change', $event)"
     @row-dblclick="emits('row-dblclick', $event)"
@@ -133,7 +133,7 @@ function sortChange({ order, prop }: SortChange) {
 </script>
 
 <style lang="postcss" scoped>
-.medomino-table {
+.repo-table {
   --el-table-header-bg-color: #fff;
   --el-table-bg-color: #fff;
   --el-table-tr-bg-color: #fff;

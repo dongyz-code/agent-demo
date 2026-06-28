@@ -9,6 +9,7 @@ export const routeNameMap = {
 
   /** ============ 系统管理相关 ============ */
 
+  sys: '系统管理',
   'sys.user': '用户管理',
   'sys.role': '角色管理',
   'sys.app': '接口管理',

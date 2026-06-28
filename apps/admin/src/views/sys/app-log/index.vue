@@ -1,9 +1,21 @@
 <template>
   <section v-loading="getListLoading">
     <div class="rounded-b bg-white p-4 shadow">
-      <search-component
-        @update:model-value="getListDebounce(true)"
-      ></search-component>
+      <v-schema-form
+        v-model="searchForm"
+        mode="search"
+        :columns="searchColumns"
+        :layout="{ labelWidth: '72px' }"
+        :search="{
+          actionAlign: 'right',
+          actionPlacement: 'bottom',
+          collapsedRows: 2,
+          columns: 5,
+          showCollapse: false,
+        }"
+        @reset="getListDebounce(true)"
+        @submit="getListDebounce(true)"
+      />
     </div>
 
     <div class="my-2 rounded bg-white p-4 shadow">
@@ -47,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, shallowRef, computed, onMounted, h } from 'vue';
+import { reactive, shallowRef, computed, onMounted } from 'vue';
 import { dayJsformat, debounce } from '@repo/utils-browser';
 import { api } from '@/api';
 import { staticMapping, staticOptions } from '@/static';
@@ -57,8 +69,7 @@ import { notify } from '@/plugins/notify';
 import {
   VDialog,
   VTable,
-  VDatePickerRange,
-  useFormItems,
+  VSchemaForm,
   loadingFunc,
   usePage,
 } from '@repo/ui';
@@ -66,7 +77,7 @@ import { ElButton } from 'element-plus';
 
 import TablerPointFilled from '~icons/tabler/point-filled';
 
-import type { TableRow } from '@repo/ui';
+import type { SchemaFormColumn, TableRow } from '@repo/ui';
 import type { ApiSys } from '@/types';
 
 type Form = Required<ApiSys.Sys['api-log/list']['req']>['form'];
@@ -74,129 +85,110 @@ type LogItem = ApiSys.Sys['api-log/list']['resp']['list'][number];
 
 const typeOptions = shallowRef<{ label: string; value: string }[]>([]);
 
-const { searchComponent, searchForm } = useFormItems<Form, 'search'>({
-  prefix: 'search',
-  form: {},
-  options: [
-    [
-      {
-        label: '',
-        data: {
-          type: 'select',
-          options: staticOptions.interface_mode,
-          props: {
-            clearable: true,
-            filterable: true,
-            placeholder: '模式',
-          },
-        },
-        key: 'mode',
+const searchForm = shallowRef<Form>({});
+
+const searchColumns: SchemaFormColumn<Form>[] = [
+  {
+    data: {
+      type: 'select',
+      options: staticOptions.interface_mode,
+      props: {
+        clearable: true,
+        filterable: true,
+        placeholder: '模式',
       },
-      {
-        label: '',
-        data: {
-          type: 'select',
-          options: typeOptions,
-          props: {
-            clearable: true,
-            filterable: true,
-            placeholder: '通信标识',
-          },
-        },
-        key: 'client_mark',
+    },
+    dataIndex: 'mode',
+    title: '模式',
+  },
+  {
+    data: {
+      type: 'select',
+      options: typeOptions,
+      props: {
+        clearable: true,
+        filterable: true,
+        placeholder: '通信标识',
       },
-      {
-        label: '',
-        data: {
-          type: 'select',
-          options: staticOptions.interface_status,
-          props: {
-            clearable: true,
-            filterable: true,
-            placeholder: '状态',
-          },
-        },
-        key: 'status',
+    },
+    dataIndex: 'client_mark',
+    title: '通信标识',
+  },
+  {
+    data: {
+      type: 'select',
+      options: staticOptions.interface_status,
+      props: {
+        clearable: true,
+        filterable: true,
+        placeholder: '状态',
       },
-      {
-        label: '操作日期',
-        data: {
-          type: 'custom',
-          render(props: any) {
-            return h(VDatePickerRange, {
-              modelValue: props.modelValue,
-              'onUpdate:modelValue': props['onUpdate:modelValue'],
-            });
-          },
-        },
-        range: 2,
-        key: 'start_timestamp',
+    },
+    dataIndex: 'status',
+    title: '状态',
+  },
+  {
+    colProps: {
+      span: 2,
+    },
+    dataIndex: 'start_timestamp',
+    title: '操作日期',
+    valueType: 'dateRange',
+  },
+  {
+    dataIndex: 'search',
+    fieldProps: {
+      clearable: true,
+      placeholder: '检索: KEY',
+    },
+    title: '检索',
+    valueType: 'text',
+  },
+  {
+    dataIndex: 'url',
+    fieldProps: {
+      clearable: true,
+      placeholder: '请求URL',
+    },
+    title: '请求URL',
+    valueType: 'text',
+  },
+  {
+    dataIndex: 'ip',
+    fieldProps: {
+      clearable: true,
+      placeholder: 'IP地址',
+    },
+    title: 'IP地址',
+    valueType: 'text',
+  },
+  {
+    dataIndex: 'client_id',
+    fieldProps: {
+      clearable: true,
+      placeholder: '应用ID',
+    },
+    title: '应用ID',
+    valueType: 'text',
+  },
+  {
+    data: {
+      type: 'select',
+      /** 加载用户选项，供接口日志按用户筛选。 */
+      async options() {
+        const items = await httpCache.user.get({ full: true });
+        return handleSelectUserLabel(items);
       },
-    ],
-    [
-      {
-        label: '',
-        data: {
-          type: 'input',
-          props: {
-            clearable: true,
-            placeholder: '检索: KEY',
-          },
-        },
-        key: 'search',
+      props: {
+        clearable: true,
+        filterable: true,
+        placeholder: '用户',
       },
-      {
-        label: '',
-        data: {
-          type: 'input',
-          props: {
-            clearable: true,
-            placeholder: '请求URL',
-          },
-        },
-        key: 'url',
-      },
-      {
-        label: '',
-        data: {
-          type: 'input',
-          props: {
-            clearable: true,
-            placeholder: 'IP地址',
-          },
-        },
-        key: 'ip',
-      },
-      {
-        label: '',
-        data: {
-          type: 'input',
-          props: {
-            clearable: true,
-            placeholder: '应用ID',
-          },
-        },
-        key: 'client_id',
-      },
-      {
-        label: '',
-        data: {
-          type: 'select',
-          options: async () => {
-            const items = await httpCache.user.get({ full: true });
-            return handleSelectUserLabel(items);
-          },
-          props: {
-            clearable: true,
-            filterable: true,
-            placeholder: '用户',
-          },
-        },
-        key: 'user_id',
-      },
-    ],
-  ],
-});
+    },
+    dataIndex: 'user_id',
+    title: '用户',
+  },
+];
 
 const logs = shallowRef<LogItem[]>([]);
 

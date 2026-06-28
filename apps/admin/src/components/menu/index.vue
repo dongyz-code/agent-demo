@@ -5,7 +5,7 @@
       :collapse="store.$state.NAV_COLLAPSE"
       :show-timeout="50"
       :default-active="current"
-      popper-class="medomino-el-menu-popper rounded-lg! shadow! border-none!"
+      popper-class="admin-el-menu-popper rounded-lg! shadow! border-none!"
       :popper-offset="4"
       class="h-full! w-full"
       router
@@ -176,7 +176,7 @@ const style = computed(() => {
 </script>
 
 <style lang="postcss">
-.medomino-el-menu-popper {
+.admin-el-menu-popper {
   .el-menu--popup {
     border-radius: 8px !important;
     box-shadow: none !important;

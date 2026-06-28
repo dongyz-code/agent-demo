@@ -6,7 +6,7 @@ import {
   ref,
   type FunctionalComponent,
 } from 'vue';
-import { usePage, VIcon, VTable, VFormItems } from '@repo/ui';
+import { usePage, VIcon, VTable, VSchemaForm } from '@repo/ui';
 import { notify, confirm } from '@/plugins/notify';
 import { useStore } from '@/store';
 import { api } from '@/api';
@@ -20,53 +20,46 @@ import IconParkOutlineEditTwo from '~icons/icon-park-outline/edit-two';
 import IconParkOutlineDelete from '~icons/icon-park-outline/delete';
 
 import type { ApiSys } from '@/types';
-import type { FormItem, TableRow } from '@repo/ui';
+import type { SchemaFormColumn, TableRow } from '@repo/ui';
 import type { Item } from './components/options/index';
 
 type RoleItem = ApiSys.RoleAction['detail']['resp'][number];
 type ApiRoleListReq = ApiSys.RoleAction['ids']['req'];
 
 function useQueryForm() {
-  const form = ref<ApiRoleListReq['form']>({});
+  type Form = NonNullable<ApiRoleListReq['form']>;
 
-  const formOptions: FormItem<keyof NonNullable<ApiRoleListReq['form']>>[][] = [
-    [
-      {
-        label: '模糊查询',
-        data: {
-          type: 'input',
-          props: {
-            placeholder: '角色名称/角色描述',
-            clearable: true,
-          },
-        },
-        key: 'search',
-        range: 3,
+  const form = ref<Form>({});
+
+  const formColumns: SchemaFormColumn<Form>[] = [
+    {
+      dataIndex: 'search',
+      fieldProps: {
+        clearable: true,
+        placeholder: '角色名称/角色描述',
       },
-      {
-        label: '角色状态',
-        data: {
-          type: 'select',
-          options: staticOptions.available,
-          props: {
-            clearable: true,
-          },
+      title: '模糊查询',
+      valueType: 'text',
+    },
+    {
+      data: {
+        type: 'select',
+        options: staticOptions.available,
+        props: {
+          clearable: true,
         },
-        key: 'available',
-        range: 3,
       },
-      {
-        label: '更新日期',
-        data: {
-          type: 'date-picker',
-          props: {
-            type: 'daterange',
-          },
-        },
-        key: 'last_update_timestamp',
-        range: 3,
+      dataIndex: 'available',
+      title: '角色状态',
+    },
+    {
+      dataIndex: 'last_update_timestamp',
+      fieldProps: {
+        clearable: true,
       },
-    ],
+      title: '更新日期',
+      valueType: 'dateRange',
+    },
   ];
 
   function formClear() {
@@ -75,7 +68,7 @@ function useQueryForm() {
 
   return {
     form,
-    formOptions,
+    formColumns,
     formClear,
   };
 }
@@ -316,7 +309,7 @@ export const setup = defineComponent({
   components: {
     VIcon,
     VTable,
-    VFormItems,
+    VSchemaForm,
     VOptions,
     ElButton,
     ElSwitch,

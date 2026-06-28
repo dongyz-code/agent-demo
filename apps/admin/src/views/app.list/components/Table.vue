@@ -95,7 +95,7 @@ const tableData = computed(() => {
       ...rest
     } = self;
 
-    const domainFull = `${domain}.app.medomino.com`;
+    const domainFull = `${domain}.app.example.com`;
     const domainOrigin = `https://${domainFull}`;
 
     return {

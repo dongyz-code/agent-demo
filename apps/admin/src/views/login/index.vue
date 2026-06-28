@@ -10,7 +10,7 @@
           class="inline-flex h-10 items-center gap-2 rounded-lg border border-primary-white bg-white/80 px-3 text-sm font-semibold text-primary shadow-sm"
         >
           <LucideShieldCheck class="size-4" aria-hidden="true" />
-          AI Deploy
+          Admin Console
         </div>
         <h1 class="mt-6 max-w-xl text-4xl leading-tight font-bold text-tcolor-dark">
           统一管理发布、任务与权限
@@ -41,7 +41,7 @@
           <div>
             <p class="text-sm font-semibold text-primary">欢迎回来</p>
             <h2 class="mt-2 text-2xl font-bold text-tcolor-dark">登录管理台</h2>
-            <p class="mt-1 text-sm text-tcolor-light">AI Deploy workspace</p>
+            <p class="mt-1 text-sm text-tcolor-light">Management workspace</p>
           </div>
           <div
             class="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary-white text-primary shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-primary)_16%,transparent)]"

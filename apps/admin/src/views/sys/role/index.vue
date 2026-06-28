@@ -1,18 +1,20 @@
 <template>
   <div>
-    <div
-      class="flex items-center justify-between rounded-b bg-white p-4 shadow"
-    >
-      <v-form-items
-        class="w-full gap-4"
-        :options="formOptions"
+    <div class="rounded-b bg-white p-4 shadow">
+      <v-schema-form
         v-model="form"
-        @update:model-value="getRoleListDebounce(true)"
+        mode="search"
+        :columns="formColumns"
+        :layout="{ labelWidth: '96px' }"
+        :search="{
+          actionAlign: 'right',
+          actionPlacement: 'inline',
+          columns: 4,
+          showCollapse: false,
+        }"
+        @reset="reset"
+        @submit="getRoleList(true)"
       />
-      <div class="min-w-50 text-center">
-        <el-button type="primary" @click="getRoleList(true)">搜索</el-button>
-        <el-button @click="reset">重置</el-button>
-      </div>
     </div>
 
     <v-options

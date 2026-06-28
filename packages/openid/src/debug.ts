@@ -14,7 +14,7 @@
 //   console.log(url);
 
 //   const tokens = await authorizationCodeGrant({
-//     url: 'https://ai-deploy.medomino.com/login?code=5b051e52b8780f5177a3&state=Casdoor',
+//     url: 'https://deploy-console.example.com/login?code=5b051e52b8780f5177a3&state=Casdoor',
 //     state: 'Casdoor',
 //   });
 //   console.log(tokens);

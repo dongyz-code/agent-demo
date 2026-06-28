@@ -1,7 +1,20 @@
 <template>
   <section>
     <div class="rounded-b bg-white p-4 shadow">
-      <search-component @update:model-value="getListDebounce(true)" />
+      <v-schema-form
+        v-model="searchForm"
+        mode="search"
+        :columns="searchColumns"
+        :layout="{ labelWidth: '72px' }"
+        :search="{
+          actionAlign: 'right',
+          actionPlacement: 'inline',
+          columns: 5,
+          showCollapse: false,
+        }"
+        @reset="getListDebounce(true)"
+        @submit="getListDebounce(true)"
+      />
     </div>
 
     <div class="mt-4 grid grid-cols-6 gap-4">
@@ -77,7 +90,7 @@ import { copyText, getKeys, debounce } from '@repo/utils-browser';
 import { api } from '@/api';
 import { notify, confirm } from '@/plugins/notify';
 import { ElSwitch, ElButton } from 'element-plus';
-import { VDialog, VFormItems, VIcon, usePage, useFormItems } from '@repo/ui';
+import { VDialog, VFormItems, VIcon, VSchemaForm, usePage } from '@repo/ui';
 import { staticOptions } from '@/static';
 
 import IconParkOutlinePlus from '~icons/icon-park-outline/plus';
@@ -85,63 +98,54 @@ import IconParkOutlineEditTwo from '~icons/icon-park-outline/edit-two';
 import IconParkOutlineCopy from '~icons/icon-park-outline/copy';
 import IconParkOutlineDelete from '~icons/icon-park-outline/delete';
 
-import type { FormItem, IconType } from '@repo/ui';
+import type { FormItem, IconType, SchemaFormColumn } from '@repo/ui';
 import type { ApiSys } from '@/types';
 
 type Items = ApiSys.AppAction['detail']['resp'];
 type ApiAppListReq = ApiSys.AppAction['ids']['req'];
+type SearchForm = NonNullable<ApiAppListReq['form']>;
 
 const create = {
   icon: IconParkOutlinePlus,
   tips: '创建接口',
 };
 
-const { searchComponent, searchForm } = useFormItems<
-  NonNullable<ApiAppListReq['form']>,
-  'search'
->({
-  prefix: 'search',
-  form: {},
-  options: [
-    [
-      {
-        label: '模糊查询',
-        data: {
-          type: 'input',
-          props: {
-            clearable: true,
-            placeholder: '接口名称 / 接口描述',
-          },
-        },
-        key: 'search',
+const searchForm = ref<SearchForm>({});
+
+const searchColumns: SchemaFormColumn<SearchForm>[] = [
+  {
+    dataIndex: 'search',
+    fieldProps: {
+      clearable: true,
+      placeholder: '接口名称 / 接口描述',
+    },
+    title: '模糊查询',
+    valueType: 'text',
+  },
+  {
+    data: {
+      type: 'select',
+      options: staticOptions.available,
+      props: {
+        clearable: true,
+        filterable: true,
       },
-      {
-        label: '接口状态',
-        data: {
-          type: 'select',
-          options: staticOptions.available,
-          props: {
-            clearable: true,
-            filterable: true,
-          },
-        },
-        key: 'available',
-      },
-      {
-        label: '更新日期',
-        data: {
-          type: 'date-picker',
-          props: {
-            type: 'daterange',
-            clearable: true,
-          },
-        },
-        key: 'last_update_timestamp',
-        range: 2,
-      },
-    ],
-  ],
-});
+    },
+    dataIndex: 'available',
+    title: '接口状态',
+  },
+  {
+    colProps: {
+      span: 2,
+    },
+    dataIndex: 'last_update_timestamp',
+    fieldProps: {
+      clearable: true,
+    },
+    title: '更新日期',
+    valueType: 'dateRange',
+  },
+];
 
 const { pageData, pageRange, setPageData, pageComponent } = usePage({
   page: { size: 50 },
