@@ -1,67 +1,75 @@
 <template>
-  <section>
+  <section class="flex min-h-full flex-col">
     <div class="rounded-b bg-white p-4 shadow">
-      <div class="flex flex-wrap items-start gap-3">
-        <search-component
-          class="min-w-0 flex-1"
-          @update:model-value="getListDebounce(true)"
-        />
-        <el-button type="primary" :loading="loading.list" @click="getList(true)">
-          搜索
-        </el-button>
-        <el-button @click="resetFilters">重置</el-button>
-      </div>
+      <v-schema-form
+        v-model="searchForm"
+        mode="search"
+        :columns="searchColumns"
+        :layout="{ gap: '16px 24px', labelWidth: '72px' }"
+        :search="{
+          actionAlign: 'right',
+          actionPlacement: 'inline',
+          columns: 4,
+          showCollapse: false,
+        }"
+        @reset="getList(true)"
+        @submit="getList(true)"
+      />
     </div>
 
-    <div class="my-2 rounded bg-white p-4 shadow">
+    <div class="mt-2 flex min-h-0 flex-1 flex-col rounded bg-white p-4 shadow">
       <div class="mb-3 flex flex-wrap items-center justify-end gap-3">
         <page-component @update:model-value="getList()" />
       </div>
 
-      <v-table
-        :data="tables"
-        :rows="tableRows"
-        :loading="loading.list"
-        @row-click="selectTable"
-      >
-        <template #physicalStatus="{ row }">
-          <el-tag :type="row.physicalStatus === 'exists' ? 'success' : 'danger'">
-            {{ row.physicalStatus === 'exists' ? '存在' : '缺失' }}
-          </el-tag>
-        </template>
-        <template #diffLevel="{ row }">
-          <el-tag :type="diffTagType(row.diffLevel)">
-            {{ diffLabel(row.diffLevel) }}
-          </el-tag>
-        </template>
-        <template #latestOperation="{ row }">
-          <div v-if="row.latestOperation" class="flex flex-wrap items-center gap-1">
-            <span>{{ operationTypeLabel(row.latestOperation.type) }}</span>
-            <el-tag
-              size="small"
-              :type="operationStatusTagType(row.latestOperation.status)"
-            >
-              {{ operationStatusLabel(row.latestOperation.status) }}
+      <div class="min-h-0 flex-1">
+        <v-table
+          class="h-full"
+          :data="tables"
+          :rows="tableRows"
+          :loading="loading.list"
+          :props="{ height: '100%' }"
+          @row-click="selectTable"
+        >
+          <template #physicalStatus="{ row }">
+            <el-tag :type="row.physicalStatus === 'exists' ? 'success' : 'danger'">
+              {{ row.physicalStatus === 'exists' ? '存在' : '缺失' }}
             </el-tag>
-          </div>
-          <span v-else>-</span>
-        </template>
-        <template #actions="{ row }">
-          <div class="flex flex-wrap justify-center gap-2">
-            <el-button link type="primary" @click.stop="selectTable(row)">
-              详情
-            </el-button>
-            <el-button
-              link
-              type="primary"
-              :disabled="!row.permissions.includes('reset')"
-              @click.stop="openResetDialog(row)"
-            >
-              重置表结构
-            </el-button>
-          </div>
-        </template>
-      </v-table>
+          </template>
+          <template #diffLevel="{ row }">
+            <el-tag :type="diffTagType(row.diffLevel)">
+              {{ diffLabel(row.diffLevel) }}
+            </el-tag>
+          </template>
+          <template #latestOperation="{ row }">
+            <div v-if="row.latestOperation" class="flex flex-wrap items-center gap-1">
+              <span>{{ operationTypeLabel(row.latestOperation.type) }}</span>
+              <el-tag
+                size="small"
+                :type="operationStatusTagType(row.latestOperation.status)"
+              >
+                {{ operationStatusLabel(row.latestOperation.status) }}
+              </el-tag>
+            </div>
+            <span v-else>-</span>
+          </template>
+          <template #actions="{ row }">
+            <div class="flex flex-wrap justify-center gap-2">
+              <el-button link type="primary" @click.stop="selectTable(row)">
+                详情
+              </el-button>
+              <el-button
+                link
+                type="primary"
+                :disabled="!row.permissions.includes('reset')"
+                @click.stop="openResetDialog(row)"
+              >
+                重置表结构
+              </el-button>
+            </div>
+          </template>
+        </v-table>
+      </div>
     </div>
 
     <detail-dialog
@@ -76,9 +84,8 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, shallowRef } from 'vue';
-import { debounce } from '@repo/utils-browser';
 import { ElButton, ElTag } from 'element-plus';
-import { VTable, useFormItems, usePage } from '@repo/ui';
+import { VSchemaForm, VTable, usePage } from '@repo/ui';
 import { api } from '@/api';
 import DetailDialog from './components/DetailDialog.vue';
 import ResetDialog from './components/ResetDialog.vue';
@@ -91,7 +98,7 @@ import {
 } from './utils';
 
 import type { ApiSys } from '@/types';
-import type { TableRow } from '@repo/ui';
+import type { SchemaFormColumn, TableRow } from '@repo/ui';
 import type {
   SysTableDetail,
   SysTableListItem,
@@ -108,62 +115,46 @@ type SearchForm = {
   diffLevel?: ApiSys.TableDiffLevel;
 };
 
-const { searchComponent, searchForm, searchFormClear } = useFormItems<
-  SearchForm,
-  'search'
->({
-  prefix: 'search',
-  form: {},
-  props: {
-    labelWidth: 0,
+const searchForm = shallowRef<SearchForm>({});
+
+const searchColumns: SchemaFormColumn<SearchForm>[] = [
+  {
+    dataIndex: 'search',
+    fieldProps: {
+      clearable: true,
+      placeholder: '表名 / schema key',
+    },
+    title: '表名',
+    valueType: 'text',
   },
-  options: [
-    [
-      {
-        label: '',
-        key: 'search',
-        data: {
-          type: 'input',
-          props: {
-            clearable: true,
-            placeholder: '表名 / schema key',
-          },
-        },
-      },
-      {
-        label: '',
-        key: 'physicalStatus',
-        data: {
-          type: 'select',
-          options: [
-            { label: '存在', value: 'exists' },
-            { label: '缺失', value: 'missing' },
-          ],
-          props: {
-            clearable: true,
-            placeholder: '物理状态',
-          },
-        },
-      },
-      {
-        label: '',
-        key: 'diffLevel',
-        data: {
-          type: 'select',
-          options: [
-            { label: '一致', value: 'synced' },
-            { label: '有差异', value: 'different' },
-            { label: '缺失', value: 'missing' },
-          ],
-          props: {
-            clearable: true,
-            placeholder: '差异状态',
-          },
-        },
-      },
-    ],
-  ],
-});
+  {
+    dataIndex: 'physicalStatus',
+    fieldProps: {
+      clearable: true,
+      placeholder: '物理状态',
+    },
+    title: '物理状态',
+    valueEnum: {
+      exists: '存在',
+      missing: '缺失',
+    },
+    valueType: 'select',
+  },
+  {
+    dataIndex: 'diffLevel',
+    fieldProps: {
+      clearable: true,
+      placeholder: '差异状态',
+    },
+    title: '差异状态',
+    valueEnum: {
+      synced: '一致',
+      different: '有差异',
+      missing: '缺失',
+    },
+    valueType: 'select',
+  },
+];
 
 const loading = reactive({
   list: false,
@@ -241,14 +232,6 @@ async function getList(withCount = false) {
   } finally {
     loading.list = false;
   }
-}
-
-const getListDebounce = debounce(getList);
-
-/** 重置筛选条件并重新加载表清单。 */
-function resetFilters() {
-  searchFormClear();
-  getList(true);
 }
 
 /** 选择表，打开详情弹窗，并加载详情和操作记录。 */
