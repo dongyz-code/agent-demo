@@ -19,17 +19,7 @@ const { api } = routerHandler({
       });
       return { task_id: val.task_id };
     } else {
-      const { key, args, ...rest } = body;
-      const val = await taskAddHelper({
-        key: key as any,
-        args: args as any,
-        ...rest,
-        sqlInfo: {
-          trigger_method: 'manual',
-          execution_user_id,
-        },
-      });
-      return { task_id: val.task_id };
+      throw new Error('当前没有允许前端提交的任务类型');
     }
   },
 });

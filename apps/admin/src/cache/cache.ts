@@ -26,26 +26,4 @@ export const httpCache = {
     label: 'name',
     key: 'role_id',
   }),
-  /** ai app detail cache */
-  aiAppDetail: new CacheById({
-    get: async ({ ids = [], full }) => {
-      const res = await api('/main/app-detail', {
-        ids,
-      });
-      return res;
-    },
-    key: 'id',
-    label: 'name',
-  }),
-  /** ai app version cache */
-  aiAppVersion: new CacheById({
-    get: async ({ ids = [], full }) => {
-      const res = await api('/main/app-version', {
-        ids,
-      });
-      return res;
-    },
-    key: 'id',
-    label: 'id',
-  }),
 };

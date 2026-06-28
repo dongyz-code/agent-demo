@@ -110,11 +110,11 @@ async function verifyPermissionAndPreview() {
 
 /** 验证 rename plan/apply 能把旧物理表名改回 Drizzle schema 目标表名。 */
 async function verifyRenameApply() {
-  await db.execute(sql`alter table "ai_app_version" rename to "ai_app_version_old"`);
+  await db.execute(sql`alter table "apps" rename to "apps_old"`);
   const plan = await createRenamePlan({
     user_id: '-',
-    table: 'ai_app_version',
-    oldTableName: 'ai_app_version_old',
+    table: 'apps',
+    oldTableName: 'apps_old',
   });
   assert(!plan.blockers.length, 'rename plan 不应产生阻塞项');
   await applyRenamePlan({
@@ -124,29 +124,35 @@ async function verifyRenameApply() {
   });
   const catalog = await getTableCatalog({
     schemaName: testTableSchema,
-    tableName: 'ai_app_version',
+    tableName: 'apps',
   });
   assert(catalog.exists, 'rename apply 后目标表应存在');
 }
 
 /** 验证 rename apply 事务失败时不会留下半完成的表名修改。 */
 async function verifyRenameRollback() {
-  await db.execute(sql`alter table "ai_app_version" rename to "ai_app_version_backup"`);
+  await db.execute(sql`alter table "apps" rename to "apps_backup"`);
   await db.execute(sql`
-    create table "ai_app_version_tx_old" (
-      "id" uuid not null,
-      "hash" bytea primary key not null,
+    create table "apps_tx_old" (
+      "id" integer primary key not null,
       "name" varchar(255) not null,
       "old_name" varchar(255) not null,
-      "size" varchar(255) not null,
-      "create_timestamp" timestamp (6) with time zone not null
+      "desc" text,
+      "available" boolean not null,
+      "client_id" uuid not null,
+      "client_secret" varchar(255) not null,
+      "last_login_timestamp" timestamp (6) with time zone,
+      "create_user_id" varchar(255) not null,
+      "create_timestamp" timestamp (6) with time zone not null,
+      "last_update_user_id" varchar(255) not null,
+      "last_update_timestamp" timestamp (6) with time zone not null
     )
   `);
 
   const plan = await createRenamePlan({
     user_id: '-',
-    table: 'ai_app_version',
-    oldTableName: 'ai_app_version_tx_old',
+    table: 'apps',
+    oldTableName: 'apps_tx_old',
     columnMappings: [{ from: 'old_name', to: 'name' }],
   });
   assert(!plan.blockers.length, 'rollback rename plan 不应在预演阶段阻塞');
@@ -165,17 +171,17 @@ async function verifyRenameRollback() {
 
   const sourceCatalog = await getTableCatalog({
     schemaName: testTableSchema,
-    tableName: 'ai_app_version_tx_old',
+    tableName: 'apps_tx_old',
   });
   const targetCatalog = await getTableCatalog({
     schemaName: testTableSchema,
-    tableName: 'ai_app_version',
+    tableName: 'apps',
   });
   assert(sourceCatalog.exists, '事务失败后源表名应保持不变');
   assert(!targetCatalog.exists, '事务失败后不应留下半完成目标表');
 
-  await db.execute(sql`drop table "ai_app_version_tx_old"`);
-  await db.execute(sql`alter table "ai_app_version_backup" rename to "ai_app_version"`);
+  await db.execute(sql`drop table "apps_tx_old"`);
+  await db.execute(sql`alter table "apps_backup" rename to "apps"`);
 }
 
 /** 插入 apps 表测试数据，并人为制造多余字段用于 reset 验证。 */

@@ -16,17 +16,12 @@ import VMenu from '@/components/menu/index.vue';
 import VHeader from '@/components/header/index.vue';
 import VBody from './Body.vue';
 
-import MaterialSymbolsNavigationRounded from '~icons/material-symbols/navigation-rounded';
 import MajesticonsApplications from '~icons/majesticons/applications';
 
 import type { MenuItem } from '@/components/menu/type';
 import type { RouteName } from '@/router';
 
 const _menuItems: MenuItem<RouteName>[] = [
-  {
-    ...helperRouterName('app.list'),
-    icon: MaterialSymbolsNavigationRounded,
-  },
   {
     label: '系统管理',
     icon: MajesticonsApplications,

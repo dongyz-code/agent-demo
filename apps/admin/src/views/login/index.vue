@@ -13,15 +13,15 @@
           Admin Console
         </div>
         <h1 class="mt-6 max-w-xl text-4xl leading-tight font-bold text-tcolor-dark">
-          统一管理发布、任务与权限
+          统一管理用户、任务与权限
         </h1>
         <p class="mt-4 max-w-lg text-base leading-7 text-tcolor-light">
-          使用同一套主题色驱动管理台界面，登录后进入部署工作区。
+          使用同一套主题色驱动管理台界面，登录后进入系统工作区。
         </p>
         <div class="mt-8 grid max-w-xl grid-cols-3 gap-3">
           <div class="rounded-lg border border-white/80 bg-white/75 p-4 shadow-sm">
-            <div class="text-lg font-bold text-primary">Live</div>
-            <div class="mt-1 text-xs text-tcolor-light">应用发布</div>
+            <div class="text-lg font-bold text-primary">User</div>
+            <div class="mt-1 text-xs text-tcolor-light">用户管理</div>
           </div>
           <div class="rounded-lg border border-white/80 bg-white/75 p-4 shadow-sm">
             <div class="text-lg font-bold text-success">Ready</div>

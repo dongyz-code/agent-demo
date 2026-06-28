@@ -109,24 +109,6 @@ export type UserLogItem = {
   timestamp: Date;
 };
 
-export type AiAppItem = BaseCols & {
-  id: string;
-  domain: string;
-  name: string;
-  desc: string | null;
-  available: boolean;
-  deploy_hash: string | null;
-  deploy_status: TaskStatus | null;
-};
-
-export type AiAppVersionItem = {
-  id: string;
-  hash: string;
-  name: string;
-  size: string;
-  create_timestamp: Date;
-};
-
 export type TableStructureOpItem = {
   /** 操作记录 ID */
   op_id: string;

@@ -17,10 +17,6 @@ export const routeNameMap = {
   'sys.user-log': '操作日志',
   'sys.task': '任务管理',
   'sys.table': '表管理',
-
-  /** ============ 业务相关 ============ */
-
-  'app.list': '应用列表',
 };
 
 export type RouteName = keyof typeof routeNameMap;

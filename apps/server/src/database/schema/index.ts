@@ -9,7 +9,6 @@ export * from './task.js';
 
 import { role, user, user_role } from './access.js';
 import { api_logs, user_logs } from './log.js';
-import { ai_app, ai_app_version } from './main.js';
 import { apps, sys_conf } from './system.js';
 import { tasks } from './task.js';
 
@@ -22,8 +21,6 @@ export const schemaTables = {
   tasks,
   api_logs,
   user_logs,
-  ai_app,
-  ai_app_version,
 };
 
 export type Table = keyof typeof schemaTables;

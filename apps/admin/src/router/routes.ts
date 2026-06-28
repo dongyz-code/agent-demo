@@ -10,16 +10,6 @@ export const routes: RouteItem<RouteName, Meta>[] = [
       withAuth: true,
     },
     children: [
-      /** ============ 业务相关 ============ */
-      {
-        path: 'app-list',
-        name: 'app.list',
-        component: () => import('@/views/app.list/index.vue'),
-        root: true,
-        meta: {
-          box: false,
-        },
-      },
       /** ============ 系统管理相关 ============ */
       {
         path: 'sys',
