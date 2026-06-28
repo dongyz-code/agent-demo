@@ -135,7 +135,7 @@ export type TableDiffSummary = {
   message: string;
 };
 
-/** Demo 数据字段描述，用于管理端渲染表头和脱敏状态。 */
+/** 数据预览字段描述，用于管理端渲染表头和脱敏状态。 */
 export type TablePreviewColumn = {
   /** 字段名。 */
   name: string;
@@ -145,7 +145,7 @@ export type TablePreviewColumn = {
   masked: boolean;
 };
 
-/** Demo 数据预览结果，限制行数并只包含注册字段。 */
+/** 数据预览结果，支持分页并只包含注册字段。 */
 export type TablePreview = {
   /** schemaTables 中的表 key。 */
   table: string;
@@ -153,6 +153,8 @@ export type TablePreview = {
   columns: TablePreviewColumn[];
   /** 返回数据行。 */
   rows: Record<string, unknown>[];
+  /** 预览表的总行数，用于管理端分页读取全部数据。 */
+  count: number;
   /** 本次请求 offset。 */
   offset: number;
   /** 本次请求 limit。 */
@@ -213,10 +215,16 @@ export type TableManagementAction = ApiMultAction<{
       physicalStatus?: TablePhysicalStatus;
       /** 差异级别筛选。 */
       diffLevel?: TableDiffLevel;
+      /** 分页范围，格式为 [起始偏移, 结束偏移)。 */
+      limit?: number[];
+      /** 是否返回过滤后的总数，筛选条件变化时传 true。 */
+      withCount?: boolean;
     };
     resp: {
       /** 当前用户可见表列表。 */
       list: TableListItem[];
+      /** 过滤后的表总数。 */
+      count: number;
     };
   };
   detail: {

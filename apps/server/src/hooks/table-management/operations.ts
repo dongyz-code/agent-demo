@@ -1,5 +1,6 @@
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema, sql } from '@/database/index.js';
+import { dayJsformat } from '@repo/utils-node';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
@@ -191,7 +192,11 @@ export async function createResetPlan({
   const op_id = randomUUID();
   const suffix = op_id.replace(/-/g, '').slice(0, 12);
   const temporaryTableName = `__tm_${schemaTable.tableName}_${suffix}_new`;
-  const backupTableName = `__tm_${schemaTable.tableName}_${suffix}_backup`;
+  const backupTableName = buildBackupTableName({
+    tableName: schemaTable.tableName,
+    suffix,
+    date: new Date(),
+  });
   const blockers: string[] = [];
   const warnings = diffManagedTable({ schemaTable, catalogTable }).diff.map(
     (item) => item.message,
@@ -706,6 +711,34 @@ function validateIdentifier(value: string, label: string) {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
     throw new ROOT_ERROR('非法参数', `${label}格式不合法`);
   }
+}
+
+/** 生成以 backup 开头且包含日期的备份表名，控制长度避免 PostgreSQL 截断。 */
+function buildBackupTableName({
+  tableName,
+  suffix,
+  date,
+}: {
+  /** 原正式表名，用于保留可读上下文。 */
+  tableName: string;
+  /** 操作 ID 派生的短后缀，用于避免同秒重复。 */
+  suffix: string;
+  /** 生成计划时刻，用于在表名中展示日期。 */
+  date: Date;
+}) {
+  const timestamp = dayJsformat(date, 'YYYYMMDD_HHmmss');
+  const prefix = `backup_${timestamp}_`;
+  const postfix = `_${suffix}`;
+  const maxIdentifierLength = 63;
+  const maxTableNameLength = Math.max(
+    1,
+    maxIdentifierLength - prefix.length - postfix.length,
+  );
+  const safeTableName =
+    tableName.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '') ||
+    'table';
+
+  return `${prefix}${safeTableName.slice(0, maxTableNameLength)}${postfix}`;
 }
 
 /** 安全引用单个 SQL 标识符，用于 SQL 摘要展示。 */

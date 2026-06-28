@@ -6,7 +6,7 @@ import { maskPreviewValue } from './sensitive.js';
 import type { TablePreview } from '@repo/types';
 import type { ManagedTableCatalog, ManagedTableSchema } from './types.js';
 
-/** 读取单表 demo 数据，限制行数且只返回注册字段。 */
+/** 读取单表数据预览，按分页返回注册字段并保留脱敏逻辑。 */
 export async function getTablePreview({
   schemaTable,
   catalogTable,
@@ -38,6 +38,7 @@ export async function getTablePreview({
       table: schemaTable.table,
       columns: [],
       rows: [],
+      count: 0,
       offset,
       limit: 0,
     };
@@ -59,6 +60,10 @@ export async function getTablePreview({
     offset ${safeOffset}
     limit ${safeLimit}
   `);
+  const countResult = await db.execute<{ count: number }>(sql`
+    select count(*)::int as count
+    from ${sql.identifier(schemaTable.schemaName)}.${sql.identifier(schemaTable.tableName)}
+  `);
 
   return {
     table: schemaTable.table,
@@ -79,6 +84,7 @@ export async function getTablePreview({
         ]),
       );
     }),
+    count: countResult.rows[0]?.count ?? 0,
     offset: safeOffset,
     limit: safeLimit,
   };

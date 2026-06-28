@@ -1,16 +1,24 @@
 import type { ReactNode } from 'react';
 
 type StatusBadgeProps = {
+  /** 徽标内展示的状态文本或节点。 */
   children: ReactNode;
+  /** 徽标语义色，未指定时使用中性样式。 */
   tone?: 'neutral' | 'success' | 'warning';
 };
 
 const toneClassName = {
-  neutral: 'border-zinc-700 bg-zinc-900 text-zinc-300',
-  success: 'border-emerald-400/25 bg-emerald-500/15 text-emerald-200',
-  warning: 'border-amber-400/25 bg-amber-500/15 text-amber-200',
+  neutral: 'border-app-border bg-app-raised text-app-muted',
+  success: 'border-success-soft bg-success-soft text-success-3',
+  warning: 'border-warning-soft bg-warning-soft text-warning-3',
 };
 
+/**
+ * 渲染跟随主题色的状态徽标。
+ *
+ * @param props 徽标内容和语义色。
+ * @returns 状态徽标节点。
+ */
 export function StatusBadge({ children, tone = 'neutral' }: StatusBadgeProps) {
   return (
     <span

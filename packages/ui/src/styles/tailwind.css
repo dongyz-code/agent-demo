@@ -2,40 +2,105 @@
 
 /** https://tailwindcss.com/docs/theme#referencing-other-variables */
 @theme inline {
-  /** -------- color -------- */
+  /** -------- 颜色 -------- */
   --color-inherit: inherit;
   --color-transparent: transparent;
-  --color-background: #f7f8f9;
+  --color-background: var(--app-background);
 
-  --color-primary-dark: var(--color-teal-800);
-  --color-primary: var(--color-teal-600);
-  --color-primary-light: var(--color-teal-500);
-  --color-primary-lighter: var(--color-teal-300);
-  --color-primary-white: var(--color-teal-100);
+  --color-primary-1: var(--theme-primary-1);
+  --color-primary-2: var(--theme-primary-2);
+  --color-primary-3: var(--theme-primary-3);
+  --color-primary-4: var(--theme-primary-4);
+  --color-primary-5: var(--theme-primary-5);
+  --color-primary-6: var(--theme-primary-6);
+  --color-primary-7: var(--theme-primary-7);
+  --color-primary-8: var(--theme-primary-8);
+  --color-primary-9: var(--theme-primary-9);
+  --color-primary-10: var(--theme-primary-10);
+  --color-primary-dark: var(--theme-primary-7);
+  --color-primary: var(--theme-primary-6);
+  --color-primary-light: var(--theme-primary-5);
+  --color-primary-lighter: var(--theme-primary-3);
+  --color-primary-white: var(--theme-primary-1);
+  --color-primary-soft: color-mix(
+    in srgb,
+    var(--theme-primary-6) 12%,
+    transparent
+  );
 
-  --color-success-dark: var(--color-green-800);
-  --color-success: var(--color-green-600);
-  --color-success-light: var(--color-green-500);
-  --color-success-lighter: var(--color-green-300);
-  --color-success-white: var(--color-green-100);
+  --color-success-1: var(--theme-success-1);
+  --color-success-2: var(--theme-success-2);
+  --color-success-3: var(--theme-success-3);
+  --color-success-4: var(--theme-success-4);
+  --color-success-5: var(--theme-success-5);
+  --color-success-6: var(--theme-success-6);
+  --color-success-7: var(--theme-success-7);
+  --color-success-8: var(--theme-success-8);
+  --color-success-9: var(--theme-success-9);
+  --color-success-10: var(--theme-success-10);
+  --color-success-dark: var(--theme-success-7);
+  --color-success: var(--theme-success-6);
+  --color-success-light: var(--theme-success-5);
+  --color-success-lighter: var(--theme-success-3);
+  --color-success-white: var(--theme-success-1);
+  --color-success-soft: color-mix(
+    in srgb,
+    var(--theme-success-6) 12%,
+    transparent
+  );
 
-  --color-danger-dark: var(--color-rose-800);
-  --color-danger: var(--color-rose-600);
-  --color-danger-light: var(--color-rose-500);
-  --color-danger-lighter: var(--color-rose-300);
-  --color-danger-white: var(--color-rose-100);
+  --color-error-1: var(--theme-error-1);
+  --color-error-2: var(--theme-error-2);
+  --color-error-3: var(--theme-error-3);
+  --color-error-4: var(--theme-error-4);
+  --color-error-5: var(--theme-error-5);
+  --color-error-6: var(--theme-error-6);
+  --color-error-7: var(--theme-error-7);
+  --color-error-8: var(--theme-error-8);
+  --color-error-9: var(--theme-error-9);
+  --color-error-10: var(--theme-error-10);
+  --color-error-dark: var(--theme-error-7);
+  --color-error: var(--theme-error-6);
+  --color-error-light: var(--theme-error-5);
+  --color-error-lighter: var(--theme-error-3);
+  --color-error-white: var(--theme-error-1);
+  --color-error-soft: color-mix(
+    in srgb,
+    var(--theme-error-6) 12%,
+    transparent
+  );
+  --color-danger-dark: var(--theme-error-7);
+  --color-danger: var(--theme-error-6);
+  --color-danger-light: var(--theme-error-5);
+  --color-danger-lighter: var(--theme-error-3);
+  --color-danger-white: var(--theme-error-1);
 
-  --color-warning-dark: var(--color-amber-800);
-  --color-warning: var(--color-amber-600);
-  --color-warning-light: var(--color-amber-500);
-  --color-warning-lighter: var(--color-amber-300);
-  --color-warning-white: var(--color-amber-100);
+  --color-warning-1: var(--theme-warning-1);
+  --color-warning-2: var(--theme-warning-2);
+  --color-warning-3: var(--theme-warning-3);
+  --color-warning-4: var(--theme-warning-4);
+  --color-warning-5: var(--theme-warning-5);
+  --color-warning-6: var(--theme-warning-6);
+  --color-warning-7: var(--theme-warning-7);
+  --color-warning-8: var(--theme-warning-8);
+  --color-warning-9: var(--theme-warning-9);
+  --color-warning-10: var(--theme-warning-10);
+  --color-warning-dark: var(--theme-warning-7);
+  --color-warning: var(--theme-warning-6);
+  --color-warning-light: var(--theme-warning-5);
+  --color-warning-lighter: var(--theme-warning-3);
+  --color-warning-white: var(--theme-warning-1);
+  --color-warning-soft: color-mix(
+    in srgb,
+    var(--theme-warning-6) 12%,
+    transparent
+  );
 
-  --color-info-dark: var(--color-sky-800);
-  --color-info: var(--color-sky-600);
-  --color-info-light: var(--color-sky-500);
-  --color-info-lighter: var(--color-sky-300);
-  --color-info-white: var(--color-sky-100);
+  --color-info-dark: var(--theme-primary-7);
+  --color-info: var(--theme-primary-6);
+  --color-info-light: var(--theme-primary-5);
+  --color-info-lighter: var(--theme-primary-3);
+  --color-info-white: var(--theme-primary-1);
 
   --color-tcolor-dark: var(--color-gray-900);
   --color-tcolor: var(--color-gray-800);
@@ -85,6 +150,59 @@
   /** -------- width -------- */
   --height-header: 56px;
   --height-body: calc(100vh - var(--height-header));
+}
+
+:root {
+  /** 动态主题基础色：修改 base 变量即可重算完整语义色板。 */
+  --theme-primary-base: #165dff;
+  --theme-success-base: #00b42a;
+  --theme-warning-base: #ff7d00;
+  --theme-error-base: #f53f3f;
+  --app-background: #f7f8fb;
+
+  --theme-primary-1: color-mix(in srgb, var(--theme-primary-base) 8%, white);
+  --theme-primary-2: color-mix(in srgb, var(--theme-primary-base) 16%, white);
+  --theme-primary-3: color-mix(in srgb, var(--theme-primary-base) 28%, white);
+  --theme-primary-4: color-mix(in srgb, var(--theme-primary-base) 44%, white);
+  --theme-primary-5: color-mix(in srgb, var(--theme-primary-base) 68%, white);
+  --theme-primary-6: var(--theme-primary-base);
+  --theme-primary-7: color-mix(in srgb, var(--theme-primary-base) 86%, black);
+  --theme-primary-8: color-mix(in srgb, var(--theme-primary-base) 74%, black);
+  --theme-primary-9: color-mix(in srgb, var(--theme-primary-base) 62%, black);
+  --theme-primary-10: color-mix(in srgb, var(--theme-primary-base) 50%, black);
+
+  --theme-success-1: color-mix(in srgb, var(--theme-success-base) 8%, white);
+  --theme-success-2: color-mix(in srgb, var(--theme-success-base) 16%, white);
+  --theme-success-3: color-mix(in srgb, var(--theme-success-base) 28%, white);
+  --theme-success-4: color-mix(in srgb, var(--theme-success-base) 44%, white);
+  --theme-success-5: color-mix(in srgb, var(--theme-success-base) 68%, white);
+  --theme-success-6: var(--theme-success-base);
+  --theme-success-7: color-mix(in srgb, var(--theme-success-base) 86%, black);
+  --theme-success-8: color-mix(in srgb, var(--theme-success-base) 74%, black);
+  --theme-success-9: color-mix(in srgb, var(--theme-success-base) 62%, black);
+  --theme-success-10: color-mix(in srgb, var(--theme-success-base) 50%, black);
+
+  --theme-warning-1: color-mix(in srgb, var(--theme-warning-base) 8%, white);
+  --theme-warning-2: color-mix(in srgb, var(--theme-warning-base) 16%, white);
+  --theme-warning-3: color-mix(in srgb, var(--theme-warning-base) 28%, white);
+  --theme-warning-4: color-mix(in srgb, var(--theme-warning-base) 44%, white);
+  --theme-warning-5: color-mix(in srgb, var(--theme-warning-base) 68%, white);
+  --theme-warning-6: var(--theme-warning-base);
+  --theme-warning-7: color-mix(in srgb, var(--theme-warning-base) 86%, black);
+  --theme-warning-8: color-mix(in srgb, var(--theme-warning-base) 74%, black);
+  --theme-warning-9: color-mix(in srgb, var(--theme-warning-base) 62%, black);
+  --theme-warning-10: color-mix(in srgb, var(--theme-warning-base) 50%, black);
+
+  --theme-error-1: color-mix(in srgb, var(--theme-error-base) 8%, white);
+  --theme-error-2: color-mix(in srgb, var(--theme-error-base) 16%, white);
+  --theme-error-3: color-mix(in srgb, var(--theme-error-base) 28%, white);
+  --theme-error-4: color-mix(in srgb, var(--theme-error-base) 44%, white);
+  --theme-error-5: color-mix(in srgb, var(--theme-error-base) 68%, white);
+  --theme-error-6: var(--theme-error-base);
+  --theme-error-7: color-mix(in srgb, var(--theme-error-base) 86%, black);
+  --theme-error-8: color-mix(in srgb, var(--theme-error-base) 74%, black);
+  --theme-error-9: color-mix(in srgb, var(--theme-error-base) 62%, black);
+  --theme-error-10: color-mix(in srgb, var(--theme-error-base) 50%, black);
 }
 
 @layer base {

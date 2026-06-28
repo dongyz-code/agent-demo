@@ -3,20 +3,20 @@
   --el-color-danger: var(--color-danger);
   --el-color-danger-active-2: var(--color-danger-dark);
   --el-color-danger-dark-2: var(--color-danger-dark);
-  --el-color-danger-light-3: var(--color-danger-light);
-  --el-color-danger-light-5: var(--color-danger-light);
-  --el-color-danger-light-7: var(--color-danger-lighter);
-  --el-color-danger-light-8: var(--color-danger-lighter);
+  --el-color-danger-light-3: var(--color-error-5);
+  --el-color-danger-light-5: var(--color-error-3);
+  --el-color-danger-light-7: var(--color-error-2);
+  --el-color-danger-light-8: var(--color-error-1);
   --el-color-danger-light-9: var(--color-danger-white);
 
   /** ---- */
 
   --el-color-error: var(--color-danger);
   --el-color-error-dark-2: var(--color-danger-dark);
-  --el-color-error-light-3: var(--color-danger-light);
-  --el-color-error-light-5: var(--color-danger-light);
-  --el-color-error-light-7: var(--color-danger-lighter);
-  --el-color-error-light-8: var(--color-danger-lighter);
+  --el-color-error-light-3: var(--color-error-5);
+  --el-color-error-light-5: var(--color-error-3);
+  --el-color-error-light-7: var(--color-error-2);
+  --el-color-error-light-8: var(--color-error-1);
   --el-color-error-light-9: var(--color-danger-white);
 
   /** ---- */
@@ -34,9 +34,9 @@
   --el-color-primary: var(--color-primary);
   --el-color-primary-dark-2: var(--color-primary-dark);
   --el-color-primary-light-3: var(--color-primary-light);
-  --el-color-primary-light-5: var(--color-primary-light);
-  --el-color-primary-light-7: var(--color-primary-lighter);
-  --el-color-primary-light-8: var(--color-primary-lighter);
+  --el-color-primary-light-5: var(--color-primary-lighter);
+  --el-color-primary-light-7: var(--color-primary-2);
+  --el-color-primary-light-8: var(--color-primary-1);
   --el-color-primary-light-9: var(--color-primary-white);
 
   /** ---- */
@@ -44,18 +44,18 @@
   --el-color-success: var(--color-success);
   --el-color-success-dark-2: var(--color-success-dark);
   --el-color-success-light-3: var(--color-success-light);
-  --el-color-success-light-5: var(--color-success-light);
-  --el-color-success-light-7: var(--color-success-lighter);
-  --el-color-success-light-8: var(--color-success-lighter);
+  --el-color-success-light-5: var(--color-success-lighter);
+  --el-color-success-light-7: var(--color-success-2);
+  --el-color-success-light-8: var(--color-success-1);
   --el-color-success-light-9: var(--color-success-white);
 
   /** ---- */
 
   --el-color-warning: var(--color-warning);
-  --el-color-warning-dark-2: var(--color-yellow-700);
+  --el-color-warning-dark-2: var(--color-warning-dark);
   --el-color-warning-light-3: var(--color-warning-light);
-  --el-color-warning-light-5: var(--color-warning-light);
-  --el-color-warning-light-7: var(--color-warning-lighter);
-  --el-color-warning-light-8: var(--color-warning-lighter);
+  --el-color-warning-light-5: var(--color-warning-lighter);
+  --el-color-warning-light-7: var(--color-warning-2);
+  --el-color-warning-light-8: var(--color-warning-1);
   --el-color-warning-light-9: var(--color-warning-white);
 }
