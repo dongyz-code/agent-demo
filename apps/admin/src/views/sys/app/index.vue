@@ -6,12 +6,6 @@
         mode="search"
         :columns="searchColumns"
         :layout="{ labelWidth: '72px' }"
-        :search="{
-          actionAlign: 'right',
-          actionPlacement: 'inline',
-          columns: 5,
-          showCollapse: false,
-        }"
         @reset="getListDebounce(true)"
         @submit="getListDebounce(true)"
       />
@@ -135,9 +129,6 @@ const searchColumns: SchemaFormColumn<SearchForm>[] = [
     title: '接口状态',
   },
   {
-    colProps: {
-      span: 2,
-    },
     dataIndex: 'last_update_timestamp',
     fieldProps: {
       clearable: true,

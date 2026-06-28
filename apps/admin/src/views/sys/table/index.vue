@@ -5,13 +5,7 @@
         v-model="searchForm"
         mode="search"
         :columns="searchColumns"
-        :layout="{ gap: '16px 24px', labelWidth: '72px' }"
-        :search="{
-          actionAlign: 'right',
-          actionPlacement: 'inline',
-          columns: 4,
-          showCollapse: false,
-        }"
+        :layout="{ labelWidth: '72px' }"
         @reset="getList(true)"
         @submit="getList(true)"
       />

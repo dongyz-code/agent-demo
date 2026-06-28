@@ -6,12 +6,6 @@
         mode="search"
         :columns="formColumns"
         :layout="{ labelWidth: '96px' }"
-        :search="{
-          actionAlign: 'right',
-          actionPlacement: 'inline',
-          columns: 4,
-          showCollapse: false,
-        }"
         @reset="reset"
         @submit="getRoleList(true)"
       />

@@ -5,11 +5,6 @@
         v-model="searchForm"
         mode="search"
         :columns="searchColumns"
-        :search="{
-          actionPlacement: 'inline',
-          collapsedRows: 1,
-          columns: 4,
-        }"
         @reset="getListDebounce(true)"
         @submit="getListDebounce(true)"
       />
@@ -46,7 +41,7 @@
 <style lang="postcss" scoped></style>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, shallowRef } from 'vue';
+import { computed, onMounted, reactive, shallowRef } from 'vue';
 import { arrObject, dayJsformat, debounce } from '@repo/utils-browser';
 import { api } from '@/api';
 import { httpCache, handleSelectUserLabel } from '@/cache';
@@ -57,14 +52,12 @@ import {
   VDialog,
   VTable,
   // VJsonView,
-  VDatePickerRange,
   VSchemaForm,
   usePage,
   loadingFunc,
 } from '@repo/ui';
 
 import type { ApiSys } from '@/types';
-import type { DatePickerProps } from 'element-plus';
 import type { SchemaFormColumn, TableRow } from '@repo/ui';
 
 type Form = Required<ApiSys.Sys['user-log/list']['req']>['form'];
@@ -128,28 +121,15 @@ const searchColumns: SchemaFormColumn<Form>[] = [
     },
   },
   {
-    colProps: {
-      span: 2,
-    },
     dataIndex: 'timestamp',
-    data: {
-      type: 'custom',
-      /** 渲染旧查询表单中的日期范围控件，并透传 schema-form 的 v-model 协议。 */
-      render(fieldProps: {
-        modelValue: unknown;
-        'onUpdate:modelValue': (value: unknown) => void;
-      }) {
-        return h(VDatePickerRange, {
-          modelValue: fieldProps.modelValue as DatePickerProps['modelValue'],
-          'onUpdate:modelValue': (value: DatePickerProps['modelValue']) =>
-            fieldProps['onUpdate:modelValue'](value),
-        });
-      },
+    fieldProps: {
+      type: 'datetimerange',
     },
     search: {
       collapsed: true,
     },
     title: '操作日期',
+    valueType: 'dateRange',
   },
 ];
 

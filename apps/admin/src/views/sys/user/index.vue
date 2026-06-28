@@ -6,12 +6,6 @@
         mode="search"
         :columns="formColumns"
         :layout="{ labelWidth: '96px' }"
-        :search="{
-          actionAlign: 'right',
-          actionPlacement: 'bottom',
-          columns: 4,
-          showCollapse: false,
-        }"
         @reset="reset"
         @submit="getUserList(true)"
       />

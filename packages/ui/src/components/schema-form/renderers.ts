@@ -56,8 +56,8 @@ function buildControlProps<T extends SchemaFormModel>({
 }) {
   const readonlyAsDisabled = ctx.readonly && !supportsReadonly;
   return {
-    ...ctx.field.fieldProps,
     ...extra,
+    ...ctx.field.fieldProps,
     class: ['w-full', ctx.field.fieldProps.class, extra?.class],
     disabled: ctx.disabled || readonlyAsDisabled,
     modelValue: ctx.value,

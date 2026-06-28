@@ -67,6 +67,124 @@ describe('VSchemaForm', () => {
     expect(onSubmit).toHaveBeenCalledWith({ username: 'dong' }, { username: 'dong' });
   });
 
+  it('未显式传入 search 配置时仍渲染默认查询按钮', async () => {
+    const TestView = defineComponent({
+      setup() {
+        const form = ref({ username: '' });
+        const columns: SchemaFormColumn[] = [
+          {
+            dataIndex: 'username',
+            title: '用户名',
+            valueType: 'text',
+          },
+        ];
+        return () =>
+          h(VSchemaForm, {
+            columns,
+            mode: 'search',
+            modelValue: form.value,
+            'onUpdate:modelValue': (value) => {
+              form.value = value as typeof form.value;
+            },
+          });
+      },
+    });
+
+    const root = mount(TestView);
+    await nextTick();
+
+    expect(root.textContent).toContain('搜索');
+    expect(root.textContent).toContain('重置');
+  });
+
+  it('未受控 collapsed 时可以切换展开收起', async () => {
+    const TestView = defineComponent({
+      setup() {
+        const form = ref({});
+        const columns: SchemaFormColumn[] = Array.from({ length: 9 }).map(
+          (_, index) => ({
+            dataIndex: `field_${index}`,
+            title: `字段${index}`,
+            valueType: 'text',
+          }),
+        );
+        return () =>
+          h(VSchemaForm, {
+            columns,
+            mode: 'search',
+            modelValue: form.value,
+            'onUpdate:modelValue': (value) => {
+              form.value = value as typeof form.value;
+            },
+          });
+      },
+    });
+
+    const root = mount(TestView);
+    await nextTick();
+
+    expect(root.textContent).toContain('展开');
+    expect(root.textContent).not.toContain('字段8');
+
+    const collapseButton = [...root.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('展开'),
+    );
+    collapseButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await nextTick();
+
+    expect(root.textContent).toContain('收起');
+    expect(root.textContent).toContain('字段8');
+
+    const expandButton = [...root.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('收起'),
+    );
+    expandButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await nextTick();
+
+    expect(root.textContent).toContain('展开');
+    expect(root.textContent).not.toContain('字段8');
+  });
+
+  it('内联操作区复用表单项结构对齐 label 和控件', async () => {
+    const TestView = defineComponent({
+      setup() {
+        const form = ref({ username: '' });
+        const columns: SchemaFormColumn[] = [
+          {
+            dataIndex: 'username',
+            title: '用户名',
+            valueType: 'text',
+          },
+        ];
+        return () =>
+          h(VSchemaForm, {
+            columns,
+            formProps: {
+              labelPosition: 'top',
+            },
+            mode: 'search',
+            modelValue: form.value,
+            'onUpdate:modelValue': (value) => {
+              form.value = value as typeof form.value;
+            },
+            search: {
+              columns: 2,
+            },
+          });
+      },
+    });
+
+    const root = mount(TestView);
+    await nextTick();
+
+    const actionItem = root.querySelector('.v-schema-form__actions-item');
+    expect(actionItem?.classList.contains('el-form-item')).toBe(true);
+    expect(actionItem?.querySelector('.el-form-item__label')).not.toBeNull();
+    expect(
+      actionItem?.querySelector('.el-form-item__content .v-schema-form__actions'),
+    ).not.toBeNull();
+  });
+
   it('支持按 dataIndex 覆盖字段 slot', async () => {
     const TestView = defineComponent({
       setup() {

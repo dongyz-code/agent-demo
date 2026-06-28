@@ -72,17 +72,11 @@ function useQueryForm() {
       title: '角色',
     },
     {
-      colProps: {
-        span: 2,
-      },
       dataIndex: 'last_update_timestamp',
       title: '最后更新日期',
       valueType: 'dateRange',
     },
     {
-      colProps: {
-        span: 2,
-      },
       dataIndex: 'last_login_timestamp',
       title: '最后登录日期',
       valueType: 'dateRange',

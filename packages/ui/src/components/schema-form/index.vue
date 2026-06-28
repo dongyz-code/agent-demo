@@ -1,12 +1,17 @@
 <template>
   <el-form
     ref="formRef"
-    class="v-schema-form"
+    class="v-schema-form w-full"
+    :class="formClass"
     :model="modelValue"
     :label-width="formLabelWidth"
     v-bind="formProps"
   >
-    <div class="v-schema-form__grid" :style="gridStyle">
+    <div
+      ref="gridRef"
+      class="v-schema-form__grid items-start"
+      :style="gridStyle"
+    >
       <el-form-item
         v-for="item in visibleLayoutItems"
         :key="item.field.key"
@@ -30,46 +35,65 @@
         <SchemaFieldRenderer v-else :ctx="getRendererCtx(item.field)" />
       </el-form-item>
 
-      <div
+      <el-form-item
         v-if="showInlineActions"
-        class="v-schema-form__actions"
-        :class="actionAlignClass"
+        class="v-schema-form__actions-item"
+        :label="actionFormItemLabel"
         :style="actionStyle"
       >
-        <slot v-if="$slots.actions" name="actions" v-bind="actionSlotProps" />
-        <template v-else>
-          <el-button type="primary" @click="submit">
-            {{ searchConfig.submitText }}
-          </el-button>
-          <el-button v-if="searchConfig.showReset" @click="reset">
-            {{ searchConfig.resetText }}
-          </el-button>
-          <el-button
-            v-for="action in searchConfig.actions"
-            :key="action.key"
-            :disabled="action.disabled"
-            :loading="action.loading"
-            :type="action.type"
-            @click="handleAction(action.key)"
-          >
-            {{ action.text }}
-          </el-button>
-          <el-button
-            v-if="showCollapseButton"
-            link
-            type="primary"
-            @click="toggleCollapsed"
-          >
-            {{ realCollapsed ? '展开' : '收起' }}
-          </el-button>
-        </template>
-      </div>
+        <div
+          class="v-schema-form__actions flex min-h-8 w-full min-w-0 items-center gap-2"
+          :class="
+            searchConfig.actionAlign === 'left' ? 'justify-start' : 'justify-end'
+          "
+        >
+          <slot v-if="$slots.actions" name="actions" v-bind="actionSlotProps" />
+          <template v-else>
+            <el-button type="primary" @click="submit">
+              {{ searchConfig.submitText }}
+            </el-button>
+            <el-button v-if="searchConfig.showReset" @click="reset">
+              {{ searchConfig.resetText }}
+            </el-button>
+            <el-button
+              v-for="action in searchConfig.actions"
+              :key="action.key"
+              :disabled="action.disabled"
+              :loading="action.loading"
+              :type="action.type"
+              @click="handleAction(action.key)"
+            >
+              {{ action.text }}
+            </el-button>
+            <el-button
+              v-if="showCollapseButton"
+              link
+              type="primary"
+              @click="toggleCollapsed"
+            >
+              <span
+                class="v-schema-form__collapse-content inline-flex items-center gap-1"
+                :class="{ 'is-collapsed': realCollapsed }"
+              >
+                {{ collapseButtonText }}
+                <component
+                  :is="collapseIcon"
+                  class="v-schema-form__collapse-icon h-3.5 w-3.5 transition-transform duration-200 ease-in-out"
+                  aria-hidden="true"
+                />
+              </span>
+            </el-button>
+          </template>
+        </div>
+      </el-form-item>
     </div>
 
     <div
       v-if="showBottomActions"
-      class="v-schema-form__actions v-schema-form__actions--bottom"
-      :class="actionAlignClass"
+      class="v-schema-form__actions mt-4 flex min-h-8 w-full min-w-0 items-center gap-2"
+      :class="
+        searchConfig.actionAlign === 'left' ? 'justify-start' : 'justify-end'
+      "
     >
       <slot v-if="$slots.actions" name="actions" v-bind="actionSlotProps" />
       <template v-else>
@@ -95,7 +119,17 @@
           type="primary"
           @click="toggleCollapsed"
         >
-          {{ realCollapsed ? '展开' : '收起' }}
+          <span
+            class="v-schema-form__collapse-content inline-flex items-center gap-1"
+            :class="{ 'is-collapsed': realCollapsed }"
+          >
+            {{ collapseButtonText }}
+            <component
+              :is="collapseIcon"
+              class="v-schema-form__collapse-icon h-3.5 w-3.5 transition-transform duration-200 ease-in-out"
+              aria-hidden="true"
+            />
+          </span>
         </el-button>
       </template>
     </div>
@@ -104,8 +138,16 @@
 
 <script setup lang="ts" generic="T extends SchemaFormModel">
 import { computed, reactive, ref, shallowRef, watch } from 'vue';
+import { useElementSize } from '@vueuse/core';
 import { ElButton, ElForm, ElFormItem } from 'element-plus';
-import { buildActionStyle, buildGridStyle, buildLayoutItems, hasCollapsedItems, resolveColumnCount } from './layout';
+import {
+  buildActionStyle,
+  buildGridStyle,
+  buildLayoutItems,
+  hasCollapsedItems,
+  resolveColumnCount,
+  resolveSearchLabelPosition,
+} from './layout';
 import { normalizeColumns, resolveRuntimeField } from './normalize';
 import {
   buildReloadSignature,
@@ -122,6 +164,8 @@ import {
   getFormValue,
   setFormValue,
 } from './value';
+import LucideChevronDown from '~icons/lucide/chevron-down';
+import LucideChevronUp from '~icons/lucide/chevron-up';
 
 import type {
   NormalizedSchemaFormColumn,
@@ -135,11 +179,16 @@ import type {
   SchemaRendererCtx,
 } from './type';
 
-const props = defineProps<SchemaFormProps<T>>();
+const props = withDefaults(defineProps<SchemaFormProps<T>>(), {
+  collapsed: undefined,
+  search: undefined,
+});
 
 const emit = defineEmits<SchemaFormEmits<T>>();
 
 const formRef = ref<InstanceType<typeof ElForm>>();
+const gridRef = ref<HTMLElement>();
+const { width: gridWidth } = useElementSize(gridRef);
 
 const mode = computed(() => props.mode ?? 'form');
 
@@ -185,17 +234,23 @@ const runtimeFields = computed(() =>
     .filter((field) => !field.hidden),
 );
 
-const searchConfig = computed<Required<SchemaFormSearch>>(() => {
+type ResolvedSearchConfig = Omit<Required<SchemaFormSearch>, 'columns'> & {
+  /** 查询模式列数；不传时由布局工具按容器宽度套用默认断点。 */
+  columns?: SchemaFormSearch['columns'];
+};
+
+const searchConfig = computed<ResolvedSearchConfig>(() => {
   const config = props.search === false ? {} : (props.search ?? {});
   return {
     actionAlign: config.actionAlign ?? 'right',
     actionPlacement: config.actionPlacement ?? 'inline',
     actions: config.actions ?? [],
-    collapsedRows: Math.max(1, config.collapsedRows ?? 1),
-    columns: config.columns ?? props.layout?.columns ?? 4,
-    defaultCollapsed: config.defaultCollapsed ?? false,
+    collapsedRows: Math.max(1, config.collapsedRows ?? 2),
+    columns: config.columns ?? props.layout?.columns,
+    defaultCollapsed: config.defaultCollapsed ?? true,
     resetText: config.resetText ?? '重置',
     showCollapse: config.showCollapse ?? true,
+    showHiddenNum: config.showHiddenNum ?? true,
     showReset: config.showReset ?? true,
     submitText: config.submitText ?? '搜索',
   };
@@ -208,6 +263,7 @@ const columnCount = computed(() =>
         ? searchConfig.value.columns
         : props.layout?.columns,
     mode: mode.value,
+    width: gridWidth.value,
   }),
 );
 
@@ -215,8 +271,26 @@ const gridStyle = computed(() =>
   buildGridStyle({
     columns: columnCount.value,
     gap: props.layout?.gap,
+    mode: mode.value,
   }),
 );
+
+const searchLabelPosition = computed(() =>
+  resolveSearchLabelPosition({ width: gridWidth.value }),
+);
+
+const effectiveLabelPosition = computed(() =>
+  props.formProps?.labelPosition ??
+  (mode.value === 'search' ? searchLabelPosition.value : undefined),
+);
+
+const formClass = computed(() => ({
+  'v-schema-form--search': mode.value === 'search',
+  'v-schema-form--search-inline':
+    mode.value === 'search' && effectiveLabelPosition.value !== 'top',
+  'v-schema-form--search-top':
+    mode.value === 'search' && effectiveLabelPosition.value === 'top',
+}));
 
 const innerCollapsed = ref(searchConfig.value.defaultCollapsed);
 
@@ -239,6 +313,7 @@ const expandedLayoutItems = computed(() =>
     columns: columnCount.value,
     fields: runtimeFields.value,
     mode: mode.value,
+    reserveActionSlot: showInlineActions.value,
   }),
 );
 
@@ -249,6 +324,7 @@ const collapsedLayoutItems = computed(() =>
     columns: columnCount.value,
     fields: runtimeFields.value,
     mode: mode.value,
+    reserveActionSlot: showInlineActions.value,
   }),
 );
 
@@ -261,6 +337,12 @@ const visibleLayoutItems = computed(() => {
 
 const hasCollapsibleFields = computed(() =>
   hasCollapsedItems(collapsedLayoutItems.value),
+);
+
+const hiddenFieldsCount = computed(
+  () =>
+    collapsedLayoutItems.value.filter((item) => !item.visibleWhenCollapsed)
+      .length,
 );
 
 const showActions = computed(
@@ -279,26 +361,50 @@ const showCollapseButton = computed(
   () => searchConfig.value.showCollapse && hasCollapsibleFields.value,
 );
 
+const collapseButtonText = computed(() => {
+  if (!realCollapsed.value) {
+    return '收起';
+  }
+
+  if (!searchConfig.value.showHiddenNum || hiddenFieldsCount.value <= 0) {
+    return '展开';
+  }
+
+  return `展开(${hiddenFieldsCount.value})`;
+});
+
+const collapseIcon = computed(() =>
+  realCollapsed.value ? LucideChevronDown : LucideChevronUp,
+);
+
 const actionStyle = computed(() =>
   buildActionStyle({
-    columns: columnCount.value,
     placement: searchConfig.value.actionPlacement,
   }),
 );
 
-const actionAlignClass = computed(() =>
-  searchConfig.value.actionAlign === 'left'
-    ? 'v-schema-form__actions--left'
-    : 'v-schema-form__actions--right',
+const actionFormItemLabel = computed(() =>
+  effectiveLabelPosition.value === 'top' && columnCount.value > 1
+    ? ' '
+    : undefined,
 );
 
-const formLabelWidth = computed(
-  () => props.layout?.labelWidth ?? props.formProps?.labelWidth,
-);
+const formLabelWidth = computed(() => {
+  if (mode.value !== 'search') {
+    return props.layout?.labelWidth ?? props.formProps?.labelWidth;
+  }
+
+  if (effectiveLabelPosition.value === 'top') {
+    return props.layout?.labelWidth ?? props.formProps?.labelWidth;
+  }
+
+  return props.layout?.labelWidth ?? props.formProps?.labelWidth ?? 80;
+});
 
 const formProps = computed(() => ({
   ...props.formProps,
   disabled: props.disabled ?? props.formProps?.disabled,
+  labelPosition: effectiveLabelPosition.value,
 }));
 
 const optionStates = reactive<Record<string, ReturnType<typeof createOptionState>>>(
@@ -515,35 +621,34 @@ defineExpose<SchemaFormExpose>({
 </script>
 
 <style lang="postcss" scoped>
-.v-schema-form {
+:deep(.el-form-item) {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+:deep(.el-form-item__content) {
+  min-width: 0;
+}
+
+.v-schema-form--search-inline :deep(.el-form-item) {
+  flex-wrap: nowrap;
+}
+
+.v-schema-form--search-inline :deep(.el-form-item__label) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v-schema-form--search :deep(.el-input),
+.v-schema-form--search :deep(.el-input-number),
+.v-schema-form--search :deep(.el-select),
+.v-schema-form--search :deep(.el-cascader) {
   width: 100%;
 }
 
-.v-schema-form__grid {
-  align-items: start;
-}
-
-.v-schema-form__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-}
-
-.v-schema-form__actions--left {
-  justify-content: flex-start;
-}
-
-.v-schema-form__actions--right {
-  justify-content: flex-end;
-}
-
-.v-schema-form__actions--bottom {
-  margin-top: 16px;
-}
-
-:deep(.el-form-item) {
-  margin-bottom: 0;
+.v-schema-form__actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 :deep(.el-date-editor),

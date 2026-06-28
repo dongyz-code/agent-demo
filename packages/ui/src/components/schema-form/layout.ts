@@ -1,6 +1,7 @@
 import type {
   RuntimeSchemaFormField,
   SchemaFormColumns,
+  SchemaFormElProps,
   SchemaFormLayout,
   SchemaFormLayoutItem,
   SchemaFormMode,
@@ -9,40 +10,120 @@ import type {
 } from './type';
 import type { CSSProperties } from 'vue';
 
-/** 默认查询表单列数。 */
-const DEFAULT_SEARCH_COLUMNS = 4;
+/** 查询表单默认响应式列数，按 QueryFilter 思路随容器宽度收放。 */
+const DEFAULT_SEARCH_COLUMNS: Required<Extract<SchemaFormColumns, object>> = {
+  xs: 1,
+  sm: 2,
+  md: 3,
+  lg: 4,
+  xl: 4,
+};
 
 /** 默认普通表单列数。 */
 const DEFAULT_FORM_COLUMNS = 1;
 
-/** 将列数配置解析成当前使用的固定列数；断点对象按最大可用断点取值。 */
+/** schema-form 内置的容器宽度断点。 */
+const WIDTH_BREAKPOINTS = [
+  { key: 'xs', max: 520 },
+  { key: 'sm', max: 760 },
+  { key: 'md', max: 1120 },
+  { key: 'lg', max: 1360 },
+  { key: 'xl', max: Infinity },
+] as const;
+
+/** schema-form 支持的断点 key。 */
+type BreakpointKey = (typeof WIDTH_BREAKPOINTS)[number]['key'];
+
+/** 按容器宽度解析当前断点；宽度未知时按桌面布局处理，避免服务端渲染阶段过窄。 */
+function resolveBreakpoint(width?: number): BreakpointKey {
+  if (!width || width <= 0) {
+    return 'lg';
+  }
+
+  return WIDTH_BREAKPOINTS.find((item) => width < item.max)!.key;
+}
+
+/** 从断点对象中读取最合适的列数，缺省时向相邻断点兜底。 */
+function resolveBreakpointColumns({
+  columns,
+  key,
+}: {
+  /** 断点列数配置。 */
+  columns: Partial<Record<BreakpointKey, number>>;
+  /** 当前断点。 */
+  key: BreakpointKey;
+}) {
+  const keys = WIDTH_BREAKPOINTS.map((item) => item.key);
+  const index = keys.indexOf(key);
+
+  for (let i = index; i >= 0; i -= 1) {
+    const value = columns[keys[i]!];
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  for (let i = index + 1; i < keys.length; i += 1) {
+    const value = columns[keys[i]!];
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return 1;
+}
+
+/** 将列数配置解析成当前容器宽度下使用的列数。 */
 export function resolveColumnCount({
   columns,
   mode,
+  width,
 }: {
   /** 列数配置。 */
   columns?: SchemaFormColumns;
   /** 当前表单模式。 */
   mode: SchemaFormMode;
+  /** 当前容器宽度。 */
+  width?: number;
 }): number {
   if (typeof columns === 'number') {
     return Math.max(1, Math.floor(columns));
   }
-  if (columns) {
-    return Math.max(
-      1,
-      Math.floor(
-        columns.xl ?? columns.lg ?? columns.md ?? columns.sm ?? columns.xs ?? 1,
-      ),
-    );
-  }
-  return mode === 'search' ? DEFAULT_SEARCH_COLUMNS : DEFAULT_FORM_COLUMNS;
+
+  const key = resolveBreakpoint(width);
+  const nextColumns =
+    columns ??
+    (mode === 'search' ? DEFAULT_SEARCH_COLUMNS : { lg: DEFAULT_FORM_COLUMNS });
+
+  return Math.max(
+    1,
+    Math.floor(resolveBreakpointColumns({ columns: nextColumns, key })),
+  );
 }
 
-/** 将 gap 配置转成 CSS 值；数字按 px 处理。 */
-export function resolveGap(gap?: SchemaFormLayout['gap']): string {
+/** 解析查询表单在当前容器宽度下使用的 label 位置。 */
+export function resolveSearchLabelPosition({
+  width,
+}: {
+  /** 当前容器宽度。 */
+  width?: number;
+}): NonNullable<SchemaFormElProps['labelPosition']> {
+  const key = resolveBreakpoint(width);
+  return key === 'xs' || key === 'sm' ? 'top' : 'left';
+}
+
+/** 将 gap 配置转成 CSS 值；数字按 px 处理，查询模式默认更紧凑。 */
+export function resolveGap({
+  gap,
+  mode,
+}: {
+  /** 栅格间距配置。 */
+  gap?: SchemaFormLayout['gap'];
+  /** 当前表单模式。 */
+  mode: SchemaFormMode;
+}): string {
   if (gap === undefined) {
-    return '16px 24px';
+    return mode === 'search' ? '12px 16px' : '16px 24px';
   }
   return typeof gap === 'number' ? `${gap}px` : gap;
 }
@@ -51,15 +132,18 @@ export function resolveGap(gap?: SchemaFormLayout['gap']): string {
 export function buildGridStyle({
   columns,
   gap,
+  mode,
 }: {
   /** 当前列数。 */
   columns: number;
   /** 当前间距。 */
   gap?: SchemaFormLayout['gap'];
+  /** 当前表单模式。 */
+  mode: SchemaFormMode;
 }): CSSProperties {
   return {
     display: 'grid',
-    gap: resolveGap(gap),
+    gap: resolveGap({ gap, mode }),
     gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
   };
 }
@@ -87,6 +171,7 @@ export function buildLayoutItems<T extends SchemaFormModel>({
   collapsed,
   collapsedRows,
   mode,
+  reserveActionSlot,
 }: {
   /** 运行时字段列表。 */
   fields: RuntimeSchemaFormField<T>[];
@@ -98,9 +183,15 @@ export function buildLayoutItems<T extends SchemaFormModel>({
   collapsedRows: number;
   /** 当前表单模式。 */
   mode: SchemaFormMode;
+  /** 收起时是否为内联操作区预留一个格子。 */
+  reserveActionSlot?: boolean;
 }): SchemaFormLayoutItem<T>[] {
   let cursor = 0;
   let row = 0;
+  const collapsedSlots = Math.max(
+    1,
+    columns * collapsedRows - (reserveActionSlot ? 1 : 0),
+  );
 
   return fields.map((field) => {
     const offset = clampOffset(field.column.colProps?.offset, columns);
@@ -116,6 +207,7 @@ export function buildLayoutItems<T extends SchemaFormModel>({
     const start = cursor + offset;
     const end = start + span;
     const currentRow = row;
+    const currentSlotEnd = currentRow * columns + end;
 
     cursor = end;
     if (cursor >= columns) {
@@ -123,11 +215,13 @@ export function buildLayoutItems<T extends SchemaFormModel>({
       cursor = 0;
     }
 
-    const collapsedByRow = currentRow >= collapsedRows;
+    const collapsedByCapacity = currentSlotEnd > collapsedSlots;
     const collapsedByField =
       field.column.search !== false && field.column.search?.collapsed === true;
     const visibleWhenCollapsed =
-      mode !== 'search' || !collapsed || (!collapsedByRow && !collapsedByField);
+      mode !== 'search' ||
+      !collapsed ||
+      (!collapsedByCapacity && !collapsedByField);
 
     return {
       field,
@@ -149,11 +243,8 @@ export function hasCollapsedItems<T extends SchemaFormModel>(
 
 /** 查询动作区样式，inline 模式下作为最后一个 grid item 渲染。 */
 export function buildActionStyle({
-  columns,
   placement,
 }: {
-  /** 当前列数。 */
-  columns: number;
   /** 动作区位置。 */
   placement: SchemaFormSearch['actionPlacement'];
 }): CSSProperties {
@@ -161,6 +252,6 @@ export function buildActionStyle({
     return {};
   }
   return {
-    gridColumn: `auto / span ${Math.min(columns, 1)}`,
+    gridColumn: 'auto / span 1',
   };
 }

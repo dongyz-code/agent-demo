@@ -9,15 +9,17 @@
   v-model="searchForm"
   mode="search"
   :columns="columns"
-  :search="{
-    columns: 4,
-    collapsedRows: 1,
-    actionPlacement: 'inline'
-  }"
   @submit="getList(true)"
   @reset="getList(true)"
 />
 ```
+
+查询模式默认参考 ProComponents QueryFilter：
+
+- 按组件容器宽度自动切换 1/2/3/4 列。
+- 窄容器使用上下 label，宽容器使用同行 label。
+- 默认收起，最多展示两行，操作按钮会占用一个栅格位置。
+- `dateRange` 默认占一个栅格，确实需要更宽时再显式配置 `colProps.span`。
 
 ```ts
 import type { SchemaFormColumn } from '@repo/ui';
@@ -48,7 +50,6 @@ const columns: SchemaFormColumn<SearchForm>[] = [
     },
   },
   {
-    colProps: { span: 2 },
     dataIndex: 'created_at',
     title: '创建时间',
     valueType: 'dateRange',
@@ -93,7 +94,6 @@ const columns: SchemaFormColumn<SearchForm>[] = [
 {
   title: '角色',
   dataIndex: 'role_id',
-  colProps: { span: 2 },
   formItemProps: { required: true },
   data: {
     type: 'select',
@@ -105,6 +105,8 @@ const columns: SchemaFormColumn<SearchForm>[] = [
   },
 }
 ```
+
+`range` 迁移时不要机械复制成 `colProps.span`。搜索表单优先交给 `VSchemaForm` 的响应式布局处理；只有字段确实需要横跨多个栅格时才显式配置 `colProps.span`。
 
 ## 配置映射
 

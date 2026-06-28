@@ -26,7 +26,7 @@ export type SchemaFormDataIndex<T extends SchemaFormModel> =
 /** 表单模式，查询模式会启用搜索、重置和展开收起动作区。 */
 export type SchemaFormMode = 'form' | 'search';
 
-/** 断点列数配置，首版固定列数优先，断点配置会解析为当前可用的最大断点值。 */
+/** 断点列数配置；对象形式会按组件容器宽度实时解析。 */
 export type SchemaFormColumns =
   | number
   | Partial<Record<'xs' | 'sm' | 'md' | 'lg' | 'xl', number>>;
@@ -222,6 +222,8 @@ export interface SchemaFormSearch {
   showReset?: boolean;
   /** 是否显示展开收起按钮。 */
   showCollapse?: boolean;
+  /** 展开按钮是否显示当前被隐藏的字段数量。 */
+  showHiddenNum?: boolean;
   /** 动作区位置。 */
   actionPlacement?: 'inline' | 'bottom';
   /** 动作区对齐方式。 */

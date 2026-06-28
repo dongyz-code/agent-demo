@@ -6,13 +6,6 @@
         mode="search"
         :columns="taskColumns"
         :layout="{ labelWidth: '96px' }"
-        :search="{
-          actionAlign: 'right',
-          actionPlacement: 'bottom',
-          collapsedRows: 2,
-          columns: 4,
-          showCollapse: false,
-        }"
         @reset="getListDebounce(true)"
         @submit="getListDebounce(true)"
       />
@@ -205,9 +198,6 @@ const taskColumns: SchemaFormColumn<SearchForm>[] = [
     valueType: 'text',
   },
   {
-    colProps: {
-      span: 2,
-    },
     dataIndex: 'create_timestamp',
     title: '任务添加时间',
     valueType: 'dateRange',

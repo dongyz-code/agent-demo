@@ -6,13 +6,6 @@
         mode="search"
         :columns="searchColumns"
         :layout="{ labelWidth: '72px' }"
-        :search="{
-          actionAlign: 'right',
-          actionPlacement: 'bottom',
-          collapsedRows: 2,
-          columns: 5,
-          showCollapse: false,
-        }"
         @reset="getListDebounce(true)"
         @submit="getListDebounce(true)"
       />
@@ -128,9 +121,6 @@ const searchColumns: SchemaFormColumn<Form>[] = [
     title: '状态',
   },
   {
-    colProps: {
-      span: 2,
-    },
     dataIndex: 'start_timestamp',
     title: '操作日期',
     valueType: 'dateRange',
