@@ -1,3 +1,5 @@
+import type { AdminPermissionKey } from '@repo/shared/permission';
+
 export type TaskBaseStatus =
   | 'to-be-started'
   | 'pending'
@@ -46,7 +48,7 @@ export type RoleItem = BaseCols & {
   name: string;
   desc: string | null;
   available: boolean;
-  permission: string[] | null;
+  permission: AdminPermissionKey[] | null;
 };
 
 export type UserRoleItem = {

@@ -1,10 +1,11 @@
 import type { ApiMultAction } from '../../common/index.js';
+import type { AdminPermissionKey } from '@repo/shared/permission';
 
 /** 登录返回的信息 */
 export type LOGIN_RESPONSE = {
   token?: string;
   timestamp: number;
-  permission: string[];
+  permission: AdminPermissionKey[];
   user: {
     username: string;
     nickname: string;

@@ -1,16 +1,18 @@
-import { defineComponent, ref, watch, computed, toRefs } from 'vue';
+import { defineComponent, ref, watch, computed, toRefs, nextTick } from 'vue';
 import { deepCopy } from '@repo/utils-browser';
-import { allP, allKeys } from '@/permission';
 import { notify } from '@/plugins/notify';
+import {
+  adminPermissionTree,
+  isAdminPermissionKey,
+} from '@repo/shared/permission';
 
-import { VFormItems, VDialog, VTabs } from '@repo/ui';
-import { ElButton } from 'element-plus';
-import VCheckBox from '../checkbox/index.vue';
+import { VFormItems, VDialog } from '@repo/ui';
+import { ElButton, ElInput, ElTree } from 'element-plus';
 
 import type { RoleItem } from '@/types';
 import type { PropType } from 'vue';
 import type { FormItem } from '@repo/ui';
-import type { PKey, TreePanel } from '@/permission';
+import type { AdminPermissionNode } from '@repo/shared/permission';
 
 export type Item = Pick<RoleItem, 'name' | 'desc' | 'permission'>;
 
@@ -24,75 +26,68 @@ const getDefaultItem = () => {
 };
 
 function useRole() {
-  const checkVal = ref<Record<string, boolean>>({});
-  const tree = computed(() => allP);
+  const tree = computed(() => adminPermissionTree);
+  const treeRef = ref<InstanceType<typeof ElTree>>();
+  const filterText = ref('');
+  const checkedKeys = ref<string[]>([]);
 
-  function getParents(key: string): string[] {
-    const parents: string[] = [];
-    function findParent(nodes: TreePanel[], prefix = ''): boolean {
-      for (const node of nodes) {
-        const nodeKey = node.key;
-        if (nodeKey === key) {
-          return true;
-        }
-        if (node.childs) {
-          if (findParent(node.childs, nodeKey + '.')) {
-            parents.push(nodeKey);
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-    findParent(allP);
-    return parents;
-  }
-
-  function getChildren(key: string): string[] {
-    const children: string[] = [];
-    function collect(nodes: TreePanel[]) {
-      for (const node of nodes) {
-        if (node.key.startsWith(key + '.')) {
-          children.push(node.key);
-          if (node.childs) collect(node.childs);
-        } else if (node.childs) {
-          collect(node.childs);
-        }
-      }
-    }
-    collect(allP);
-    return children;
-  }
-
-  function nodeCheck({ key, val }: { key: PKey; val: boolean }) {
-    checkVal.value[key] = val;
-    if (val) {
-      getParents(key).forEach((p) => {
-        checkVal.value[p] = true;
-      });
-      getChildren(key).forEach((c) => {
-        checkVal.value[c] = true;
-      });
-    } else {
-      getChildren(key).forEach((c) => {
-        checkVal.value[c] = false;
-      });
-    }
+  /**
+   * 同步树组件当前选中的业务权限 key。
+   *
+   * @returns void。
+   */
+  function syncCheckedKeys() {
+    checkedKeys.value = treeRef.value
+      ? treeRef.value.getCheckedKeys(false).map(String)
+      : [];
   }
 
   const checked = computed(() => {
-    const val = checkVal.value;
+    return checkedKeys.value.filter(isAdminPermissionKey);
+  });
 
-    const pages = Object.keys(val).filter((x) => allKeys[x as PKey] && val[x]);
+  /**
+   * 设置树组件选中状态。
+   *
+   * @param keys 需要选中的有效权限 key。
+   * @returns void。
+   */
+  async function setCheckedKeys(keys: string[]) {
+    checkedKeys.value = keys;
+    await nextTick();
+    treeRef.value?.setCheckedKeys(keys, false);
+  }
 
-    return pages;
+  /**
+   * 根据搜索词过滤权限节点。
+   *
+   * @param value 搜索关键词。
+   * @param data 当前权限树节点。
+   * @returns 命中 key 或中文标签时返回 true。
+   */
+  function filterNode(value: string, data: AdminPermissionNode) {
+    const keyword = value.trim().toLowerCase();
+    if (!keyword) {
+      return true;
+    }
+    return (
+      data.label.toLowerCase().includes(keyword) ||
+      data.key.toLowerCase().includes(keyword)
+    );
+  }
+
+  watch(filterText, (value) => {
+    treeRef.value?.filter(value);
   });
 
   return {
     tree,
-    checkVal,
-    nodeCheck,
+    treeRef,
+    filterText,
+    filterNode,
     checked,
+    syncCheckedKeys,
+    setCheckedKeys,
   };
 }
 
@@ -112,45 +107,54 @@ export const setup = defineComponent({
     formKey: {
       type: String,
     },
+    canEditBase: {
+      type: Boolean,
+      default: true,
+    },
+    canEditPermission: {
+      type: Boolean,
+      default: true,
+    },
   },
   components: {
-    VCheckBox,
     VFormItems,
     VDialog,
-    VTabs,
     ElButton,
+    ElInput,
+    ElTree,
   },
   setup(props, { emit }) {
-    const keysLimit = computed(() => {
-      return allKeys;
-    });
-
     const { data, formKey, modelValue } = toRefs(props);
     const useFormRes = useRole();
+    const treeProps = computed(() => ({
+      label: 'label',
+      children: 'children',
+      disabled: () => !props.canEditPermission,
+    }));
 
     const get = () => (props.data ? deepCopy(props.data) : getDefaultItem());
     const form = ref<Item>(get());
-    const set = () => {
+    const set = async () => {
       form.value = get();
-      useFormRes.checkVal.value = {};
       const pages = ((form.value.permission ?? []) as string[]).filter(
-        (x) => keysLimit.value[x as keyof typeof keysLimit.value],
+        isAdminPermissionKey,
       );
-      pages.forEach((key) => {
-        useFormRes.checkVal.value[key] = true;
-      });
+      await useFormRes.setCheckedKeys(pages);
     };
 
     watch(data, set);
     watch(formKey, set);
     watch(modelValue, set);
 
-    const formOptions: FormItem<keyof Item>[][] = [
+    const formOptions = computed<FormItem<keyof Item>[][]>(() => [
       [
         {
           label: '角色名称',
           data: {
             type: 'input',
+            props: {
+              disabled: !props.canEditBase,
+            },
           },
           key: 'name',
           required: true,
@@ -161,12 +165,15 @@ export const setup = defineComponent({
           label: '角色描述',
           data: {
             type: 'input',
+            props: {
+              disabled: !props.canEditBase,
+            },
           },
           key: 'desc',
           required: true,
         },
       ],
-    ];
+    ]);
 
     const emitData = computed(() => {
       const { name, desc } = form.value;
@@ -195,6 +202,7 @@ export const setup = defineComponent({
       formOptions,
       emit,
       submit,
+      treeProps,
       ...useFormRes,
       emitData,
     };

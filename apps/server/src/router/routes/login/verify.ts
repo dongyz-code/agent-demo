@@ -28,7 +28,7 @@ const { api } = routerHandler({
     /** 时间过半重置 token */
     if (Date.now() / 1e3 - iat > (exp - iat) / 2) {
       const token = authentication.jwtSign({
-        user_id: ROOT.SYS_ADMIN_USER_ID,
+        user_id,
         username,
         nickname,
       });

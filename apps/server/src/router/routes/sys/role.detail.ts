@@ -1,10 +1,13 @@
 import { db, schema } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
+import { parseStoredAdminPermissions } from '@/hooks/admin-permission/index.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/role/detail',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.role'),
   handler: async ({ body: { ids } }) => {
     if (!ids.length) {
       return [];
@@ -26,9 +29,10 @@ const { api } = routerHandler({
       .where(inArray(schema.role.role_id, ids));
 
     return list.map(({ permission, ...rest }) => {
+      const parsedPermission = parseStoredAdminPermissions(permission);
       return {
         ...rest,
-        permission: permission ? JSON.parse(permission) : null,
+        permission: parsedPermission.length ? parsedPermission : null,
       };
     });
   },

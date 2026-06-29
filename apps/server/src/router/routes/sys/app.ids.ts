@@ -9,10 +9,12 @@ import {
 } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { desc } from 'drizzle-orm';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/app/ids',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.app'),
   handler: async ({ body: { form, limit = [0, 10], withCount } }) => {
     const where = whereAll(
       searchFilter(form?.search?.trim(), [schema.apps.name, schema.apps.desc]),

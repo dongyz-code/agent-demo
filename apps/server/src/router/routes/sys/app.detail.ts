@@ -1,10 +1,12 @@
 import { db, schema } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/app/detail',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.app'),
   handler: async ({ body: { ids } }) => {
     if (!ids.length) {
       return [];

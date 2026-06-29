@@ -1,0 +1,49 @@
+## 1. 公共 shared 包
+
+- [x] 1.1 清理上一次尝试中散落到 route handler 内的权限断言，回到声明式权限方案；只保留可复用的 payload 校验思路。
+- [x] 1.2 新增 `packages/shared` 公共运行时包，并通过 `@repo/shared/permission` 子模块导出单一 `adminPermissionTree`、派生权限 key 联合类型和运行时校验函数。
+- [x] 1.3 为 shared 包和 permission 子模块补充中文 TSDoc，说明 shared 包边界、权限树唯一手写源、route 绑定规则和保存约束。
+- [x] 1.4 导出运行时校验辅助函数，例如有效权限 key 集合、`isAdminPermissionKey`、`normalizeAdminPermissionKeys`、`hasAllPermissions`、`hasAnyPermission`，并确保这些函数不依赖 admin、server 或数据库。
+- [x] 1.5 让 `@repo/types` 以 type-only 方式复用公共权限包类型，收窄登录响应和角色 DTO 权限字段。
+- [x] 1.6 删除 `apps/admin/src/permission` 中转模块，让 store 直接处理路由权限过滤，角色页直接消费公共权限包判断操作权限。
+
+## 2. 服务端权限闭环
+
+- [x] 2.1 扩展 `routerHandler` 入参，新增 `permission` 权限声明字段，并将规则写入 Fastify route config。
+- [x] 2.2 权限声明支持单 key、多 key all-of、`anyOf`、`allOf` 和基于 `body/query/params` 的函数式动态规则。
+- [x] 2.3 新增统一 admin 权限上下文 helper，支持系统管理员、启用角色权限聚合、未知权限 key 过滤和权限集合去重。
+- [x] 2.4 在 `apps/server/src/router/authentication.ts` 中组合身份认证和权限校验，认证通过后统一读取 route config 权限规则并在业务 handler 前拦截；不要在 `router/index.ts` 额外注册权限 feature hook。
+- [x] 2.5 调整登录和 token 校验权限聚合逻辑，只返回启用角色的有效权限，并保持系统管理员 `sys_admin` 行为不变。
+- [x] 2.6 新增角色权限 payload 校验工具，角色创建和更新提交未知权限 key 时返回非法参数错误。
+- [x] 2.7 在角色、用户、接口、任务、设置、操作日志、API 日志和表管理 routeHandler 中声明最小权限规则，优先覆盖写入和敏感读取接口。
+- [x] 2.8 确认权限不足时服务端返回统一 403 错误，不被认证失败流程映射为 401，且不会执行数据库写入或返回受保护数据。
+- [x] 2.9 回归表管理权限 helper，使其复用统一上下文或共享聚合逻辑，同时保留表范围和 wildcard 判断。
+
+## 3. admin 路由和角色授权体验
+
+- [x] 3.1 扩展 admin 路由 `Meta` 类型，新增页面权限声明字段，并在系统管理业务路由 `meta` 中注册页面权限。
+- [x] 3.2 恢复 store 和路由守卫中的普通用户页面权限过滤，判断来源改为 route `meta`；系统管理员继续拥有全部已注册页面。
+- [x] 3.3 菜单过滤改为根据 route `meta` 和当前权限集合推导，壳路由只在存在有权限子项时展示。
+- [x] 3.4 增加 admin 动作权限判断 helper，用于页面按钮可见性和禁用状态。
+- [x] 3.5 更新角色管理列表页，根据角色新增、编辑、授权、启停、删除权限控制按钮和开关交互。
+- [x] 3.6 将角色编辑弹窗中的权限选择改为可搜索、可半选、可展开折叠的权限树组件。
+- [x] 3.7 确保角色授权提交值只包含公共权限包中的有效业务权限 key，不提交纯分组节点。
+- [x] 3.8 补充无权限接口返回时的用户提示，确保前端即使按钮状态滞后也能展示明确错误。
+
+## 4. 测试与验证
+
+- [x] 4.1 通过 `@repo/shared` lint/build 验证权限树、派生 key 类型和 helper 类型契约有效。
+- [x] 4.2 通过 admin lint 和代码评审确认业务页面均在 route `meta` 声明页面权限，且声明值来自公共权限包。
+- [x] 4.3 通过 server lint 和代码评审确认 `/sys/**` 管理接口均声明权限或显式标记跳过。
+- [x] 4.4 通过服务端类型检查和权限聚合实现评审确认启用角色、禁用角色、未知权限 key、系统管理员和多角色去重语义。
+- [x] 4.5 通过 `authentication.ts` 实现评审确认统一权限拦截覆盖无权限拒绝、有权限通过、动态权限规则、403 语义和授权 key 校验失败。
+- [x] 4.6 回归表管理权限实现，确认页面权限、全局动作权限、表范围权限和 wildcard 权限仍按原规则工作。
+- [x] 4.7 为 admin 角色权限 UI 添加聚焦测试或手动验证清单，覆盖搜索、半选、保存有效 key 和无权限按钮状态。
+- [x] 4.8 运行受影响包的 lint/build 命令，至少覆盖 `@repo/shared`、`@repo/types`、`@repo/deploy-server`、`@repo/deploy-admin`。
+
+## 角色授权 UI 手动验证清单
+
+- 打开角色新增或编辑弹窗，权限树来自 `adminPermissionTree`，可以展开、折叠并按中文名称或 key 搜索。
+- 勾选任意子节点时，Element Plus 树控件展示父节点半选状态；全选父节点会级联选中子节点。
+- 提交前仅保留 `@repo/shared/permission` 中存在的权限 key，不提交未知 key。
+- 无新增、编辑、授权、启停、删除权限时，对应按钮隐藏或开关禁用；服务端返回 403 时前端展示明确错误提示。

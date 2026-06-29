@@ -3,8 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts"
+    }
+  },
   "types": "./src/index.d.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
   "devDependencies": {
+    "@repo/shared": "workspace:^",
     "@repo/typescript-config": "workspace:^",
     "type-fest": "^5.6.0",
     "typescript": "^6.0.3"

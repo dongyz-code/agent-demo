@@ -1,10 +1,12 @@
 import { ROOT } from '@/configs/env.js';
 import { taskAddHelper } from '@/hooks/task/index.js';
 import { routerHandler } from '@/router/utils.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/task/add',
   method: 'POST',
+  permission: adminPermissionKey('actions.task.add'),
   handler: async ({ body, __token: { user_id } }) => {
     const execution_user_id =
       user_id === ROOT.SYS_ADMIN_USER_ID ? null : user_id;

@@ -11,12 +11,27 @@
       v-model="form"
     ></v-form-items>
 
+    <div class="mb-3">
+      <el-input
+        v-model="filterText"
+        clearable
+        placeholder="搜索权限名称或 key"
+      />
+    </div>
+
     <div class="max-h-[50vh] overflow-y-auto border-b last:border-none">
-      <v-check-box
-        :checkVal="checkVal"
+      <el-tree
+        ref="treeRef"
         :data="tree"
-        @node-check="nodeCheck"
-      ></v-check-box>
+        node-key="key"
+        show-checkbox
+        default-expand-all
+        :expand-on-click-node="false"
+        :filter-node-method="filterNode"
+        :props="treeProps"
+        :check-on-click-node="canEditPermission"
+        @check="syncCheckedKeys"
+      />
     </div>
 
     <template #footer>

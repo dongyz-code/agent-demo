@@ -17,6 +17,16 @@ import type { ListDir, ListFile } from '@fastify/static';
 
 type FastifyRoute = RouteOptions;
 
+/** 判断业务错误码是否已经能表达 HTTP 错误状态。 */
+function hasHttpErrorCode(error: unknown) {
+  const code = (error as { code?: unknown }).code;
+  if (typeof code !== 'string') {
+    return false;
+  }
+  const statusCode = Number(code);
+  return statusCode >= 400 && statusCode <= 599;
+}
+
 type Opts = {
   /** 基础配置 */
   configs: {
@@ -151,7 +161,7 @@ export function initRoutes<T extends Opts>({
           if (isNginx) {
             return reply.status(401).send('401');
           } else {
-            errorHandle(reply, error, 401);
+            errorHandle(reply, error, hasHttpErrorCode(error) ? undefined : 401);
           }
         }
       });

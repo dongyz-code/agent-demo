@@ -9,10 +9,12 @@ import {
 } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { desc, inArray } from 'drizzle-orm';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/user/ids',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.user'),
   handler: async ({ body: { form, limit = [0, 10], withCount } }) => {
     const roleSubquery = form?.role_id?.length
       ? db

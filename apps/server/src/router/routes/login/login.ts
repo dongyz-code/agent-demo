@@ -5,36 +5,23 @@ import { ROOT_ERROR } from '@/configs/error.js';
 import { db, schema, whereAll } from '@/database/index.js';
 import { getSha256Hex } from '@/utils/index.js';
 import { addUserLog } from '@/hooks/user-log/index.js';
+import { getAdminPermissionContext } from '@/hooks/admin-permission/index.js';
 import { useOpenid } from '@/hooks/openid/index.js';
 import { createUser } from '../sys/user.create.js';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import type { ApiLogin } from '@/types/index.js';
 
-/** 非管理员的权限 */
-export async function getPermission({ user_id }: { user_id: string }) {
-  const roles = await db
-    .select({ role_id: schema.user_role.role_id })
-    .from(schema.user_role)
-    .where(eq(schema.user_role.user_id, user_id));
-  if (roles.length) {
-    const vals = await db
-      .select({ permission: schema.role.permission })
-      .from(schema.role)
-      .where(inArray(schema.role.role_id, roles.map((x) => x.role_id)));
-
-    const temp = new Set<string>();
-    vals.forEach(({ permission }) => {
-      if (permission) {
-        (JSON.parse(permission) as string[]).forEach((x) => {
-          temp.add(x);
-        });
-      }
-    });
-    return [...temp];
-  }
-
-  return [];
+/**
+ * 读取普通用户当前有效权限。
+ *
+ * @param opts.user_id 当前登录用户 ID。
+ * @returns 启用角色聚合后的有效 admin 权限 key 列表。
+ */
+export async function getPermission(opts: { user_id: string }) {
+  const { user_id } = opts;
+  const context = await getAdminPermissionContext(user_id);
+  return [...context.permissions];
 }
 
 const { admin } = ROOT.authorization;

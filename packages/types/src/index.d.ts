@@ -15,6 +15,7 @@ export type API = {
 
 export type * from './common/index.js';
 export type * from './routes/index.js';
+export type * from '@repo/shared/permission';
 
 export type * as ApiLogin from './routes/login/index.js';
 export type * as ApiMain from './routes/main/index.js';

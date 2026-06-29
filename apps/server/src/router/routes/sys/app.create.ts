@@ -1,6 +1,7 @@
 import { randomUUID, randomBytes } from 'node:crypto';
 import { db, schema, sql } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 import type { SqlInsertData } from '@/database/index.js';
 
@@ -11,6 +12,7 @@ export function generateClientSecret() {
 const { api } = routerHandler({
   url: '/sys/app/create',
   method: 'POST',
+  permission: adminPermissionKey('actions.app.create'),
   handler: async ({ body: { name, desc }, operator, now }) => {
     await db.transaction(async (tx) => {
       const [val] = await tx

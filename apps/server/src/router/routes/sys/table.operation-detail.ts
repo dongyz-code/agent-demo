@@ -5,10 +5,12 @@ import {
   getTablePermissionContext,
 } from '@/hooks/table-management/index.js';
 import { routerHandler } from '@/router/utils.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/table/operation-detail',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.table'),
   handler: async ({ operator, body: { ids } }) => {
     const context = await getTablePermissionContext(operator);
     const list = await detailTableOperations(ids);

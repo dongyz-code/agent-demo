@@ -1,5 +1,6 @@
 import { db, schema } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 import { isNotNull } from 'drizzle-orm';
 
 function hasClientMark(row: { client_mark: string | null }): row is {
@@ -11,6 +12,7 @@ function hasClientMark(row: { client_mark: string | null }): row is {
 const { api } = routerHandler({
   url: '/sys/api-log/types',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.app-log'),
   handler: async () => {
     const list = await db
       .selectDistinct({ client_mark: schema.api_logs.client_mark })

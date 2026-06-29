@@ -4,3 +4,9 @@
 .codex
 node_modules
 /.omc
+
+# 工作区生成目录
+**/build/
+**/dist/
+**/dist-ssr/
+*.tsbuildinfo

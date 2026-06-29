@@ -10,6 +10,7 @@
     "papproval": "vite papproval"
   },
   "dependencies": {
+    "@repo/shared": "workspace:*",
     "@repo/ui": "workspace:*",
     "@repo/utils-browser": "workspace:^",
     "@vueuse/components": "^14.2.1",

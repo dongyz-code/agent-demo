@@ -2,12 +2,17 @@ import { db, schema } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { pickObj } from '@repo/utils-node';
 import { inArray } from 'drizzle-orm';
+import {
+  listRoleUpdatePermissionRequirements,
+  stringifyRolePermissionPayload,
+} from '@/hooks/admin-permission/index.js';
 
 import type { SqlData } from '@/database/index.js';
 
 const { api } = routerHandler({
   url: '/sys/role/update',
   method: 'POST',
+  permission: ({ body: { form } }) => listRoleUpdatePermissionRequirements(form),
   handler: async ({ body: { id, form }, operator, now }) => {
     if (Array.isArray(id) && !id.length) {
       return 'ok';
@@ -20,9 +25,7 @@ const { api } = routerHandler({
     ]);
 
     if ('permission' in form) {
-      updateForm.permission = form.permission
-        ? JSON.stringify(form.permission)
-        : null;
+      updateForm.permission = stringifyRolePermissionPayload(form.permission);
     }
 
     if (Object.keys(updateForm).length) {

@@ -4,10 +4,12 @@ import {
 } from '@/hooks/table-management/index.js';
 import { addUserLog } from '@/hooks/user-log/index.js';
 import { routerHandler } from '@/router/utils.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/table/rename-apply',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.table'),
   handler: async ({ operator, ip, body: { op_id, confirm } }) => {
     const [operation] = await detailTableOperations([op_id]);
     try {

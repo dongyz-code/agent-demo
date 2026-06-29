@@ -2,6 +2,8 @@ import { db, schema } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { randomUUID } from 'node:crypto';
 import { ROOT_ERROR } from '@/configs/error.js';
+import { stringifyRolePermissionPayload } from '@/hooks/admin-permission/index.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 import type { SqlInsertData } from '@/database/index.js';
 
@@ -10,6 +12,15 @@ type Item = SqlInsertData['role'];
 const { api } = routerHandler({
   url: '/sys/role/create',
   method: 'POST',
+  permission: ({ body: { list } }) => {
+    if (list.some((item) => item.permission?.length)) {
+      return [
+        adminPermissionKey('actions.role.create'),
+        adminPermissionKey('actions.role.assign-permission'),
+      ];
+    }
+    return adminPermissionKey('actions.role.create');
+  },
   handler: async ({ body: { list }, operator, now }) => {
     if (!list.length) {
       return 'ok';
@@ -29,7 +40,7 @@ const { api } = routerHandler({
         role_id: randomUUID(),
         name,
         desc,
-        permission: permission ? JSON.stringify(permission) : null,
+        permission: stringifyRolePermissionPayload(permission),
         available: true,
         create_timestamp: now,
         create_user_id: operator,

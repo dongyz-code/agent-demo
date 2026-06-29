@@ -2,7 +2,6 @@
   "extends": "@repo/typescript-config/node.json",
   "include": ["src"],
   "compilerOptions": {
-    "noEmit": true,
     "skipLibCheck": false
   }
 }

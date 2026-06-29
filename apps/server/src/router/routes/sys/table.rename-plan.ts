@@ -1,10 +1,12 @@
 import { addUserLog } from '@/hooks/user-log/index.js';
 import { createRenamePlan } from '@/hooks/table-management/index.js';
 import { routerHandler } from '@/router/utils.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/table/rename-plan',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.table'),
   handler: async ({
     operator,
     ip,

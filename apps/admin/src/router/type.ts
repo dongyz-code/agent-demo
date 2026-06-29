@@ -1,6 +1,7 @@
 import { getKeys } from '@repo/utils-browser';
 
 import type { RouteMeta } from '@repo/ui';
+import type { AdminPermissionKey } from '@repo/shared/permission';
 
 export const routeNameMap = {
   login: '登录',
@@ -22,8 +23,10 @@ export const routeNameMap = {
 export type RouteName = keyof typeof routeNameMap;
 
 export type Meta = RouteMeta & {
-  /** 路由是否在盒子里 */
+  /** 路由是否在盒子里。 */
   box?: boolean;
+  /** 访问当前业务页面需要满足的权限；壳路由和公开路由可不配置。 */
+  permissions?: readonly AdminPermissionKey[];
 };
 
 export function helperRouterName<T extends RouteName>(name: T) {

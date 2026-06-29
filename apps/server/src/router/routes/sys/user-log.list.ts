@@ -8,11 +8,13 @@ import {
   whereAll,
 } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
+import { adminPermissionKey } from '@repo/shared/permission';
 import { desc, eq } from 'drizzle-orm';
 
 const { api } = routerHandler({
   url: '/sys/user-log/list',
   method: 'POST',
+  permission: adminPermissionKey('pages.sys.sys.user-log'),
   handler: async ({ body: { form, limit = [0, 10], withCount } }) => {
     const where = whereAll(
       searchFilter(form?.search?.trim(), [schema.user_logs.search_key]),

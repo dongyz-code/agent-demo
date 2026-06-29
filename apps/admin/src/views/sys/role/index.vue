@@ -15,8 +15,10 @@
       v-model="optionsData.visible"
       :data="optionsData.data"
       :formKey="optionsData.formKey"
-      :title="`编辑角色`"
-      @form="getForm"
+      :title="dialogTitle"
+      :can-edit-base="access.editBase"
+      :can-edit-permission="access.assignPermission"
+      @form="submitRoleForm"
     />
 
     <div class="my-2 overflow-hidden rounded bg-white px-3 pt-3 shadow">
@@ -51,7 +53,10 @@
           <div class="flex items-center">
             <el-switch
               :model-value="scope.row.available"
-              @update:model-value="changeLogin($event, scope.row.self.role_id)"
+              :disabled="!access.toggle"
+              @update:model-value="
+                toggleRoleStatus($event, scope.row.self.role_id)
+              "
               active-text="启用"
               inactive-text="禁用"
               inline-prompt

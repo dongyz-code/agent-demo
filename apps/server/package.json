@@ -8,13 +8,12 @@
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "tsx src/database/migrate.ts",
     "dev": "tsx src/index.ts",
-    "lint": "tsc",
-    "table:integration-test": "tsx src/hooks/table-management/integration-test.ts",
-    "table:self-test": "tsx src/hooks/table-management/self-test.ts"
+    "lint": "tsc"
   },
   "dependencies": {
     "@repo/configs": "workspace:*",
     "@repo/openid": "workspace:*",
+    "@repo/shared": "workspace:*",
     "@repo/types": "workspace:^",
     "@repo/utils-node": "workspace:^",
     "axios": "^1.15.1",

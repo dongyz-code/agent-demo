@@ -1,10 +1,12 @@
 import { db, schema } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/role/remove',
   method: 'POST',
+  permission: adminPermissionKey('actions.role.delete'),
   handler: async ({ body: { ids } }) => {
     if (Array.isArray(ids) && !ids.length) {
       return 'ok';

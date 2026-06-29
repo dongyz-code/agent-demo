@@ -1,18 +1,20 @@
 import type { TablePermissionAction } from '@repo/types';
 import type { TablePermissionContext } from './types.js';
-
-const pagePermission = 'pages.sys.sys.table';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 const globalActionMap: Record<TablePermissionAction, string> = {
-  view: 'actions.table.view',
-  preview: 'actions.table.preview',
-  rename: 'actions.table.rename',
-  reset: 'actions.table.reset',
+  view: adminPermissionKey('actions.table.view'),
+  preview: adminPermissionKey('actions.table.preview'),
+  rename: adminPermissionKey('actions.table.rename'),
+  reset: adminPermissionKey('actions.table.reset'),
 };
 
 /** 判断当前用户是否拥有表管理页面入口权限。 */
 export function hasTablePagePermission(context: TablePermissionContext) {
-  return context.sys_admin || context.permissions.has(pagePermission);
+  return (
+    context.sys_admin ||
+    context.permissions.has(adminPermissionKey('pages.sys.sys.table'))
+  );
 }
 
 /** 判断当前用户是否拥有指定表和指定动作的权限。 */

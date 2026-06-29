@@ -9,6 +9,7 @@ import {
 import { usePage, VIcon, VTable, VSchemaForm } from '@repo/ui';
 import { notify, confirm } from '@/plugins/notify';
 import { useStore } from '@/store';
+import { adminPermissionKey } from '@repo/shared/permission';
 import { api } from '@/api';
 import { dayJsformat, debounce } from '@repo/utils-browser';
 import { staticOptions } from '@/static';
@@ -25,6 +26,15 @@ import type { Item } from './components/options/index';
 
 type RoleItem = ApiSys.RoleAction['detail']['resp'][number];
 type ApiRoleListReq = ApiSys.RoleAction['ids']['req'];
+
+/** 角色管理页使用的操作权限 key，集中声明避免按钮和提交逻辑散落字符串。 */
+const roleActionPermission = {
+  assignPermission: adminPermissionKey('actions.role.assign-permission'),
+  create: adminPermissionKey('actions.role.create'),
+  remove: adminPermissionKey('actions.role.delete'),
+  toggle: adminPermissionKey('actions.role.toggle'),
+  update: adminPermissionKey('actions.role.update'),
+} as const;
 
 function useQueryForm() {
   type Form = NonNullable<ApiRoleListReq['form']>;
@@ -73,13 +83,19 @@ function useQueryForm() {
   };
 }
 
-function useAndOrUpdate({
-  getRoleList,
-  roles,
-}: ReturnType<typeof useUserList>) {
+/**
+ * 管理角色列表页的新增、编辑、授权、启停和删除动作。
+ *
+ * @param options.getRoleList 刷新角色列表的方法。
+ * @param options.roles 当前页面持有的角色列表，用于启停后同步本地状态。
+ * @returns 角色操作弹窗状态、权限状态和表格操作入口。
+ */
+function useRoleActions(options: ReturnType<typeof useUserList>) {
+  const { getRoleList, roles } = options;
+  const store = useStore();
   type Btn = {
     label: string;
-    action: 'add-internal' | 'add-external';
+    action: 'add';
     method: () => void | Promise<void>;
   };
 
@@ -93,28 +109,67 @@ function useAndOrUpdate({
     formKey: Date.now() + '',
   });
 
-  const actions: Btn[] = [
-    {
-      label: `添加角色`,
-      action: 'add-internal',
-      method: () => {
-        optionsData.role = 'add';
-        optionsData.data = undefined;
-        optionsData.visible = true;
-      },
-    },
-  ];
+  /** 当前用户在角色管理页的操作权限集合，模板和提交逻辑共用同一份判断。 */
+  const access = computed(() => {
+    const update = store.hasPermission(roleActionPermission.update);
+    const assignPermission = store.hasPermission(
+      roleActionPermission.assignPermission,
+    );
 
-  async function getForm(form: Item) {
+    return {
+      assignPermission,
+      create: store.hasPermission(roleActionPermission.create),
+      editBase: optionsData.role === 'add' || update,
+      openEditor: update || assignPermission,
+      remove: store.hasPermission(roleActionPermission.remove),
+      toggle: store.hasPermission(roleActionPermission.toggle),
+      update,
+    };
+  });
+
+  const dialogTitle = computed(() =>
+    optionsData.role === 'add' ? '新增角色' : '编辑角色',
+  );
+
+  const actions = computed<Btn[]>(() =>
+    access.value.create
+      ? [
+          {
+            label: '添加角色',
+            action: 'add',
+            method: () => {
+              optionsData.role = 'add';
+              optionsData.data = undefined;
+              optionsData.visible = true;
+            },
+          },
+        ]
+      : [],
+  );
+
+  /**
+   * 提交角色新增或编辑表单。
+   *
+   * @param form 弹窗中校验后的角色表单数据。
+   * @returns 保存成功后刷新列表并关闭弹窗。
+   */
+  async function submitRoleForm(form: Item) {
     const { name, desc, permission } = form;
     if (optionsData.role === 'update') {
+      const updateForm: Partial<Item> = {};
+      if (access.value.update) {
+        updateForm.name = name;
+        updateForm.desc = desc;
+      }
+      if (access.value.assignPermission) {
+        updateForm.permission = permission;
+      }
+      if (!Object.keys(updateForm).length) {
+        return notify('error', '没有可提交的角色权限');
+      }
       await api('/sys/role/update', {
         id: optionsData.data!.role_id!,
-        form: {
-          name,
-          desc,
-          permission,
-        },
+        form: updateForm,
       });
       await getRoleList(true);
       notify('success', '更新成功');
@@ -125,7 +180,7 @@ function useAndOrUpdate({
           {
             name,
             desc,
-            permission,
+            permission: access.value.assignPermission ? permission : [],
           },
         ],
       });
@@ -136,8 +191,17 @@ function useAndOrUpdate({
     optionsData.visible = false;
   }
 
-  /** 单用户切换禁用 */
-  async function changeLogin(status: boolean, role_id: string) {
+  /**
+   * 切换角色启用状态。
+   *
+   * @param status 目标启用状态。
+   * @param role_id 待更新的角色 ID。
+   * @returns 更新成功后同步当前列表中的角色状态。
+   */
+  async function toggleRoleStatus(status: boolean, role_id: string) {
+    if (!access.value.toggle) {
+      return notify('error', '没有启停角色权限');
+    }
     await api('/sys/role/update', {
       id: role_id,
       form: {
@@ -151,15 +215,31 @@ function useAndOrUpdate({
     notify('success', '状态更新成功');
   }
 
-  /** 单用户编辑 */
-  async function singleEdit(item: RoleItem) {
+  /**
+   * 打开角色编辑或授权弹窗。
+   *
+   * @param item 当前表格行对应的角色。
+   * @returns void。
+   */
+  async function openRoleEditor(item: RoleItem) {
+    if (!access.value.openEditor) {
+      return notify('error', '没有编辑或授权角色权限');
+    }
     optionsData.role = 'update';
     optionsData.data = item;
     optionsData.visible = true;
   }
 
-  /** 单用户编辑 */
-  async function singleRemove(item: RoleItem) {
+  /**
+   * 删除单个角色。
+   *
+   * @param item 当前表格行对应的角色。
+   * @returns 删除成功后刷新角色列表。
+   */
+  async function removeRole(item: RoleItem) {
+    if (!access.value.remove) {
+      return notify('error', '没有删除角色权限');
+    }
     await confirm({
       title: '确定删除该角色吗？',
     });
@@ -170,29 +250,39 @@ function useAndOrUpdate({
     notify('success', '删除成功');
   }
 
-  const tableEditBtns: {
+  const tableEditBtns = computed<{
     icon: FunctionalComponent;
-    method: (item: RoleItem) => Promise<void>;
+    method: (item: RoleItem) => Promise<unknown>;
     tips?: string;
-  }[] = [
-    {
-      icon: IconParkOutlineEditTwo,
-      method: singleEdit,
-      tips: '编辑',
-    },
-    {
-      icon: IconParkOutlineDelete,
-      method: singleRemove,
-      tips: '删除',
-    },
-  ];
+  }[]>(() => [
+    ...(access.value.openEditor
+      ? [
+          {
+            icon: IconParkOutlineEditTwo,
+            method: openRoleEditor,
+            tips: '编辑/授权',
+          },
+        ]
+      : []),
+    ...(access.value.remove
+      ? [
+          {
+            icon: IconParkOutlineDelete,
+            method: removeRole,
+            tips: '删除',
+          },
+        ]
+      : []),
+  ]);
 
   return {
     optionsData,
     actions,
-    getForm,
-    changeLogin,
+    submitRoleForm,
+    toggleRoleStatus,
     tableEditBtns,
+    access,
+    dialogTitle,
   };
 }
 
@@ -319,7 +409,7 @@ export const setup = defineComponent({
     const useUserListRes = useUserList();
     return {
       ...useUserListRes,
-      ...useAndOrUpdate(useUserListRes),
+      ...useRoleActions(useUserListRes),
     };
   },
 });

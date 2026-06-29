@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { db, schema } from '@/database/index.js';
 import { ROOT_ERROR } from '@/configs/error.js';
 import { inArray } from 'drizzle-orm';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 import type { SqlInsertData } from '@/database/index.js';
 import type { ApiSys } from '@/types/index.js';
@@ -111,6 +112,7 @@ export async function createUser({
 const { api } = routerHandler({
   url: '/sys/user/create',
   method: 'POST',
+  permission: adminPermissionKey('actions.user.create'),
   handler: async ({ body: { list }, operator, now }) => {
     await createUser({ list, operator, now });
     return 'ok';
