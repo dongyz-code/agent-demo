@@ -109,7 +109,7 @@ export function resolveSearchLabelPosition({
   width?: number;
 }): NonNullable<SchemaFormElProps['labelPosition']> {
   const key = resolveBreakpoint(width);
-  return key === 'xs' || key === 'sm' ? 'top' : 'left';
+  return key === 'xs' || key === 'sm' ? 'top' : 'right';
 }
 
 /** 将 gap 配置转成 CSS 值；数字按 px 处理，查询模式默认更紧凑。 */

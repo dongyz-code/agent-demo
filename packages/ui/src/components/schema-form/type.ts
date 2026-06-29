@@ -238,6 +238,8 @@ export interface SchemaFormLayout {
   columns?: SchemaFormColumns;
   /** 栅格间距，数字按 px 处理。 */
   gap?: number | string;
+  /** label 位置；不传时查询表单桌面端默认右侧宽度内右对齐，窄屏默认置顶。 */
+  labelPosition?: 'left' | 'right' | 'top';
   /** 默认 label 宽度。 */
   labelWidth?: number | string;
 }

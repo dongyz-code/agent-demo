@@ -281,6 +281,7 @@ const searchLabelPosition = computed(() =>
 
 const effectiveLabelPosition = computed(() =>
   props.formProps?.labelPosition ??
+  props.layout?.labelPosition ??
   (mode.value === 'search' ? searchLabelPosition.value : undefined),
 );
 

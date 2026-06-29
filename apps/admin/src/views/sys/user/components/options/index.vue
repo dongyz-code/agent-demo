@@ -1,10 +1,11 @@
 <template>
-  <v-dialog :title="title" v-model="visible" width="50%">
-    <v-form-items
-      class="w-full gap-4"
-      :options="formOptions"
-      :model-value="form"
-      @update:model-value="changeForm"
+  <v-dialog :title="title" v-model="visible" width="min(92vw, 560px)">
+    <v-schema-form
+      ref="formRef"
+      class="w-full"
+      :columns="formColumns"
+      :layout="{ labelWidth: '72px' }"
+      v-model="form"
     />
     <template #footer>
       <el-button type="danger" @click="visible = false" class="mr-2">

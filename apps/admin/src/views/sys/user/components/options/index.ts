@@ -1,12 +1,19 @@
-import { defineComponent, watch, computed, toRefs, shallowRef } from 'vue';
-import { arrObject, deepCopy, getKeys } from '@repo/utils-browser';
+import {
+  defineComponent,
+  watch,
+  computed,
+  toRefs,
+  shallowRef,
+  ref,
+  nextTick,
+} from 'vue';
+import { deepCopy, getKeys } from '@repo/utils-browser';
 import { useOptions } from './static';
 import { useVModels } from '@vueuse/core';
-import { VDialog, VFormItems } from '@repo/ui';
+import { VDialog, VSchemaForm } from '@repo/ui';
 import { ElButton } from 'element-plus';
-import { notify } from '@/plugins/notify';
 
-import type { FormItem } from '@repo/ui';
+import type { SchemaFormColumn, SchemaFormExpose } from '@repo/ui';
 import type { PropType } from 'vue';
 import type { Item, OptionsProps } from '../../type';
 
@@ -23,7 +30,7 @@ const getDefaultItem = () => {
 };
 
 export const setup = defineComponent({
-  components: { VDialog, VFormItems, ElButton },
+  components: { VDialog, VSchemaForm, ElButton },
   emits: ['form', 'update:visible'],
   props: {
     data: {
@@ -68,6 +75,7 @@ export const setup = defineComponent({
       }
     }
     const form = shallowRef(getVal());
+    const formRef = ref<SchemaFormExpose>();
 
     const set = () => {
       form.value = getVal();
@@ -75,142 +83,140 @@ export const setup = defineComponent({
 
     /** ------------ watch ------------ */
     watch(data, set);
-    watch(visible, (val) => {
+    watch(visible, async (val) => {
       if (val) {
         set();
+        await nextTick();
+        formRef.value?.clearValidate();
       }
     });
 
-    function changeForm(val: Item) {
-      form.value = val;
-    }
-
     const { allOptions, ...useOptionsRest } = useOptions();
+    const roleOptions = computed(() => allOptions.value.role);
 
-    const formOptions = computed(() => {
-      const list: FormItem<keyof Item>[][] = [
-        [
-          {
-            label: '姓名',
-            data: {
-              type: 'input',
-              props: {
-                placeholder: '请输入姓名',
+    const formColumns = computed<SchemaFormColumn<Item>[]>(() => {
+      const list: SchemaFormColumn<Item>[] = [
+        {
+          dataIndex: 'nickname',
+          fieldProps: {
+            placeholder: '请输入姓名',
+          },
+          formItemProps: {
+            required: true,
+            rules: [
+              {
+                message: '请输入姓名',
+                required: true,
+                trigger: 'blur',
               },
-            },
-            key: 'nickname',
-            required: true,
-            range: 3,
+            ],
           },
-          {
-            label: 'K账户',
-            data: {
-              type: 'input',
-            },
-            key: 'username',
+          title: '姓名',
+          valueType: 'text',
+        },
+        {
+          dataIndex: 'username',
+          formItemProps: {
             required: true,
-            range: 3,
-          },
-        ],
-        [
-          {
-            label: '邮箱',
-            data: {
-              type: 'input',
-              props: {
-                placeholder: '请输入邮箱',
+            rules: [
+              {
+                message: '请输入K账户',
+                required: true,
+                trigger: 'blur',
               },
-            },
-            key: 'email',
-            required: true,
-            range: 3,
+            ],
           },
-          {
-            label: '密码',
-            data: {
-              type: 'input',
-              props: {
-                placeholder: '请输入密码',
+          title: 'K账户',
+          valueType: 'text',
+        },
+        {
+          dataIndex: 'email',
+          fieldProps: {
+            placeholder: '请输入邮箱',
+          },
+          formItemProps: {
+            required: true,
+            rules: [
+              {
+                message: '请输入邮箱',
+                required: true,
+                trigger: 'blur',
               },
-            },
-            key: 'password',
-            required: true,
-            range: 3,
+            ],
           },
-        ],
-        [
-          {
-            label: '角色',
-            data: {
-              type: 'select',
-              options: computed(() => allOptions.value.role),
-              props: {
-                multiple: true,
-                placeholder: '请选择角色',
+          title: '邮箱',
+          valueType: 'text',
+        },
+        {
+          dataIndex: 'password',
+          fieldProps: {
+            placeholder: '请输入密码',
+          },
+          formItemProps: {
+            required: !props.data,
+            rules: props.data
+              ? []
+              : [
+                  {
+                    message: '请输入密码',
+                    required: true,
+                    trigger: 'blur',
+                  },
+                ],
+          },
+          title: '密码',
+          valueType: 'text',
+        },
+        {
+          dataIndex: 'role_id',
+          data: {
+            type: 'select',
+            options: roleOptions,
+            props: {
+              multiple: true,
+              placeholder: '请选择角色',
+            },
+          },
+          formItemProps: {
+            required: true,
+            rules: [
+              {
+                message: '请选择角色',
+                min: 1,
+                required: true,
+                trigger: 'change',
+                type: 'array',
               },
-            },
-            key: 'role_id',
-            required: true,
+            ],
           },
-        ],
+          title: '角色',
+        },
       ];
 
-      /** 根据fields 过滤表单，保留原有结构 */
       if (props.fields?.length) {
-        const fieldMap = arrObject(props.fields);
-        return list
-          .map((row) => row.filter((item) => fieldMap[item.key]))
-          .filter((row) => row.length);
+        const fields = new Set(props.fields);
+        return list.filter((item) => fields.has(item.dataIndex as keyof Item));
       }
 
       return list;
     });
 
-    /** 保存 */
-    function submit() {
-      const allItems = formOptions.value.flat();
+    /**
+     * 执行 schema-form 的 Element Plus 表单校验，并提交当前可编辑字段。
+     *
+     * @returns 校验未通过时直接结束；校验通过后触发 `form` 事件。
+     */
+    async function submit() {
+      const valid = await formRef.value?.validate().catch(() => false);
+      if (!valid) {
+        return;
+      }
+
+      const allItems = formColumns.value;
 
       const filterKeys: NonNullable<typeof props.fields> = props.fields?.length
         ? props.fields
-        : allItems.map((item) => item.key);
-
-      const validateItem = (item: FormItem<keyof Item>): string | null => {
-        const value = form.value[item.key as keyof Item];
-
-        if (props.fields?.length && !props.fields.includes(item.key)) {
-          return null;
-        }
-
-        if (item.key === 'password') {
-          if (!props.data && !value) {
-            return '请输入密码';
-          }
-          return null;
-        }
-
-        if (item.required) {
-          if (item.data.type === 'select' && item.data.props?.multiple) {
-            if (!value?.length) {
-              return `请选择${item.label}`;
-            }
-          } else {
-            if (!value) {
-              return `请输入${item.label}`;
-            }
-          }
-        }
-
-        return null;
-      };
-
-      const errors = allItems
-        .map(validateItem)
-        .filter((error) => error !== null);
-
-      if (errors.length) {
-        notify('error', errors.join('\n'));
-        return;
-      }
+        : allItems.map((item) => item.dataIndex as keyof Item);
 
       const obj = filterKeys.reduce((acc, key) => {
         acc[key] = form.value[key];
@@ -222,11 +228,11 @@ export const setup = defineComponent({
 
     return {
       form,
-      formOptions,
+      formRef,
+      formColumns,
       visible,
       submit,
       ...useOptionsRest,
-      changeForm,
     };
   },
 });

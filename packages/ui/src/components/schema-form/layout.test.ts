@@ -51,10 +51,10 @@ describe('schema-form layout utils', () => {
     ).toBe(1);
   });
 
-  it('查询表单在窄容器下切换为上下 label', () => {
+  it('查询表单窄容器下置顶 label，桌面端右对齐 label', () => {
     expect(resolveSearchLabelPosition({ width: 500 })).toBe('top');
     expect(resolveSearchLabelPosition({ width: 700 })).toBe('top');
-    expect(resolveSearchLabelPosition({ width: 1000 })).toBe('left');
+    expect(resolveSearchLabelPosition({ width: 1000 })).toBe('right');
   });
 
   it('按 span 计算 grid 位置并支持收起行', () => {

@@ -46,8 +46,10 @@ function collectAllowedRouteNames(
   const result = new Set<RouteName>();
 
   const visit = (route: RouteItem<RouteName, Meta>): boolean => {
-    const childrenAllowed =
-      route.children?.some((item) => visit(item)) === true;
+    let childrenAllowed = false;
+    route.children?.forEach((item) => {
+      childrenAllowed = visit(item) || childrenAllowed;
+    });
     const required = route.meta?.permissions ?? [];
     const isPublic = route.meta?.withAuth === false;
     const isShell = Boolean(route.children?.length);
