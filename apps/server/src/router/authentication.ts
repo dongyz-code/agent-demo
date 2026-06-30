@@ -1,14 +1,14 @@
 import { initAuthentication } from '@repo/utils-node';
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { countRows, db, schema, whereAll } from '@/database/index.js';
-import { assertRouteAdminPermission } from '@/hooks/admin-permission/index.js';
 import { eq } from 'drizzle-orm';
 
 import type { CookieData, TokenData } from '@/types/index.js';
 
 const interfaceRoutePrefix = '/api/interface/';
 
-const baseAuthentication = initAuthentication<{
+/** 基础身份认证工具，只负责识别调用方并把认证信息写入 request.auth。 */
+export const authentication = initAuthentication<{
   token: TokenData;
   cookie: CookieData;
 }>({
@@ -63,12 +63,3 @@ const baseAuthentication = initAuthentication<{
     },
   },
 });
-
-export const authentication = {
-  ...baseAuthentication,
-  /** 完成身份认证后执行 routeHandler 声明的 admin 权限校验。 */
-  async authentication(request: Parameters<typeof baseAuthentication.authentication>[0]) {
-    await baseAuthentication.authentication(request);
-    await assertRouteAdminPermission(request);
-  },
-};

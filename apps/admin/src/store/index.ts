@@ -2,6 +2,7 @@ import { defineStore, createPinia } from 'pinia';
 import { routes } from '@/router/routes';
 import {
   hasAllPermissions,
+  hasAdminPermissionKey,
   normalizeAdminPermissionKeys,
 } from '@repo/shared/permission';
 
@@ -24,7 +25,7 @@ const pinia = createPinia();
  * 将登录态权限数组转换成有效权限 Set。
  *
  * @param permission 当前登录用户权限列表。
- * @returns 过滤未知 key 后的权限集合，便于页面进行 O(1) 查询。
+ * @returns 过滤未知 key 后的权限集合，便于页面复用。
  */
 function toPermissionSet(permission: readonly string[] | null | undefined) {
   return new Set(normalizeAdminPermissionKeys(permission ?? []));
@@ -96,10 +97,13 @@ const store = defineStore('main', {
      * 判断当前用户是否拥有指定 admin 权限。
      *
      * @param key 需要判断的权限 key。
-     * @returns 系统管理员或当前权限 Set 包含目标 key 时返回 true。
+     * @returns 系统管理员或当前权限集合包含目标 key/同分支父级 key 时返回 true。
      */
     hasPermission(key: AdminPermissionKey) {
-      return this.user?.sys_admin === true || this.permissionSet.has(key);
+      return (
+        this.user?.sys_admin === true ||
+        hasAdminPermissionKey(this.permissionSet, key)
+      );
     },
     stateSet(val: Partial<StoreData>) {
       Object.assign(this.$state, val);

@@ -1,8 +1,15 @@
 import type { TablePermissionAction } from '@repo/types';
 import type { TablePermissionContext } from './types.js';
-import { adminPermissionKey } from '@repo/shared/permission';
+import {
+  adminPermissionKey,
+  hasAdminPermissionKey,
+} from '@repo/shared/permission';
 
-const globalActionMap: Record<TablePermissionAction, string> = {
+import type { AdminPermissionKey } from '@repo/shared/permission';
+
+const tablePagePermission = adminPermissionKey('pages.sys.sys.table');
+
+const globalActionMap: Record<TablePermissionAction, AdminPermissionKey> = {
   view: adminPermissionKey('actions.table.view'),
   preview: adminPermissionKey('actions.table.preview'),
   rename: adminPermissionKey('actions.table.rename'),
@@ -13,7 +20,7 @@ const globalActionMap: Record<TablePermissionAction, string> = {
 export function hasTablePagePermission(context: TablePermissionContext) {
   return (
     context.sys_admin ||
-    context.permissions.has(adminPermissionKey('pages.sys.sys.table'))
+    hasAdminPermissionKey(context.permissions, tablePagePermission)
   );
 }
 
@@ -38,11 +45,13 @@ export function hasTablePermission({
     return false;
   }
 
-  return [
-    globalActionMap[action],
-    `actions.table.*.${action}`,
-    `actions.table.${table}.${action}`,
-  ].some((key) => context.permissions.has(key));
+  return (
+    hasAdminPermissionKey(context.permissions, globalActionMap[action]) ||
+    [
+      `actions.table.*.${action}`,
+      `actions.table.${table}.${action}`,
+    ].some((key) => context.permissions.has(key))
+  );
 }
 
 /** 返回当前用户对单表拥有的全部操作权限。 */
@@ -56,5 +65,7 @@ export function listTablePermissions({
   table: string;
 }): TablePermissionAction[] {
   const actions: TablePermissionAction[] = ['view', 'preview', 'rename', 'reset'];
-  return actions.filter((action) => hasTablePermission({ context, table, action }));
+  return actions.filter((action) =>
+    hasTablePermission({ context, table, action }),
+  );
 }

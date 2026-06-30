@@ -125,6 +125,16 @@ function applyPathParams(url: string, params: Record<string, unknown> | undefine
   }, url);
 }
 
+/**
+ * 判断响应内容是否是可安全使用 in 操作符的对象。
+ *
+ * @param value 待判断的响应内容。
+ * @returns 普通对象和数组返回 true；字符串、null 等原始响应返回 false。
+ */
+function isObjectPayload(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
 export function getAxios<T extends { routes: Record<string, unknown> }>({
   origin = '',
   prefix = '',
@@ -174,7 +184,7 @@ export function getAxios<T extends { routes: Record<string, unknown> }>({
       params: mergeQueryParams(config?.params, requestParts.query),
       data: requestParts.body,
     });
-    return (response.data && 'data' in response.data
+    return (isObjectPayload(response.data) && 'data' in response.data
       ? response.data.data
       : response.data) as Awaited<ReturnType<ApiFunc<T>>>;
   }) as ApiFunc<T>;

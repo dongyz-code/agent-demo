@@ -90,6 +90,20 @@ export function isAdminPermissionKey(key: string): key is AdminPermissionKey {
 }
 
 /**
+ * 判断权限集合是否直接包含某个 key。
+ *
+ * @param permissions 当前用户拥有的权限 key 集合。
+ * @param key 需要判断的权限 key。
+ * @returns 集合中存在目标 key 时返回 true。
+ */
+function includesAdminPermissionKey(
+  permissions: ReadonlySet<string> | readonly string[],
+  key: string,
+) {
+  return 'has' in permissions ? permissions.has(key) : permissions.includes(key);
+}
+
+/**
  * 规范化权限 key 列表，过滤未知 key 并保持首次出现顺序。
  *
  * @param keys 待清洗的权限 key 列表，允许为空。
@@ -112,17 +126,55 @@ export function normalizeAdminPermissionKeys(
 }
 
 /**
+ * 从权限树收集每个节点的后代权限 key。
+ *
+ * @returns key 为权限 key，value 为该节点下所有后代权限 key。
+ */
+function collectPermissionDescendantMap() {
+  const map: Partial<Record<AdminPermissionKey, AdminPermissionKey[]>> = {};
+
+  const visit = (node: AdminPermissionNode): AdminPermissionKey[] => {
+    const descendants: AdminPermissionKey[] = [];
+
+    node.children?.forEach((child) => {
+      if (isAdminPermissionKey(child.key)) {
+        descendants.push(child.key);
+      }
+      descendants.push(...visit(child));
+    });
+
+    if (isAdminPermissionKey(node.key)) {
+      map[node.key] = descendants;
+    }
+
+    return descendants;
+  };
+
+  adminPermissionTree.forEach(visit);
+  return map;
+}
+
+/** admin 权限 key 的后代映射，用于页面节点通过子权限推导可访问性。 */
+export const adminPermissionDescendantKeyMap = collectPermissionDescendantMap();
+
+/**
  * 判断权限集合是否包含指定权限。
  *
  * @param permissions 当前用户拥有的权限 key 集合。
  * @param key 需要判断的权限 key。
- * @returns 权限集合包含目标 key 时返回 true。
+ * @returns 权限集合包含目标 key，或包含目标 key 下任一后代权限时返回 true。
  */
 export function hasAdminPermissionKey(
   permissions: ReadonlySet<string> | readonly string[],
   key: AdminPermissionKey,
 ) {
-  return 'has' in permissions ? permissions.has(key) : permissions.includes(key);
+  if (includesAdminPermissionKey(permissions, key)) {
+    return true;
+  }
+
+  return (adminPermissionDescendantKeyMap[key] ?? []).some((descendant) =>
+    includesAdminPermissionKey(permissions, descendant),
+  );
 }
 
 /**

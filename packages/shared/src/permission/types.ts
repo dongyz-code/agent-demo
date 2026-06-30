@@ -1,11 +1,18 @@
 import type { adminPermissionTree } from './tree.js';
 
+/** 权限节点类型，用于区分展示分组、页面入口和页面内按钮操作。 */
+export type AdminPermissionNodeType = 'group' | 'page' | 'button';
+
 /** 权限树节点。父节点和叶子节点都使用同一种结构，避免维护额外分类模型。 */
 export type AdminPermissionNode = {
   /** 权限 key。只要出现在权限树中，就是可被校验和保存的权限。 */
   key: string;
   /** 展示给管理员看的中文名称。 */
   label: string;
+  /** 节点类型，前端可据此展示分组、页面或按钮级权限。 */
+  type: AdminPermissionNodeType;
+  /** 图标标识，由前端映射到具体图标组件。 */
+  icon?: string;
   /** 绑定到 admin 路由名时，该节点可被路由 meta 直接引用。 */
   route?: string;
   /** 子权限节点，用于表达功能层级。 */

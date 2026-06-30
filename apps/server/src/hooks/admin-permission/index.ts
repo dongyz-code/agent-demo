@@ -57,24 +57,8 @@ export type AdminPermissionRequirement =
   | null
   | undefined;
 
-/** 动态权限规则的上下文，通常用于按请求体字段决定所需权限。 */
-export type AdminPermissionRuleContext = {
-  /** 请求体。 */
-  body: unknown;
-  /** 查询字符串。 */
-  query: unknown;
-  /** 路径参数。 */
-  params: unknown;
-  /** Fastify 原始请求对象。 */
-  request: FastifyRequest;
-};
-
-/** routeHandler 注册到 Fastify route config 的权限规则。 */
-export type AdminPermissionRule =
-  | AdminPermissionRequirement
-  | ((
-      context: AdminPermissionRuleContext,
-    ) => AdminPermissionRequirement | Promise<AdminPermissionRequirement>);
+/** routeHandler 注册到 Fastify route config 的静态权限规则。 */
+export type AdminPermissionRule = AdminPermissionRequirement;
 
 /**
  * 判断权限表达式是否是多权限列表。
@@ -291,20 +275,19 @@ export function assertAdminPermissionRequirement(
 }
 
 /**
- * 解析 route config 中声明的权限规则。
+ * 读取用户 admin 权限上下文并断言权限表达式。
  *
- * @param rule routeHandler 注册的权限规则。
- * @param context 动态权限规则可读取的请求上下文。
- * @returns 当前请求需要满足的权限表达式。
+ * @param userId 当前用户 ID。
+ * @param requirement 需要满足的权限表达式。
+ * @returns 权限校验通过时正常返回。
+ * @throws 权限不足时抛出统一 403 业务错误。
  */
-export async function resolveAdminPermissionRule(
-  rule: AdminPermissionRule,
-  context: AdminPermissionRuleContext,
+export async function assertUserAdminPermission(
+  userId: string,
+  requirement: AdminPermissionRequirement,
 ) {
-  if (typeof rule === 'function') {
-    return await rule(context);
-  }
-  return rule;
+  const context = await getAdminPermissionContext(userId);
+  assertAdminPermissionRequirement(context, requirement);
 }
 
 /**
@@ -332,14 +315,7 @@ export async function assertRouteAdminPermission(request: FastifyRequest) {
     throw new ROOT_ERROR('认证: 身份校验失败');
   }
 
-  const requirement = await resolveAdminPermissionRule(rule, {
-    body: request.body,
-    query: request.query,
-    params: request.params,
-    request,
-  });
-  const context = await getAdminPermissionContext(userId);
-  assertAdminPermissionRequirement(context, requirement);
+  await assertUserAdminPermission(userId, rule);
 }
 
 /**

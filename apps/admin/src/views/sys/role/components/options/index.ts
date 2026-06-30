@@ -4,6 +4,7 @@ import { notify } from '@/plugins/notify';
 import {
   adminPermissionTree,
   isAdminPermissionKey,
+  normalizeAdminPermissionKeys,
 } from '@repo/shared/permission';
 
 import { VFormItems, VDialog } from '@repo/ui';
@@ -34,28 +35,29 @@ function useRole() {
   /**
    * 同步树组件当前选中的业务权限 key。
    *
-   * @returns void。
+   * @returns 设置完成后结束。
    */
-  function syncCheckedKeys() {
-    checkedKeys.value = treeRef.value
+  async function syncCheckedKeys() {
+    const keys = treeRef.value
       ? treeRef.value.getCheckedKeys(false).map(String)
       : [];
+    await setCheckedKeys(keys);
   }
 
   const checked = computed(() => {
-    return checkedKeys.value.filter(isAdminPermissionKey);
+    return normalizeAdminPermissionKeys(checkedKeys.value);
   });
 
   /**
    * 设置树组件选中状态。
    *
-   * @param keys 需要选中的有效权限 key。
-   * @returns void。
+   * @param keys 需要选中的权限 key，会先过滤未知 key。
+   * @returns 设置完成后结束。
    */
   async function setCheckedKeys(keys: string[]) {
-    checkedKeys.value = keys;
+    checkedKeys.value = normalizeAdminPermissionKeys(keys);
     await nextTick();
-    treeRef.value?.setCheckedKeys(keys, false);
+    treeRef.value?.setCheckedKeys(checkedKeys.value, false);
   }
 
   /**
