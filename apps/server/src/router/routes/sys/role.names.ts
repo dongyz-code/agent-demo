@@ -6,12 +6,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/sys/role/names',
   method: 'POST',
-  permission: {
-    anyOf: [
-      adminPermissionKey('pages.sys.sys.role'),
-      adminPermissionKey('pages.sys.sys.user'),
-    ],
-  },
+  permission: adminPermissionKey('pages.sys.sys.role'),
   handler: async ({ body: { ids, full } }) => {
     if (!full && !ids.length) {
       return [];

@@ -1,28 +1,18 @@
 import { getTableCatalog } from './catalog.js';
-import { assertTablePermission, getTablePermissionContext } from './permissions.js';
 import { assertManagedTableSchema } from './schema.js';
 
-import type { TablePermissionAction } from '@repo/types';
+import type { ManagedTableCatalog } from './types.js';
 
-/** 读取单表 schema 和 catalog，并完成权限校验。 */
+/** 读取单表 schema 和 catalog，权限由 router 层的单接口权限统一处理。 */
 export async function getAuthorizedTableState({
-  user_id,
   table,
-  action,
 }: {
-  /** 当前用户 ID。 */
-  user_id: string;
   /** schemaTables 中的表 key。 */
   table: string;
-  /** 当前操作动作。 */
-  action: TablePermissionAction;
 }) {
-  const context = await getTablePermissionContext(user_id);
-  assertTablePermission({ context, table, action });
   const schemaTable = assertManagedTableSchema(table);
   const catalogTable = await getTableCatalog(schemaTable);
   return {
-    context,
     schemaTable,
     catalogTable,
   };
@@ -34,7 +24,7 @@ export function createCatalogFingerprint({
   indexes,
   constraints,
   exists,
-}: Awaited<ReturnType<typeof getTableCatalog>>) {
+}: ManagedTableCatalog) {
   return JSON.stringify({
     exists,
     columns: columns.map((column) => [

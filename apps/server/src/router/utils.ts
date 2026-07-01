@@ -1,5 +1,5 @@
 import type { Routes, RoutesSource, TokenDataWithExp } from '@/types/index.js';
-import { adminPermissionRouteConfigKey } from '@/hooks/admin-permission/index.js';
+import { adminPermissionRouteConfigKey } from './permission.js';
 import type {
   FastifyRequest,
   FastifyReply,
@@ -7,7 +7,7 @@ import type {
   RouteOptions,
 } from '@repo/utils-node';
 import type { AuthenticationContext } from '@repo/utils-node';
-import type { AdminPermissionRule } from '@/hooks/admin-permission/index.js';
+import type { AdminPermissionRule } from './permission.js';
 
 /** 当前服务端 route handler 使用的认证上下文类型。 */
 type RouteAuth = AuthenticationContext<TokenDataWithExp>;
@@ -22,7 +22,7 @@ export function routerHandler<T extends keyof RoutesSource>({
   url: T;
   method: RoutesSource[T]['method'];
   schema?: FastifySchema;
-  /** 接口所需的 admin 权限；真正校验由 router/index.ts 中的 preHandler 执行。 */
+  /** 接口唯一 admin 权限；真正校验由 router/permission.ts 中的 preHandler 执行。 */
   permission?: AdminPermissionRule;
   handler: (opts: {
     /** 当前时间 */

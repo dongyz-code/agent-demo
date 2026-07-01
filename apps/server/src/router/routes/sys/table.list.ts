@@ -5,10 +5,9 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/sys/table/list',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.table'),
-  handler: async ({ operator, body }) => {
+  permission: adminPermissionKey('actions.table.view'),
+  handler: async ({ body }) => {
     const list = await listVisibleTables({
-      user_id: operator,
       search: body.search?.trim(),
       physicalStatus: body.physicalStatus,
       diffLevel: body.diffLevel,

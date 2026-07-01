@@ -1,6 +1,8 @@
 import type { TableColumnMapping } from '@repo/types';
 import type { ManagedTableCatalog, ManagedTableSchema } from './types.js';
 
+import { normalizeSqlType } from './diff.js';
+
 /** 构造 rename 计划的目标字段到源字段映射。 */
 export function buildRenameColumnSourceMap({
   schemaTable,
@@ -108,13 +110,4 @@ export function buildResetColumnSourceMap({
   });
 
   return columnSourceMap;
-}
-
-/** 标准化 SQL 类型文本，用于安全兼容性判断。 */
-function normalizeSqlType(type: string) {
-  return type
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/^character varying/, 'varchar')
-    .replace('timestamp(6)', 'timestamp (6)');
 }

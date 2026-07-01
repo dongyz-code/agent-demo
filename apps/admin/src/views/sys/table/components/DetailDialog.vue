@@ -98,7 +98,7 @@
               <el-button
                 type="primary"
                 :loading="loadingPreview"
-                :disabled="!detail.permissions.includes('preview')"
+                :disabled="!canPreviewTable"
                 @click="getPreview(true)"
               >
                 刷新数据
@@ -181,6 +181,8 @@ import {
 } from 'element-plus';
 import { VDialog, usePage } from '@repo/ui';
 import { api } from '@/api';
+import { useStore } from '@/store';
+import { adminPermissionKey } from '@repo/shared/permission';
 import {
   diffLabel,
   formatTime,
@@ -215,6 +217,11 @@ const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
 });
+
+const store = useStore();
+const canPreviewTable = computed(() =>
+  store.hasPermission(adminPermissionKey('actions.table.preview')),
+);
 
 const activeTab = ref('structure');
 const preview = shallowRef<SysTablePreview>();

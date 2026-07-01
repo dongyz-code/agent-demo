@@ -10,6 +10,7 @@ import {
   buildRenameColumnSourceMap,
   buildResetColumnSourceMap,
 } from './plan-utils.js';
+import { assertManagedTableSchema } from './schema.js';
 import {
   createCatalogFingerprint,
   getAuthorizedTableState,
@@ -47,11 +48,7 @@ export async function createRenamePlan({
   /** 字段重命名映射。 */
   columnMappings?: TableColumnMapping[];
 }): Promise<TableOperationPlan> {
-  const { schemaTable } = await getAuthorizedTableState({
-    user_id,
-    table,
-    action: 'rename',
-  });
+  const schemaTable = assertManagedTableSchema(table);
   const sourceTableName = oldTableName?.trim() || schemaTable.tableName;
   validateIdentifier(sourceTableName, '旧表名');
   columnMappings.forEach((item) => {
@@ -63,18 +60,17 @@ export async function createRenamePlan({
     schemaName: schemaTable.schemaName,
     tableName: sourceTableName,
   });
-  const targetCatalog =
-    sourceTableName === schemaTable.tableName
-      ? catalogTable
-      : await getTableCatalog(schemaTable);
   const blockers: string[] = [];
   const warnings: string[] = [];
 
   if (!catalogTable.exists) {
     blockers.push(`源表 ${sourceTableName} 不存在`);
   }
-  if (sourceTableName !== schemaTable.tableName && targetCatalog.exists) {
-    blockers.push(`目标表 ${schemaTable.tableName} 已存在`);
+  if (sourceTableName !== schemaTable.tableName) {
+    const targetCatalog = await getTableCatalog(schemaTable);
+    if (targetCatalog.exists) {
+      blockers.push(`目标表 ${schemaTable.tableName} 已存在`);
+    }
   }
 
   const columnSourceMap = buildRenameColumnSourceMap({
@@ -185,9 +181,7 @@ export async function createResetPlan({
   columnMappings?: TableColumnMapping[];
 }): Promise<TableOperationPlan> {
   const { schemaTable, catalogTable } = await getAuthorizedTableState({
-    user_id,
     table,
-    action: 'reset',
   });
   const op_id = randomUUID();
   const suffix = op_id.replace(/-/g, '').slice(0, 12);
@@ -456,11 +450,6 @@ async function applySavedPlan({
   if (confirm !== row.target_table_name) {
     throw new ROOT_ERROR('校验失败');
   }
-  await getAuthorizedTableState({
-    user_id,
-    table: row.table_key,
-    action: type === 'rename' ? 'rename' : 'reset',
-  });
 
   if (row.status !== 'planned') {
     throw new ROOT_ERROR('非法参数');
@@ -479,11 +468,7 @@ async function applySavedPlan({
   }
 
   const plan = JSON.parse(row.plan) as StoredTablePlan;
-  const schemaTable = await getAuthorizedTableState({
-    user_id,
-    table: plan.table,
-    action: type === 'rename' ? 'rename' : 'reset',
-  }).then((state) => state.schemaTable);
+  const schemaTable = assertManagedTableSchema(plan.table);
   const catalogTable = await getTableCatalog({
     schemaName: plan.schemaName,
     tableName: plan.sourceTableName,

@@ -3,11 +3,6 @@ import { desc, eq, inArray } from 'drizzle-orm';
 
 import { getTableCatalog } from './catalog.js';
 import { diffManagedTable } from './diff.js';
-import {
-  getTablePermissionContext,
-  hasTablePermission,
-  listTablePermissions,
-} from './permissions.js';
 import { getManagedTableSchemaByKey, listManagedTableSchemas } from './schema.js';
 import { getAuthorizedTableState } from './state.js';
 
@@ -23,21 +18,17 @@ import type {
 export * from './catalog.js';
 export * from './diff.js';
 export * from './operations.js';
-export * from './permissions.js';
 export * from './preview.js';
 export * from './schema.js';
 export * from './state.js';
 export type * from './types.js';
 
-/** 查询当前用户可见的表管理列表。 */
+/** 查询表管理列表。 */
 export async function listVisibleTables({
-  user_id,
   search,
   physicalStatus,
   diffLevel,
 }: {
-  /** 当前用户 ID。 */
-  user_id: string;
   /** 表名或 key 搜索关键词。 */
   search?: string;
   /** 物理状态筛选。 */
@@ -45,15 +36,11 @@ export async function listVisibleTables({
   /** 差异级别筛选。 */
   diffLevel?: TableDiffLevel;
 }): Promise<TableListItem[]> {
-  const context = await getTablePermissionContext(user_id);
   const schemas = listManagedTableSchemas();
   const latestOperations = await getLatestOperationMap();
   const list: TableListItem[] = [];
 
   for (const schemaTable of schemas) {
-    if (!hasTablePermission({ context, table: schemaTable.table, action: 'view' })) {
-      continue;
-    }
     if (
       search &&
       ![schemaTable.table, schemaTable.tableName].some((value) =>
@@ -73,10 +60,6 @@ export async function listVisibleTables({
       diffLevel: diff.level,
       columnCount: schemaTable.columns.length,
       estimatedRows: catalogTable.estimatedRows,
-      permissions: listTablePermissions({
-        context,
-        table: schemaTable.table,
-      }),
       latestOperation: latestOperations.get(schemaTable.table) ?? null,
     };
 
@@ -93,21 +76,14 @@ export async function listVisibleTables({
   return list;
 }
 
-/** 查询当前用户可访问的单表详情。 */
+/** 查询单表详情。 */
 export async function getVisibleTableDetail({
-  user_id,
   table,
 }: {
-  /** 当前用户 ID。 */
-  user_id: string;
   /** schemaTables 中的表 key。 */
   table: string;
 }): Promise<TableDetail> {
-  const { context, schemaTable, catalogTable } = await getAuthorizedTableState({
-    user_id,
-    table,
-    action: 'view',
-  });
+  const { schemaTable, catalogTable } = await getAuthorizedTableState({ table });
   const diff = diffManagedTable({ schemaTable, catalogTable });
 
   return {
@@ -122,7 +98,6 @@ export async function getVisibleTableDetail({
     catalogIndexes: catalogTable.indexes,
     catalogConstraints: catalogTable.constraints,
     diff: diff.diff,
-    permissions: listTablePermissions({ context, table }),
   };
 }
 
@@ -137,13 +112,13 @@ export async function listTableOperations({
 }: {
   /** 表 key 筛选。 */
   table?: string;
-  /** 多表 key 筛选，用于普通用户只查看可见表的操作记录。 */
+  /** 多表 key 筛选。 */
   tables?: string[];
   /** 操作类型筛选。 */
   type?: TableStructureOpType;
   /** 操作状态筛选。 */
   status?: TableStructureOpStatus;
-  /** 分页范围。 */
+  /** 分页下标范围 [start, end)，如 [0, 20] 取第 0~19 行、[20, 40] 取第 20~39 行。 */
   limit?: number[];
   /** 是否返回总数。 */
   withCount?: boolean;

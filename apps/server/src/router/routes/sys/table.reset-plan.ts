@@ -6,7 +6,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/sys/table/reset-plan',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.table'),
+  permission: adminPermissionKey('actions.table.reset'),
   handler: async ({ operator, ip, body: { table, columnMappings } }) => {
     const plan = await createResetPlan({
       user_id: operator,

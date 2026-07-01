@@ -2,10 +2,7 @@ import { db, schema } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { randomUUID } from 'node:crypto';
 import { ROOT_ERROR } from '@/configs/error.js';
-import {
-  assertUserAdminPermission,
-  stringifyRolePermissionPayload,
-} from '@/hooks/admin-permission/index.js';
+import { stringifyRolePermissionPayload } from '@/router/permission.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
 import type { SqlInsertData } from '@/database/index.js';
@@ -15,19 +12,11 @@ type Item = SqlInsertData['role'];
 const { api } = routerHandler({
   url: '/sys/role/create',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.role'),
+  permission: adminPermissionKey('actions.role.create'),
   handler: async ({ body: { list }, operator, now }) => {
     if (!list.length) {
       return 'ok';
     }
-
-    const permissionRequirement = list.some((item) => item.permission?.length)
-      ? [
-          adminPermissionKey('actions.role.create'),
-          adminPermissionKey('actions.role.assign-permission'),
-        ]
-      : [adminPermissionKey('actions.role.create')];
-    await assertUserAdminPermission(operator, permissionRequirement);
 
     const listNext = list.map(({ name, desc, permission }) => {
       name = name.trim();

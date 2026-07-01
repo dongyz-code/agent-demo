@@ -40,16 +40,6 @@ export type ManagedTableCatalog = {
   constraints: TableConstraintInfo[];
 };
 
-/** 表管理权限上下文，封装当前用户和角色权限。 */
-export type TablePermissionContext = {
-  /** 当前用户 ID。 */
-  user_id: string;
-  /** 当前用户是否系统管理员。 */
-  sys_admin: boolean;
-  /** 当前用户拥有的权限 key 集合，表管理只读取不修改。 */
-  permissions: ReadonlySet<string>;
-};
-
 /** 保存到操作记录表中的结构化计划内容。 */
 export type StoredTablePlan = {
   /** 操作类型。 */

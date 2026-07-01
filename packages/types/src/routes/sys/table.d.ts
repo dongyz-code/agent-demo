@@ -19,9 +19,6 @@ export type TablePhysicalStatus = 'exists' | 'missing';
 /** 表结构差异级别，用于管理端快速筛选需要处理的表。 */
 export type TableDiffLevel = 'synced' | 'different' | 'missing';
 
-/** 表管理权限动作，用于后端进行表级权限判断。 */
-export type TablePermissionAction = 'view' | 'preview' | 'rename' | 'reset';
-
 /** 表管理页面中的字段描述，来自 Drizzle schema 或 Postgres catalog。 */
 export type TableColumnInfo = {
   /** 字段名，对应数据库列名。 */
@@ -86,8 +83,6 @@ export type TableListItem = {
   columnCount: number;
   /** 数据库估算行数，表不存在时为空。 */
   estimatedRows: number | null;
-  /** 当前用户对该表拥有的操作权限。 */
-  permissions: TablePermissionAction[];
   /** 最近一次结构操作记录。 */
   latestOperation?: Pick<
     TableStructureOpItem,
@@ -119,8 +114,6 @@ export type TableDetail = {
   catalogConstraints: TableConstraintInfo[];
   /** 差异摘要，供页面直接展示。 */
   diff: TableDiffSummary[];
-  /** 当前用户对该表拥有的操作权限。 */
-  permissions: TablePermissionAction[];
 };
 
 /** 表结构差异摘要项，用于列表和详情页提示风险。 */

@@ -5,12 +5,9 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/sys/table/detail',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.table'),
-  handler: async ({ operator, body: { table } }) => {
-    return await getVisibleTableDetail({
-      user_id: operator,
-      table,
-    });
+  permission: adminPermissionKey('actions.table.view'),
+  handler: async ({ body: { table } }) => {
+    return await getVisibleTableDetail({ table });
   },
 });
 

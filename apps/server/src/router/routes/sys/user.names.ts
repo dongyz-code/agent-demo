@@ -7,14 +7,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/sys/user/names',
   method: 'POST',
-  permission: {
-    anyOf: [
-      adminPermissionKey('pages.sys.sys.user'),
-      adminPermissionKey('pages.sys.sys.task'),
-      adminPermissionKey('pages.sys.sys.user-log'),
-      adminPermissionKey('pages.sys.sys.app-log'),
-    ],
-  },
+  permission: adminPermissionKey('pages.sys.sys.user'),
   handler: async ({ body: { ids, full } }) => {
     ids = ids.filter((x) => x !== ROOT.SYS_ADMIN_USER_ID);
 

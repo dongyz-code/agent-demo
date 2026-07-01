@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { initRoutes } from '@repo/utils-node';
 import { authentication } from './authentication.js';
-import { assertRouteAdminPermission } from '@/hooks/admin-permission/index.js';
+import { installRouteAdminPermission } from './permission.js';
 import {
   logger,
   DIRS,
@@ -35,9 +35,6 @@ export const { getRoutes, callback } = initRoutes({
   },
   callback(fastify) {
     useApiLogListen(fastify);
-    /** 请求体解析完成后，再执行 routeHandler 声明的 admin 权限校验。 */
-    fastify.addHook('preHandler', async (request) => {
-      await assertRouteAdminPermission(request);
-    });
+    installRouteAdminPermission(fastify);
   },
 });

@@ -8,12 +8,10 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/sys/table/preview',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.table'),
-  handler: async ({ operator, body: { table, offset, limit } }) => {
+  permission: adminPermissionKey('actions.table.preview'),
+  handler: async ({ body: { table, offset, limit } }) => {
     const { schemaTable, catalogTable } = await getAuthorizedTableState({
-      user_id: operator,
       table,
-      action: 'preview',
     });
     return await getTablePreview({
       schemaTable,

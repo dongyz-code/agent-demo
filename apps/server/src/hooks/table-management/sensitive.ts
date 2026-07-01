@@ -1,7 +1,8 @@
+// 仅匹配明确的敏感字段后缀；不收 `key`/`data` 这类会误伤 primary_key、metadata 的宽后缀。
 const sensitiveNamePattern =
-  /(password|passwd|pwd|secret|token|authorization|credential|private|hash|salt|key)$/i;
+  /(password|passwd|pwd|secret|token|authorization|credential|private|hash|salt)$/i;
 
-const largeTextPattern = /(detail|extra|logs?|content|payload|body|data)$/i;
+const largeTextPattern = /(detail|extra|logs?|content|payload|body)$/i;
 
 /** 判断字段是否需要在 demo 数据中默认脱敏。 */
 export function isSensitiveColumn({

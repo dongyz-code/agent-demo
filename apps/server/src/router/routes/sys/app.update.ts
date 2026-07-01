@@ -3,22 +3,13 @@ import { routerHandler } from '@/router/utils.js';
 import { generateClientSecret } from './app.create.js';
 import { pickObj } from '@repo/utils-node';
 import { eq } from 'drizzle-orm';
-import {
-  assertUserAdminPermission,
-  listAppUpdatePermissionRequirements,
-} from '@/hooks/admin-permission/index.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
   url: '/sys/app/update',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.app'),
+  permission: adminPermissionKey('actions.app.update'),
   handler: async ({ body: { id, update }, operator, now }) => {
-    await assertUserAdminPermission(
-      operator,
-      listAppUpdatePermissionRequirements(update),
-    );
-
     if (update === 'refresh-secret') {
       await db
         .update(schema.apps)

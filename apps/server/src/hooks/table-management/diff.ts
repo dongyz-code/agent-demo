@@ -73,7 +73,7 @@ export function diffManagedTable({
     }
   });
 
-  catalogColumns.forEach((_column, name) => {
+  for (const name of catalogColumns.keys()) {
     if (!schemaColumns.has(name)) {
       diff.push({
         scope: 'column',
@@ -82,7 +82,7 @@ export function diffManagedTable({
         message: `数据库存在 schema 未注册字段 ${name}`,
       });
     }
-  });
+  }
 
   catalogTable.indexes.forEach((index) => {
     if (index.complex) {
@@ -113,7 +113,7 @@ export function diffManagedTable({
 }
 
 /** 标准化 SQL 类型文本，降低 Drizzle 和 catalog 格式差异造成的误报。 */
-function normalizeSqlType(type: string) {
+export function normalizeSqlType(type: string) {
   return type
     .toLowerCase()
     .replace(/\s+/g, ' ')

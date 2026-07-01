@@ -6,7 +6,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/sys/table/rename-plan',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.table'),
+  permission: adminPermissionKey('actions.table.rename'),
   handler: async ({
     operator,
     ip,

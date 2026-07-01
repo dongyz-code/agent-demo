@@ -9,7 +9,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/sys/table/reset-apply',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.table'),
+  permission: adminPermissionKey('actions.table.reset'),
   handler: async ({ operator, ip, body: { op_id, confirm } }) => {
     const [operation] = await detailTableOperations([op_id]);
     try {

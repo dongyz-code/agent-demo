@@ -55,7 +55,7 @@
               <el-button
                 link
                 type="primary"
-                :disabled="!row.permissions.includes('reset')"
+                :disabled="!canResetTable"
                 @click.stop="openResetDialog(row)"
               >
                 重置表结构
@@ -77,12 +77,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, shallowRef } from 'vue';
+import { computed, onMounted, reactive, ref, shallowRef } from 'vue';
 import { ElButton, ElTag } from 'element-plus';
 import { VSchemaForm, VTable, usePage } from '@repo/ui';
 import { api } from '@/api';
+import { useStore } from '@/store';
 import DetailDialog from './components/DetailDialog.vue';
 import ResetDialog from './components/ResetDialog.vue';
+import { adminPermissionKey } from '@repo/shared/permission';
 import {
   diffLabel,
   diffTagType,
@@ -110,6 +112,10 @@ type SearchForm = {
 };
 
 const searchForm = shallowRef<SearchForm>({});
+const store = useStore();
+const canResetTable = computed(() =>
+  store.hasPermission(adminPermissionKey('actions.table.reset')),
+);
 
 const searchColumns: SchemaFormColumn<SearchForm>[] = [
   {

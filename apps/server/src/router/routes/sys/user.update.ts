@@ -2,10 +2,6 @@ import { db, schema } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { pickObj } from '@repo/utils-node';
 import { inArray } from 'drizzle-orm';
-import {
-  assertUserAdminPermission,
-  listUserUpdatePermissionRequirements,
-} from '@/hooks/admin-permission/index.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
 import type { SqlData, SqlInsertData } from '@/database/index.js';
@@ -13,17 +9,12 @@ import type { SqlData, SqlInsertData } from '@/database/index.js';
 const { api } = routerHandler({
   url: '/sys/user/update',
   method: 'POST',
-  permission: adminPermissionKey('pages.sys.sys.user'),
+  permission: adminPermissionKey('actions.user.update'),
   handler: async ({ body: { id, form }, operator, now }) => {
     const userIds = Array.isArray(id) ? id : [id];
     if (!userIds.length) {
       return 'ok';
     }
-
-    await assertUserAdminPermission(
-      operator,
-      listUserUpdatePermissionRequirements(form),
-    );
 
     const updateForm: Partial<SqlData['user']> = pickObj(form, [
       'nickname',
