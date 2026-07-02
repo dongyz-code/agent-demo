@@ -2,14 +2,12 @@ import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema, sql } from '@/database/index.js';
 import { dayJsformat } from '@repo/utils-node';
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, SQL } from 'drizzle-orm';
+import { getTableConfig } from 'drizzle-orm/pg-core';
 
 import { getTableCatalog } from './catalog.js';
 import { diffManagedTable } from './diff.js';
-import {
-  buildRenameColumnSourceMap,
-  buildResetColumnSourceMap,
-} from './plan-utils.js';
+import { buildResetColumnSourceMap } from './plan-utils.js';
 import { assertManagedTableSchema } from './schema.js';
 import {
   createCatalogFingerprint,
@@ -28,144 +26,8 @@ import type {
   ManagedTableSchema,
   StoredTablePlan,
 } from './types.js';
-import type { SQL } from 'drizzle-orm';
 
 const planExpireMs = 30 * 60 * 1000;
-
-/** 生成表或字段重命名计划，并保存到审计表。 */
-export async function createRenamePlan({
-  user_id,
-  table,
-  oldTableName,
-  columnMappings = [],
-}: {
-  /** 当前用户 ID。 */
-  user_id: string;
-  /** schemaTables 中的目标表 key。 */
-  table: string;
-  /** 数据库中的旧表名。 */
-  oldTableName?: string;
-  /** 字段重命名映射。 */
-  columnMappings?: TableColumnMapping[];
-}): Promise<TableOperationPlan> {
-  const schemaTable = assertManagedTableSchema(table);
-  const sourceTableName = oldTableName?.trim() || schemaTable.tableName;
-  validateIdentifier(sourceTableName, '旧表名');
-  columnMappings.forEach((item) => {
-    validateIdentifier(item.from, '旧字段名');
-    validateIdentifier(item.to, '新字段名');
-  });
-
-  const catalogTable = await getTableCatalog({
-    schemaName: schemaTable.schemaName,
-    tableName: sourceTableName,
-  });
-  const blockers: string[] = [];
-  const warnings: string[] = [];
-
-  if (!catalogTable.exists) {
-    blockers.push(`源表 ${sourceTableName} 不存在`);
-  }
-  if (sourceTableName !== schemaTable.tableName) {
-    const targetCatalog = await getTableCatalog(schemaTable);
-    if (targetCatalog.exists) {
-      blockers.push(`目标表 ${schemaTable.tableName} 已存在`);
-    }
-  }
-
-  const columnSourceMap = buildRenameColumnSourceMap({
-    schemaTable,
-    catalogTable,
-    columnMappings,
-    blockers,
-  });
-  if (sourceTableName === schemaTable.tableName && !columnMappings.length) {
-    warnings.push('计划未包含实际重命名动作');
-  }
-
-  const sqlPreview = [
-    ...(sourceTableName === schemaTable.tableName
-      ? []
-      : [
-          `alter table ${quoteQualified(
-            schemaTable.schemaName,
-            sourceTableName,
-          )} rename to ${quoteIdent(schemaTable.tableName)}`,
-        ]),
-    ...columnMappings.map(
-      ({ from, to }) =>
-        `alter table ${quoteQualified(
-          schemaTable.schemaName,
-          schemaTable.tableName,
-        )} rename column ${quoteIdent(from)} to ${quoteIdent(to)}`,
-    ),
-  ];
-
-  return await saveOperationPlan({
-    user_id,
-    type: 'rename',
-    schemaTable,
-    sourceTableName,
-    catalogTable,
-    plan: {
-      type: 'rename',
-      table,
-      schemaName: schemaTable.schemaName,
-      tableName: schemaTable.tableName,
-      sourceTableName,
-      columnSourceMap,
-      catalogFingerprint: createCatalogFingerprint(catalogTable),
-    },
-    sqlPreview,
-    warnings,
-    blockers,
-  });
-}
-
-/** 执行已保存的表或字段重命名计划。 */
-export async function applyRenamePlan({
-  user_id,
-  op_id,
-  confirm,
-}: {
-  /** 当前用户 ID。 */
-  user_id: string;
-  /** 操作记录 ID。 */
-  op_id: string;
-  /** 二次确认文本。 */
-  confirm: string;
-}): Promise<TableOperationApplyResult> {
-  return await applySavedPlan({
-    user_id,
-    op_id,
-    confirm,
-    type: 'rename',
-    execute: async ({ plan }) => {
-      await db.transaction(async (tx) => {
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${op_id}))`);
-        await tx.execute(sql`set local lock_timeout = '5s'`);
-        await tx.execute(sql`set local statement_timeout = '120s'`);
-
-        if (plan.sourceTableName !== plan.tableName) {
-          await tx.execute(sql`
-            alter table ${sql.identifier(plan.schemaName)}.${sql.identifier(plan.sourceTableName)}
-            rename to ${sql.identifier(plan.tableName)}
-          `);
-        }
-
-        for (const [target, source] of Object.entries(plan.columnSourceMap)) {
-          if (target === source) {
-            continue;
-          }
-          await tx.execute(sql`
-            alter table ${sql.identifier(plan.schemaName)}.${sql.identifier(plan.tableName)}
-            rename column ${sql.identifier(source)} to ${sql.identifier(target)}
-          `);
-        }
-      });
-    },
-  });
-}
 
 /** 生成按 Drizzle schema 无损重置表结构的计划，并保存到审计表。 */
 export async function createResetPlan({
@@ -320,11 +182,6 @@ export async function applyResetPlan({
         await copyTableData({
           execute: (statement) => tx.execute(statement),
           schemaTable,
-          plan,
-          temporaryTableName,
-        });
-        await assertCopiedRowCount({
-          execute: (statement) => tx.execute<{ count: number }>(statement),
           plan,
           temporaryTableName,
         });
@@ -563,7 +420,7 @@ async function updateOperationStatus({
     .where(eq(schema.table_structure_ops.op_id, op_id));
 }
 
-/** 生成 create table SQL，只覆盖首版支持的安全字段子集。 */
+/** 生成 create table SQL，列定义直接取自 drizzle 原始 column，完整保留 default。 */
 function createTableSql({
   schemaTable,
   tableName,
@@ -573,14 +430,17 @@ function createTableSql({
   /** 要创建的真实表名。 */
   tableName: string;
 }) {
-  const primaryColumns = schemaTable.columns.filter((column) => column.primaryKey);
-  const columnDefs = schemaTable.columns.map((column) => {
-    const parts: SQL[] = [
-      sql`${sql.identifier(column.name)}`,
-      sql.raw(column.sqlType),
-      column.notNull ? sql`not null` : sql.empty(),
-    ];
-    if (primaryColumns.length === 1 && column.primaryKey) {
+  const { columns } = getTableConfig(schemaTable.drizzleTable);
+  const primaryColumns = columns.filter((column) => column.primary);
+  const columnDefs = columns.map((column) => {
+    const parts: SQL[] = [sql`${sql.identifier(column.name)}`, sql.raw(column.getSQLType())];
+    if (column.notNull) {
+      parts.push(sql`not null`);
+    }
+    if (column.default !== undefined) {
+      parts.push(sql`default ${defaultLiteral(column.default)}`);
+    }
+    if (primaryColumns.length === 1 && column.primary) {
       parts.push(sql`primary key`);
     }
     return sql.join(parts, sql` `);
@@ -599,6 +459,26 @@ function createTableSql({
     create table ${sql.identifier(schemaTable.schemaName)}.${sql.identifier(tableName)}
     (${sql.join(columnDefs, sql`, `)})
   `;
+}
+
+/** 将 drizzle column.default 转为可内联到 DDL 的 SQL 片段。 */
+function defaultLiteral(value: unknown): SQL {
+  if (value instanceof SQL) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return sql.raw(`'${value.replace(/'/g, "''")}'`);
+  }
+  if (typeof value === 'boolean') {
+    return sql.raw(value ? 'true' : 'false');
+  }
+  if (typeof value === 'number') {
+    return sql.raw(String(value));
+  }
+  if (value === null) {
+    return sql.raw('null');
+  }
+  return sql.raw(`'${String(value).replace(/'/g, "''")}'`);
 }
 
 /** 复制源表中可兼容字段的数据到临时新表。 */
@@ -635,34 +515,6 @@ async function copyTableData({
     )}
     from ${sql.identifier(plan.schemaName)}.${sql.identifier(plan.sourceTableName)}
   `);
-}
-
-/** 校验源表和临时新表复制后的行数一致。 */
-async function assertCopiedRowCount({
-  execute,
-  plan,
-  temporaryTableName,
-}: {
-  /** SQL 执行函数。 */
-  execute: (statement: SQL) => Promise<{ rows: { count: number }[] }>;
-  /** 保存的 reset 计划。 */
-  plan: StoredTablePlan;
-  /** 已校验存在的临时表名。 */
-  temporaryTableName: string;
-}) {
-  const [source, target] = await Promise.all([
-    execute(sql`
-      select count(*)::int as count
-      from ${sql.identifier(plan.schemaName)}.${sql.identifier(plan.sourceTableName)}
-    `),
-    execute(sql`
-      select count(*)::int as count
-      from ${sql.identifier(plan.schemaName)}.${sql.identifier(temporaryTableName)}
-    `),
-  ]);
-  if (source.rows[0]?.count !== target.rows[0]?.count) {
-    throw new ROOT_ERROR('数据异常');
-  }
 }
 
 /** 为临时新表创建 schema 中声明的普通索引。 */

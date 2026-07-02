@@ -3,62 +3,6 @@ import type { ManagedTableCatalog, ManagedTableSchema } from './types.js';
 
 import { normalizeSqlType } from './diff.js';
 
-/** 构造 rename 计划的目标字段到源字段映射。 */
-export function buildRenameColumnSourceMap({
-  schemaTable,
-  catalogTable,
-  columnMappings,
-  blockers,
-}: {
-  /** Drizzle schema 目标结构。 */
-  schemaTable: ManagedTableSchema;
-  /** Postgres catalog 真实结构。 */
-  catalogTable: ManagedTableCatalog;
-  /** 字段重命名映射。 */
-  columnMappings: TableColumnMapping[];
-  /** 收集阻塞项的数组。 */
-  blockers: string[];
-}) {
-  const catalogColumns = new Map(
-    catalogTable.columns.map((column) => [column.name, column]),
-  );
-  const schemaColumns = new Map(
-    schemaTable.columns.map((column) => [column.name, column]),
-  );
-  const mappedTargets = new Set<string>();
-  const columnSourceMap: Record<string, string> = {};
-
-  columnMappings.forEach(({ from, to }) => {
-    if (mappedTargets.has(to)) {
-      blockers.push(`字段 ${to} 存在重复映射`);
-    }
-    mappedTargets.add(to);
-    const sourceColumn = catalogColumns.get(from);
-    const targetColumn = schemaColumns.get(to);
-    if (!sourceColumn) {
-      blockers.push(`源字段 ${from} 不存在`);
-      return;
-    }
-    if (!targetColumn) {
-      blockers.push(`目标字段 ${to} 不在 Drizzle schema 中`);
-      return;
-    }
-    if (normalizeSqlType(sourceColumn.sqlType) !== normalizeSqlType(targetColumn.sqlType)) {
-      blockers.push(`字段 ${from} 与 ${to} 类型不兼容`);
-      return;
-    }
-    columnSourceMap[to] = from;
-  });
-
-  schemaTable.columns.forEach((column) => {
-    if (!columnSourceMap[column.name] && catalogColumns.has(column.name)) {
-      columnSourceMap[column.name] = column.name;
-    }
-  });
-
-  return columnSourceMap;
-}
-
 /** 构造 reset 计划的目标字段到源字段映射。 */
 export function buildResetColumnSourceMap({
   schemaTable,

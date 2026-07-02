@@ -38,7 +38,6 @@ export function diffTagType(level: ApiSys.TableDiffLevel) {
  */
 export function operationTypeLabel(type: ApiSys.TableStructureOpType) {
   return {
-    rename: '重命名',
     reset: '重置',
   }[type];
 }

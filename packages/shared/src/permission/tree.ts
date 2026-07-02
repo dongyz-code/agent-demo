@@ -211,12 +211,6 @@ export const adminPermissionTree = [
                 icon: 'eye',
               },
               {
-                key: 'actions.table.rename',
-                label: '重命名表结构',
-                type: 'button',
-                icon: 'pencil',
-              },
-              {
                 key: 'actions.table.reset',
                 label: '根据 schema 重置',
                 type: 'button',

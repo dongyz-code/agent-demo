@@ -1,8 +1,8 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type { TableStructureOpItem } from '../models.js';
 
-/** 表结构操作类型，用于区分重命名和按 schema 重置两类高风险动作。 */
-export type TableStructureOpType = 'rename' | 'reset';
+/** 表结构操作类型，目前仅支持按 schema 重置。 */
+export type TableStructureOpType = 'reset';
 
 /** 表结构操作状态，用于前后端展示计划、执行和失败恢复进度。 */
 export type TableStructureOpStatus =
@@ -154,7 +154,7 @@ export type TablePreview = {
   limit: number;
 };
 
-/** 字段重命名或复制映射，用于 rename/reset plan。 */
+/** reset 计划的字段复制映射。 */
 export type TableColumnMapping = {
   /** 旧字段名。 */
   from: string;
@@ -264,26 +264,6 @@ export type TableManagementAction = ApiMultAction<{
       ids: string[];
     };
     resp: TableStructureOpItem[];
-  };
-  'rename-plan': {
-    req: {
-      /** schemaTables 中的目标表 key。 */
-      table: string;
-      /** 数据库中的旧表名，不传则默认使用目标表名。 */
-      oldTableName?: string;
-      /** 字段重命名映射。 */
-      columnMappings?: TableColumnMapping[];
-    };
-    resp: TableOperationPlan;
-  };
-  'rename-apply': {
-    req: {
-      /** 操作记录 ID。 */
-      op_id: string;
-      /** 二次确认文本，必须与服务端要求一致。 */
-      confirm: string;
-    };
-    resp: TableOperationApplyResult;
   };
   'reset-plan': {
     req: {
