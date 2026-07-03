@@ -4,7 +4,8 @@ import { db, sql } from '@/database/index.js';
 import { maskPreviewValue } from './sensitive.js';
 
 import type { TablePreview } from '@repo/types';
-import type { ManagedTableCatalog, ManagedTableSchema } from './types.js';
+import type { ManagedTableSchema } from './types.js';
+import type { TableCatalog } from '@/database/introspection/index.js';
 
 /** 读取单表数据预览，按分页返回注册字段并保留脱敏逻辑。 */
 export async function getTablePreview({
@@ -16,7 +17,7 @@ export async function getTablePreview({
   /** Drizzle schema 目标结构。 */
   schemaTable: ManagedTableSchema;
   /** Postgres catalog 真实结构。 */
-  catalogTable: ManagedTableCatalog;
+  catalogTable: TableCatalog;
   /** 起始行偏移。 */
   offset?: number;
   /** 返回行数，上限 100。 */

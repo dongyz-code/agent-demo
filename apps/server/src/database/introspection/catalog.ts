@@ -1,13 +1,30 @@
-import { db, sql } from '@/database/index.js';
+import { sql } from 'drizzle-orm';
 
-import { isSensitiveColumn } from './sensitive.js';
+import { db } from '../client.js';
 
 import type {
   TableColumnInfo,
   TableConstraintInfo,
   TableIndexInfo,
 } from '@repo/types';
-import type { ManagedTableCatalog } from './types.js';
+
+/** 数据库 catalog 中读取到的真实表结构（不含 sensitive 等展示属性，由业务层投影追加）。 */
+export type TableCatalog = {
+  /** PostgreSQL schema 名称。 */
+  schemaName: string;
+  /** 数据库真实表名。 */
+  tableName: string;
+  /** 表是否真实存在。 */
+  exists: boolean;
+  /** 数据库估算行数。 */
+  estimatedRows: number | null;
+  /** 真实字段列表。 */
+  columns: TableColumnInfo[];
+  /** 真实索引列表。 */
+  indexes: TableIndexInfo[];
+  /** 真实约束列表。 */
+  constraints: TableConstraintInfo[];
+};
 
 type CatalogTableRow = {
   estimated_rows: number;
@@ -42,7 +59,7 @@ export async function getTableCatalog({
   schemaName: string;
   /** 数据库表名。 */
   tableName: string;
-}): Promise<ManagedTableCatalog> {
+}): Promise<TableCatalog> {
   const tableResult = await db.execute<CatalogTableRow>(sql`
     select c.reltuples::bigint as estimated_rows
     from pg_class c
@@ -83,6 +100,36 @@ export async function getTableCatalog({
   };
 }
 
+/** 计算 catalog 指纹，用于 apply 前判断结构是否漂移。 */
+export function createCatalogFingerprint({
+  columns,
+  indexes,
+  constraints,
+  exists,
+}: TableCatalog) {
+  return JSON.stringify({
+    exists,
+    columns: columns.map((column) => [
+      column.name,
+      column.sqlType,
+      column.notNull,
+      column.primaryKey,
+    ]),
+    indexes: indexes.map((index) => [
+      index.name,
+      index.columns,
+      index.unique,
+      index.complex,
+    ]),
+    constraints: constraints.map((constraint) => [
+      constraint.name,
+      constraint.type,
+      constraint.columns,
+      constraint.complex,
+    ]),
+  });
+}
+
 /** 读取指定表的真实字段列表。 */
 async function getCatalogColumns({
   schemaName,
@@ -109,7 +156,7 @@ async function getCatalogColumns({
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
     join pg_attribute a on a.attrelid = c.oid
-    left join pg_attrdef d on d.adrelid = c.oid and d.adnum = a.attnum
+    left join pg_attrdef d on d.adrelid = c.oid and d.adnum = a.atnum
     where n.nspname = ${schemaName}
       and c.relname = ${tableName}
       and c.relkind in ('r', 'p')
@@ -125,10 +172,6 @@ async function getCatalogColumns({
     hasDefault: row.default_value !== null,
     defaultValue: row.default_value,
     primaryKey: row.primary_key,
-    sensitive: isSensitiveColumn({
-      name: row.name,
-      sqlType: row.sql_type,
-    }),
   }));
 }
 

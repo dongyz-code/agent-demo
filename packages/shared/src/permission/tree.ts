@@ -216,6 +216,12 @@ export const adminPermissionTree = [
                 type: 'button',
                 icon: 'rotate-ccw',
               },
+              {
+                key: 'actions.table.sync',
+                label: '同步索引/触发器',
+                type: 'button',
+                icon: 'refresh-cw',
+              },
             ],
           },
           {

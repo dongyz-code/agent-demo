@@ -1,9 +1,9 @@
 import { countRows, db, schema, sql, whereAll } from '@/database/index.js';
+import { diffTable, getTableCatalog } from '@/database/introspection/index.js';
 import { desc, eq, inArray } from 'drizzle-orm';
 
-import { getTableCatalog } from './catalog.js';
-import { diffManagedTable } from './diff.js';
 import { getManagedTableSchemaByKey, listManagedTableSchemas } from './schema.js';
+import { isSensitiveColumn } from './sensitive.js';
 import { getAuthorizedTableState } from './state.js';
 
 import type {
@@ -15,9 +15,12 @@ import type {
   TableStructureOpType,
 } from '@repo/types';
 
-export * from './catalog.js';
-export * from './diff.js';
-export * from './operations.js';
+export {
+  applyResetPlan,
+  applySyncPlan,
+  createResetPlan,
+  createSyncPlan,
+} from './operations.js';
 export * from './preview.js';
 export * from './schema.js';
 export * from './state.js';
@@ -51,7 +54,7 @@ export async function listVisibleTables({
     }
 
     const catalogTable = await getTableCatalog(schemaTable);
-    const diff = diffManagedTable({ schemaTable, catalogTable });
+    const diff = diffTable(schemaTable, catalogTable);
     const item: TableListItem = {
       table: schemaTable.table,
       schemaName: schemaTable.schemaName,
@@ -84,7 +87,7 @@ export async function getVisibleTableDetail({
   table: string;
 }): Promise<TableDetail> {
   const { schemaTable, catalogTable } = await getAuthorizedTableState({ table });
-  const diff = diffManagedTable({ schemaTable, catalogTable });
+  const diff = diffTable(schemaTable, catalogTable);
 
   return {
     table: schemaTable.table,
@@ -93,7 +96,14 @@ export async function getVisibleTableDetail({
     physicalStatus: catalogTable.exists ? 'exists' : 'missing',
     diffLevel: diff.level,
     schemaColumns: schemaTable.columns,
-    catalogColumns: catalogTable.columns,
+    // catalog 侧不含 sensitive（机器层不感知脱敏策略），在此业务边界按列名/类型补戳
+    catalogColumns: catalogTable.columns.map((column) => ({
+      ...column,
+      sensitive: isSensitiveColumn({
+        name: column.name,
+        sqlType: column.sqlType,
+      }),
+    })),
     schemaIndexes: schemaTable.indexes,
     catalogIndexes: catalogTable.indexes,
     catalogConstraints: catalogTable.constraints,

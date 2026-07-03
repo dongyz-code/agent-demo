@@ -1,55 +1,54 @@
-import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
-import type { AnyPgTable } from 'drizzle-orm/pg-core';
+/**
+ * schema 基础设施子模块公共出口。
+ *
+ * 统一收口 schema 基础设施：表声明（pgTable）、trigger 捕获、表描述（describeTable）、
+ * DDL 生成（createXxxSql）、内置 trigger 预设（timestampsTrigger）。migrations 与表管理
+ * hooks 均从此处引入，避免表结构推导逻辑散落到多个消费者。具体表定义见 ../tables。
+ */
 
-export * from './access.js';
-export * from './log.js';
-export * from './main.js';
-export * from './structure.js';
-export * from './system.js';
-export * from './table.js';
-export * from './task.js';
+export {
+  pgTable,
+  trigger,
+  triggerFunction,
+  getTableSchemaObjects,
+} from './declaration.js';
 
-import { role, user, user_role } from './access.js';
-import { api_logs, user_logs } from './log.js';
-import { table_structure_ops } from './structure.js';
-import { apps, sys_conf } from './system.js';
-import { getDatabaseSchemaObjects } from './table.js';
-import { tasks } from './task.js';
+export {
+  defaultDatabaseSchema,
+  describeTable,
+  getTableDdlTarget,
+  validateSqlIdentifier,
+} from './descriptor.js';
+export type { DescribeTableOptions } from './descriptor.js';
 
-/** 允许表管理功能展示和操作的业务表白名单，不包含内部审计表和迁移记录表。 */
-export const schemaTables = {
-  sys_conf,
-  user,
-  role,
-  user_role,
-  apps,
-  tasks,
-  api_logs,
-  user_logs,
-};
+export {
+  createSchemaSql,
+  createTableSql,
+  createTableIndexSqls,
+  createTriggerFunctionSql,
+  createTriggerSqls,
+  quoteIdent,
+  quoteQualified,
+} from './ddl.js';
 
-/** 所有需要由自管迁移创建的 Drizzle 表；表管理审计表不进入 schemaTables 白名单。 */
-export const databaseSchemaTables = [
-  ...Object.values(schemaTables),
-  table_structure_ops,
-] satisfies AnyPgTable[];
+export { timestampsTrigger } from './presets.js';
+export type { TimestampsTriggerOptions } from './presets.js';
 
-/** 数据库完整目标态对象，迁移配置只引用它，不重复维护 schema 细节。 */
-export const databaseSchemaObjects = getDatabaseSchemaObjects(databaseSchemaTables);
-
-/** 允许作为 schemaTables key 使用的表名联合类型。 */
-export type Table = keyof typeof schemaTables;
-
-/** 服务端内部读取数据库行时使用的 Drizzle select 推导类型。 */
-export type SqlData = {
-  [Key in keyof typeof schemaTables]: InferSelectModel<
-    (typeof schemaTables)[Key]
-  >;
-};
-
-/** 服务端内部写入数据库行时使用的 Drizzle insert 推导类型。 */
-export type SqlInsertData = {
-  [Key in keyof typeof schemaTables]: InferInsertModel<
-    (typeof schemaTables)[Key]
-  >;
-};
+export type {
+  ColumnDescriptor,
+  CreateIndexSqlOptions,
+  CreateTableSqlOptions,
+  CreateTriggerSqlOptions,
+  DrizzleIndexConfig,
+  IndexDescriptor,
+  PgTableExtraConfig,
+  PgTableExtraConfigValue,
+  SchemaTrigger,
+  SchemaTriggerConfig,
+  SchemaTriggerEvent,
+  SchemaTriggerFunction,
+  TableDdlTarget,
+  TableDescriptor,
+  TableSchemaObjects,
+  TableTargetOptions,
+} from './types.js';

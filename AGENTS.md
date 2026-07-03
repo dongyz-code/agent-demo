@@ -15,7 +15,7 @@
 - `pnpm --filter @repo/deploy-admin dev` 启动 Vue 管理端。
 - `pnpm --filter @repo/deploy-server dev` 使用 `tsx` 启动服务端。
 - `pnpm --filter @repo/deploy-client test` 运行 Vitest。
-- `pnpm --filter @repo/deploy-server db:migrate` 执行服务端自管迁移；新增结构变更时维护 `apps/server/src/database/migration-config.ts`。
+- 服务端无独立迁移命令：启动时自动建缺失表并报漂移；已有表的索引/trigger 同步走前端 sync 操作，列结构变更走 reset。
 - 修改依赖后运行 `pnpm pkg:sort` 排序工作区 `package.json`。
 
 ## 代码风格与命名约定

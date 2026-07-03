@@ -14,20 +14,19 @@ import {
 } from 'drizzle-orm';
 
 import { db, pool } from './client.js';
-import { runMigrations } from './migrate.js';
-import * as schema from './schema/index.js';
+import * as schema from './tables/index.js';
 
 import type { AnyColumn, SQL } from 'drizzle-orm';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
-export { db, pool, runMigrations, schema, sql };
+export { db, pool, schema, sql };
 
 export const tableNames = Object.fromEntries(
   Object.keys(schema.schemaTables).map((key) => [key, key]),
 ) as Record<schema.Table, string>;
 
 export type { Db } from './client.js';
-export type { SqlData, SqlInsertData, Table } from './schema/index.js';
+export type { SqlData, SqlInsertData, Table } from './tables/index.js';
 
 type FilterValue = string | number | boolean | Date | null;
 

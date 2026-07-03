@@ -15,8 +15,8 @@ export const { CONF: LOG_CONF, CONF_MAP: LOG_MAP } = logHelper({
       detail: {} as {
         /** 操作记录 ID */
         op_id: string;
-        /** 操作类型 */
-        type: 'reset';
+        /** 操作类型：reset 或 sync */
+        type: 'reset' | 'sync';
         /** schemaTables 中的表 key */
         table: string;
       },
@@ -26,8 +26,8 @@ export const { CONF: LOG_CONF, CONF_MAP: LOG_MAP } = logHelper({
       detail: {} as {
         /** 操作记录 ID */
         op_id: string;
-        /** 操作类型 */
-        type: 'reset';
+        /** 操作类型：reset 或 sync */
+        type: 'reset' | 'sync';
         /** schemaTables 中的表 key */
         table: string;
         /** 执行后的操作状态 */

@@ -114,8 +114,8 @@ export type UserLogItem = {
 export type TableStructureOpItem = {
   /** 操作记录 ID */
   op_id: string;
-  /** 操作类型：schema 重置 */
-  type: 'reset';
+  /** 操作类型：schema 重置或索引/触发器同步 */
+  type: 'reset' | 'sync';
   /** 操作状态 */
   status: 'planned' | 'running' | 'completed' | 'failed' | 'expired' | 'blocked';
   /** schemaTables 中的表 key */

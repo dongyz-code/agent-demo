@@ -17,6 +17,9 @@ export type SysTableOperation =
 /** 表结构重置计划，执行阶段只使用计划 ID 和确认文本。 */
 export type SysTablePlan = ApiSys.TableManagementAction['reset-plan']['resp'];
 
+/** 表结构同步计划，与重置计划同构，仅操作类型不同。 */
+export type SysSyncPlan = ApiSys.TableManagementAction['sync-plan']['resp'];
+
 /** 表清单接口兼容响应，后端热更新未生效时可能暂时缺少总数。 */
 export type SysTableListResponse = Omit<
   ApiSys.TableManagementAction['list']['resp'],

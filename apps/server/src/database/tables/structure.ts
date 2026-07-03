@@ -1,7 +1,7 @@
 import { index, text, uuid } from 'drizzle-orm/pg-core';
 
 import { timestamptz, varchar255 } from './columns.js';
-import { pgTable } from './table.js';
+import { pgTable } from '../schema/index.js';
 
 import type {
   TableStructureOpStatus,
@@ -53,7 +53,11 @@ export const table_structure_ops = pgTable(
   (table) => [
     index('table_structure_ops_type_idx').on(table.type),
     index('table_structure_ops_status_idx').on(table.status),
-    index('table_structure_ops_table_key_idx').on(table.table_key),
+    /** 覆盖 table_key 查询，并加速 distinct on (table_key) order by create_timestamp 的最新操作查询 */
+    index('table_structure_ops_table_key_create_timestamp_idx').on(
+      table.table_key,
+      table.create_timestamp,
+    ),
     index('table_structure_ops_create_timestamp_idx').on(table.create_timestamp),
   ],
 );

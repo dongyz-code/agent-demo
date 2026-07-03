@@ -1,17 +1,10 @@
-import {
-  defaultDatabaseSchema,
-  getDrizzleTableIndexes,
-} from '@/database/ddl.js';
 import { schema } from '@/database/index.js';
-import { getTableConfig } from 'drizzle-orm/pg-core';
+import { describeTable } from '@/database/schema/index.js';
 
 import { isSensitiveColumn } from './sensitive.js';
 
 import type { ManagedTableSchema } from './types.js';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
-
-/** 默认 PostgreSQL schema 名称，Drizzle 未指定 schema 时使用数据库连接配置。 */
-export const defaultTableSchema = defaultDatabaseSchema;
 
 /** 返回所有允许表管理功能处理的 Drizzle 表 schema。 */
 export function listManagedTableSchemas(): ManagedTableSchema[] {
@@ -39,44 +32,48 @@ export function assertManagedTableSchema(table: string) {
   return item;
 }
 
-/** 将 Drizzle 表对象转换为表管理内部使用的结构快照。 */
+/**
+ * 将 Drizzle 表对象转换为表管理内部使用的结构快照。
+ *
+ * 字段、主键、索引、trigger 取自 describeTable 的统一描述；sensitive 属于展示关注点，
+ * 在此业务投影层追加。table 是 schemaTables key，仅用于 UI/审计展示。
+ */
 function getManagedTableSchema(
   table: string,
   drizzleTable: AnyPgTable,
 ): ManagedTableSchema {
-  const config = getTableConfig(drizzleTable);
-  const tableName = config.name;
-  const schemaName = config.schema ?? defaultTableSchema;
-  const primaryColumns = new Set(
-    config.primaryKeys.flatMap((item) =>
-      item.columns.map((column) => column.name),
-    ),
-  );
+  const descriptor = describeTable(drizzleTable);
 
-  const columns = config.columns.map((column) => {
-    const sqlType = column.getSQLType();
-    const primaryKey = column.primary || primaryColumns.has(column.name);
-    return {
+  const columns = descriptor.columns.map((column) => ({
+    name: column.name,
+    key: column.name,
+    dataType: column.dataType,
+    sqlType: column.sqlType,
+    notNull: column.notNull,
+    hasDefault: column.hasDefault,
+    primaryKey: column.primaryKey,
+    sensitive: isSensitiveColumn({
       name: column.name,
-      key: column.name,
-      dataType: column.dataType,
-      sqlType,
-      notNull: column.notNull,
-      hasDefault: column.hasDefault,
-      primaryKey,
-      sensitive: isSensitiveColumn({ name: column.name, sqlType }),
-    };
-  });
+      sqlType: column.sqlType,
+    }),
+  }));
+
+  const indexes = descriptor.indexes.map(
+    ({ name, columns: indexColumns, unique, complex }) => ({
+      name,
+      columns: indexColumns,
+      unique,
+      complex,
+    }),
+  );
 
   return {
     table,
     drizzleTable,
-    schemaName,
-    tableName,
+    schemaName: descriptor.schemaName,
+    tableName: descriptor.tableName,
     columns,
-    indexes: getDrizzleTableIndexes({ table: drizzleTable, tableName }),
-    triggers: schema.databaseSchemaObjects.triggers.filter(
-      (item) => item.table === drizzleTable,
-    ),
+    indexes,
+    triggers: descriptor.triggers,
   };
 }

@@ -7,7 +7,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { baseCols, timestamptz, varchar255 } from './columns.js';
-import { pgTable } from './table.js';
+import { pgTable, timestampsTrigger } from '../schema/index.js';
 
 export const user = pgTable(
   'user',
@@ -30,22 +30,37 @@ export const user = pgTable(
     extra: text('extra'),
     ...baseCols(),
   },
-  (table) => [uniqueIndex('user_username_unique').on(table.username)],
+  (table) => [
+    uniqueIndex('user_username_unique').on(table.username),
+    ...timestampsTrigger({
+      createColumn: 'create_timestamp',
+      updateColumn: 'last_update_timestamp',
+    }),
+  ],
 );
 
-export const role = pgTable('role', {
-  /** 角色ID */
-  role_id: uuid('role_id').primaryKey(),
-  /** 角色名称 */
-  name: varchar255('name').notNull(),
-  /** 角色描述 */
-  desc: text('desc'),
-  /** 是否可用 */
-  available: boolean('available').notNull(),
-  /** 权限 */
-  permission: text('permission'),
-  ...baseCols(),
-});
+export const role = pgTable(
+  'role',
+  {
+    /** 角色ID */
+    role_id: uuid('role_id').primaryKey(),
+    /** 角色名称 */
+    name: varchar255('name').notNull(),
+    /** 角色描述 */
+    desc: text('desc'),
+    /** 是否可用 */
+    available: boolean('available').notNull(),
+    /** 权限 */
+    permission: text('permission'),
+    ...baseCols(),
+  },
+  () => [
+    ...timestampsTrigger({
+      createColumn: 'create_timestamp',
+      updateColumn: 'last_update_timestamp',
+    }),
+  ],
+);
 
 export const user_role = pgTable(
   'user_role',
@@ -61,6 +76,10 @@ export const user_role = pgTable(
   },
   (table) => [
     index('user_role_role_id_idx').on(table.role_id),
-    index('user_role_user_id_idx').on(table.user_id),
+    /** 覆盖 user_id 查询并在 DB 层防止同一用户重复授权同一角色 */
+    uniqueIndex('user_role_user_id_role_id_unique').on(
+      table.user_id,
+      table.role_id,
+    ),
   ],
 );

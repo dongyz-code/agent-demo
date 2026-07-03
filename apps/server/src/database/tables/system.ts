@@ -1,13 +1,13 @@
 import {
   boolean,
-  index,
   smallint,
   text,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
 import { baseCols, timestamptz, varchar255 } from './columns.js';
-import { pgTable } from './table.js';
+import { pgTable } from '../schema/index.js';
 
 export const sys_conf = pgTable('sys_conf', {
   /** 配置ID */
@@ -37,5 +37,6 @@ export const apps = pgTable(
     last_login_timestamp: timestamptz('last_login_timestamp'),
     ...baseCols(),
   },
-  (table) => [index('apps_client_id_idx').on(table.client_id)],
+  /** client_id 是鉴权凭证，每次 API 鉴权按它查且必须唯一 */
+  (table) => [uniqueIndex('apps_client_id_unique').on(table.client_id)],
 );

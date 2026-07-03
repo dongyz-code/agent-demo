@@ -1,7 +1,7 @@
 import { index, integer, text, uuid } from 'drizzle-orm/pg-core';
 
 import { timestamptz, varchar255 } from './columns.js';
-import { pgTable } from './table.js';
+import { pgTable } from '../schema/index.js';
 
 import type { InterfaceMode, InterfaceStatus } from '@repo/types';
 
@@ -43,6 +43,8 @@ export const api_logs = pgTable(
     index('api_logs_status_idx').on(table.status),
     index('api_logs_ip_idx').on(table.ip),
     index('api_logs_user_id_idx').on(table.user_id),
+    /** 列表按时间范围过滤并倒序翻页 */
+    index('api_logs_start_timestamp_idx').on(table.start_timestamp),
   ],
 );
 
@@ -68,5 +70,7 @@ export const user_logs = pgTable(
     index('user_logs_user_id_idx').on(table.user_id),
     index('user_logs_key_idx').on(table.key),
     index('user_logs_ip_idx').on(table.ip),
+    /** 列表按时间范围过滤并倒序翻页 */
+    index('user_logs_timestamp_idx').on(table.timestamp),
   ],
 );

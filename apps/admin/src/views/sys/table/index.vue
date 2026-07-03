@@ -55,6 +55,14 @@
               <el-button
                 link
                 type="primary"
+                :disabled="!canSyncTable"
+                @click.stop="openSyncDialog(row)"
+              >
+                同步结构
+              </el-button>
+              <el-button
+                link
+                type="primary"
                 :disabled="!canResetTable"
                 @click.stop="openResetDialog(row)"
               >
@@ -73,6 +81,7 @@
       :loading="loading.detail"
     />
     <reset-dialog ref="resetDialogRef" @applied="handleResetApplied" />
+    <sync-dialog ref="syncDialogRef" @applied="handleSyncApplied" />
   </section>
 </template>
 
@@ -84,6 +93,7 @@ import { api } from '@/api';
 import { useStore } from '@/store';
 import DetailDialog from './components/DetailDialog.vue';
 import ResetDialog from './components/ResetDialog.vue';
+import SyncDialog from './components/SyncDialog.vue';
 import { adminPermissionKey } from '@repo/shared/permission';
 import {
   diffLabel,
@@ -115,6 +125,9 @@ const searchForm = shallowRef<SearchForm>({});
 const store = useStore();
 const canResetTable = computed(() =>
   store.hasPermission(adminPermissionKey('actions.table.reset')),
+);
+const canSyncTable = computed(() =>
+  store.hasPermission(adminPermissionKey('actions.table.sync')),
 );
 
 const searchColumns: SchemaFormColumn<SearchForm>[] = [
@@ -166,6 +179,7 @@ const detail = shallowRef<SysTableDetail>();
 const operations = shallowRef<SysTableOperation[]>([]);
 const selectedTable = shallowRef<SysTableListItem>();
 const resetDialogRef = ref<InstanceType<typeof ResetDialog>>();
+const syncDialogRef = ref<InstanceType<typeof SyncDialog>>();
 
 const detailDialog = reactive<{
   /** 详情弹窗是否可见。 */
@@ -198,7 +212,7 @@ const tableRows: TableRow[] = [
     slot: 'latestOperation',
     minWidth: 'normal',
   },
-  { label: '操作', value: 'actions', slot: 'actions', width: 220, fixed: 'right' },
+  { label: '操作', value: 'actions', slot: 'actions', width: 280, fixed: 'right' },
 ];
 
 /**
@@ -271,8 +285,21 @@ function openResetDialog(row: SysTableListItem) {
   resetDialogRef.value?.open(row, detail.value);
 }
 
+/** 打开同步弹窗，同步仅针对已有表，不需要详情数据。 */
+function openSyncDialog(row: SysTableListItem) {
+  syncDialogRef.value?.open(row);
+}
+
 /** 重置执行完成后刷新列表，并在详情弹窗打开时刷新当前详情。 */
 async function handleResetApplied() {
+  await getList(true);
+  if (detailDialog.visible && selectedTable.value) {
+    await selectTable(selectedTable.value);
+  }
+}
+
+/** 同步执行完成后刷新列表，并在详情弹窗打开时刷新当前详情。 */
+async function handleSyncApplied() {
   await getList(true);
   if (detailDialog.visible && selectedTable.value) {
     await selectTable(selectedTable.value);

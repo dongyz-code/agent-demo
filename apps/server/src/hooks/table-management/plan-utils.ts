@@ -1,7 +1,8 @@
-import type { TableColumnMapping } from '@repo/types';
-import type { ManagedTableCatalog, ManagedTableSchema } from './types.js';
+import { normalizeSqlType } from '@/database/introspection/index.js';
 
-import { normalizeSqlType } from './diff.js';
+import type { TableColumnMapping } from '@repo/types';
+import type { ManagedTableSchema } from './types.js';
+import type { TableCatalog } from '@/database/introspection/index.js';
 
 /** 构造 reset 计划的目标字段到源字段映射。 */
 export function buildResetColumnSourceMap({
@@ -13,7 +14,7 @@ export function buildResetColumnSourceMap({
   /** Drizzle schema 目标结构。 */
   schemaTable: ManagedTableSchema;
   /** Postgres catalog 真实结构。 */
-  catalogTable: ManagedTableCatalog;
+  catalogTable: TableCatalog;
   /** 字段复制映射。 */
   columnMappings: TableColumnMapping[];
   /** 收集阻塞项的数组。 */

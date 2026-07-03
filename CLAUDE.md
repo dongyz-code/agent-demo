@@ -26,7 +26,7 @@ pnpm --filter @repo/deploy-client test -- path/to/file # 单个测试文件
 pnpm --filter @repo/deploy-client test -- -t "name"    # 按用例名过滤
 
 # 数据库（apps/server，Drizzle + pg）
-pnpm --filter @repo/deploy-server db:migrate    # 显式执行自管迁移（不要在启动时自动跑 DDL）
+# 启动时自动建缺失表 + 报漂移；已有表索引/trigger 同步走前端 sync，列结构变更走 reset。
 ```
 
 仓库无强制覆盖率目标；服务端没有测试 runner，测试仅配置在 `apps/client`（Vitest + jsdom + Testing Library，setup 在 `apps/client/src/test/setup.ts`）。交付前跑 `pnpm turbo lint`。

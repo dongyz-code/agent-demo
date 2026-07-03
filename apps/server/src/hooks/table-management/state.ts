@@ -1,7 +1,6 @@
-import { getTableCatalog } from './catalog.js';
-import { assertManagedTableSchema } from './schema.js';
+import { getTableCatalog } from '@/database/introspection/index.js';
 
-import type { ManagedTableCatalog } from './types.js';
+import { assertManagedTableSchema } from './schema.js';
 
 /** 读取单表 schema 和 catalog，权限由 router 层的单接口权限统一处理。 */
 export async function getAuthorizedTableState({
@@ -16,34 +15,4 @@ export async function getAuthorizedTableState({
     schemaTable,
     catalogTable,
   };
-}
-
-/** 计算 catalog 指纹，用于 apply 前判断结构是否漂移。 */
-export function createCatalogFingerprint({
-  columns,
-  indexes,
-  constraints,
-  exists,
-}: ManagedTableCatalog) {
-  return JSON.stringify({
-    exists,
-    columns: columns.map((column) => [
-      column.name,
-      column.sqlType,
-      column.notNull,
-      column.primaryKey,
-    ]),
-    indexes: indexes.map((index) => [
-      index.name,
-      index.columns,
-      index.unique,
-      index.complex,
-    ]),
-    constraints: constraints.map((constraint) => [
-      constraint.name,
-      constraint.type,
-      constraint.columns,
-      constraint.complex,
-    ]),
-  });
 }

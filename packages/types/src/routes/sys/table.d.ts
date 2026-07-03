@@ -1,8 +1,8 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type { TableStructureOpItem } from '../models.js';
 
-/** 表结构操作类型，目前仅支持按 schema 重置。 */
-export type TableStructureOpType = 'reset';
+/** 表结构操作类型：reset 重建表结构并迁移数据，sync 幂等补建索引/触发器。 */
+export type TableStructureOpType = 'reset' | 'sync';
 
 /** 表结构操作状态，用于前后端展示计划、执行和失败恢复进度。 */
 export type TableStructureOpStatus =
@@ -275,6 +275,22 @@ export type TableManagementAction = ApiMultAction<{
     resp: TableOperationPlan;
   };
   'reset-apply': {
+    req: {
+      /** 操作记录 ID。 */
+      op_id: string;
+      /** 二次确认文本，必须与服务端要求一致。 */
+      confirm: string;
+    };
+    resp: TableOperationApplyResult;
+  };
+  'sync-plan': {
+    req: {
+      /** schemaTables 中的目标表 key。 */
+      table: string;
+    };
+    resp: TableOperationPlan;
+  };
+  'sync-apply': {
     req: {
       /** 操作记录 ID。 */
       op_id: string;

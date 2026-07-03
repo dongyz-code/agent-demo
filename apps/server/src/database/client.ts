@@ -2,7 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import { ROOT } from '@/configs/index.js';
-import * as schema from './schema/index.js';
+import * as schema from './tables/index.js';
 
 import type { PoolConfig } from 'pg';
 

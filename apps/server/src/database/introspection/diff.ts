@@ -1,23 +1,34 @@
 import type { TableDiffLevel, TableDiffSummary } from '@repo/types';
-import type { ManagedTableCatalog, ManagedTableSchema } from './types.js';
+import type { TableCatalog } from './catalog.js';
+
+/**
+ * diffTable 对 schema 侧的最小结构契约。
+ * TableDescriptor（DB 声明态）与 ManagedTableSchema（业务展示态）都结构满足，无需包装或重跑 describeTable。
+ */
+export type DiffSchemaSide = {
+  /** 表名，用于缺失表时的差异描述。 */
+  tableName: string;
+  /** 字段列表，只读 name/sqlType/notNull/primaryKey 四项。 */
+  columns: ReadonlyArray<{
+    name: string;
+    sqlType: string;
+    notNull: boolean;
+    primaryKey: boolean;
+  }>;
+};
 
 /** 计算单表 schema 目标态和数据库实态之间的差异。 */
-export function diffManagedTable({
-  schemaTable,
-  catalogTable,
-}: {
-  /** Drizzle schema 目标结构。 */
-  schemaTable: ManagedTableSchema;
-  /** Postgres catalog 真实结构。 */
-  catalogTable: ManagedTableCatalog;
-}) {
+export function diffTable(
+  schema: DiffSchemaSide,
+  catalog: TableCatalog,
+): { level: TableDiffLevel; diff: TableDiffSummary[] } {
   const diff: TableDiffSummary[] = [];
 
-  if (!catalogTable.exists) {
+  if (!catalog.exists) {
     diff.push({
       scope: 'table',
       type: 'missing',
-      name: schemaTable.tableName,
+      name: schema.tableName,
       message: '数据库中不存在该表',
     });
     return {
@@ -27,10 +38,10 @@ export function diffManagedTable({
   }
 
   const schemaColumns = new Map(
-    schemaTable.columns.map((column) => [column.name, column]),
+    schema.columns.map((column) => [column.name, column]),
   );
   const catalogColumns = new Map(
-    catalogTable.columns.map((column) => [column.name, column]),
+    catalog.columns.map((column) => [column.name, column]),
   );
 
   schemaColumns.forEach((column, name) => {
@@ -84,7 +95,7 @@ export function diffManagedTable({
     }
   }
 
-  catalogTable.indexes.forEach((index) => {
+  catalog.indexes.forEach((index) => {
     if (index.complex) {
       diff.push({
         scope: 'index',
@@ -95,7 +106,7 @@ export function diffManagedTable({
     }
   });
 
-  catalogTable.constraints.forEach((constraint) => {
+  catalog.constraints.forEach((constraint) => {
     if (constraint.complex) {
       diff.push({
         scope: 'constraint',

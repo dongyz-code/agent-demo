@@ -1,24 +1,25 @@
 import { ROOT_ERROR } from '@/configs/index.js';
 import {
+  createCatalogFingerprint,
+  diffTable,
+  getTableCatalog,
+} from '@/database/introspection/index.js';
+import {
   createTableIndexSqls,
   createTableSql,
+  createTriggerFunctionSql,
   createTriggerSqls,
   quoteIdent,
   quoteQualified,
-} from '@/database/ddl.js';
+} from '@/database/schema/index.js';
 import { db, schema, sql } from '@/database/index.js';
 import { dayJsformat } from '@repo/utils-node';
 import { randomUUID } from 'node:crypto';
 import { eq, SQL } from 'drizzle-orm';
 
-import { getTableCatalog } from './catalog.js';
-import { diffManagedTable } from './diff.js';
 import { buildResetColumnSourceMap } from './plan-utils.js';
 import { assertManagedTableSchema } from './schema.js';
-import {
-  createCatalogFingerprint,
-  getAuthorizedTableState,
-} from './state.js';
+import { getAuthorizedTableState } from './state.js';
 
 import type {
   TableColumnMapping,
@@ -28,10 +29,11 @@ import type {
   TableStructureOpType,
 } from '@repo/types';
 import type {
-  ManagedTableCatalog,
   ManagedTableSchema,
+  StoredResetPlan,
   StoredTablePlan,
 } from './types.js';
+import type { TableCatalog } from '@/database/introspection/index.js';
 
 const planExpireMs = 30 * 60 * 1000;
 
@@ -60,7 +62,7 @@ export async function createResetPlan({
     date: new Date(),
   });
   const blockers: string[] = [];
-  const warnings = diffManagedTable({ schemaTable, catalogTable }).diff.map(
+  const warnings = diffTable(schemaTable, catalogTable).diff.map(
     (item) => item.message,
   );
 
@@ -175,7 +177,7 @@ export async function applyResetPlan({
     confirm,
     type: 'reset',
     execute: async ({ plan, schemaTable }) => {
-      if (!plan.temporaryTableName || !plan.backupTableName) {
+      if (plan.type !== 'reset' || !plan.temporaryTableName || !plan.backupTableName) {
         throw new ROOT_ERROR('非法参数');
       }
       const temporaryTableName = plan.temporaryTableName;
@@ -232,6 +234,122 @@ export async function applyResetPlan({
   });
 }
 
+/** 生成已有表的索引/trigger 同步计划：幂等补建缺失索引、重建 trigger，不动数据。 */
+export async function createSyncPlan({
+  user_id,
+  table,
+}: {
+  /** 当前用户 ID。 */
+  user_id: string;
+  /** schemaTables 中的目标表 key。 */
+  table: string;
+}): Promise<TableOperationPlan> {
+  const { schemaTable, catalogTable } = await getAuthorizedTableState({ table });
+  const op_id = randomUUID();
+  const blockers: string[] = [];
+  const warnings = diffTable(schemaTable, catalogTable).diff.map(
+    (item) => item.message,
+  );
+
+  if (!catalogTable.exists) {
+    blockers.push(`源表 ${schemaTable.tableName} 不存在`);
+  }
+
+  const catalogIndexNames = new Set(catalogTable.indexes.map((index) => index.name));
+  // 缺失索引 = schema 声明但 DB 没有；complex 的无法自动建，进 blocker。
+  const missingIndexes = schemaTable.indexes
+    .filter((index) => !catalogIndexNames.has(index.name))
+    .filter((index) => {
+      if (index.complex) {
+        blockers.push(`复杂索引 ${index.name} 暂不支持自动创建`);
+        return false;
+      }
+      return true;
+    })
+    .map((index) => index.name);
+
+  const sqlPreview = [
+    ...missingIndexes.map(
+      (name) => `create index if not exists ${name} on ${quoteQualified(schemaTable.schemaName, schemaTable.tableName)}`,
+    ),
+    ...schemaTable.triggers.map((trigger) => `create or replace function ${trigger.execute.name} ...`),
+    ...schemaTable.triggers.map((trigger) => `create trigger ${trigger.name} ...`),
+  ];
+
+  return await saveOperationPlan({
+    op_id,
+    user_id,
+    type: 'sync',
+    schemaTable,
+    sourceTableName: schemaTable.tableName,
+    catalogTable,
+    plan: {
+      type: 'sync',
+      table,
+      schemaName: schemaTable.schemaName,
+      tableName: schemaTable.tableName,
+      sourceTableName: schemaTable.tableName,
+      catalogFingerprint: createCatalogFingerprint(catalogTable),
+      missingIndexes,
+    },
+    sqlPreview,
+    warnings,
+    blockers,
+    backupTableName: null,
+  });
+}
+
+/** 执行已保存的 sync 计划：幂等补建索引 + 同步 trigger。 */
+export async function applySyncPlan({
+  user_id,
+  op_id,
+  confirm,
+}: {
+  /** 当前用户 ID。 */
+  user_id: string;
+  /** 操作记录 ID。 */
+  op_id: string;
+  /** 二次确认文本。 */
+  confirm: string;
+}): Promise<TableOperationApplyResult> {
+  return await applySavedPlan({
+    user_id,
+    op_id,
+    confirm,
+    type: 'sync',
+    execute: async ({ plan, schemaTable }) => {
+      if (plan.type !== 'sync') {
+        throw new ROOT_ERROR('非法参数');
+      }
+      await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${op_id}))`,
+        );
+        // 幂等：已有索引 no-op，缺失的补上；complex 在 plan 阶段已进 blocker。
+        for (const statement of createTableIndexSqls({
+          table: schemaTable.drizzleTable,
+          schemaName: schemaTable.schemaName,
+          tableName: schemaTable.tableName,
+          ifNotExists: true,
+          skipComplex: true,
+        })) {
+          await tx.execute(statement);
+        }
+        // trigger：create or replace function + drop/create trigger，幂等同步函数体与绑定。
+        for (const trigger of schemaTable.triggers) {
+          await tx.execute(createTriggerFunctionSql(trigger.execute));
+          for (const statement of createTriggerSqls(trigger, {
+            schemaName: schemaTable.schemaName,
+            tableName: schemaTable.tableName,
+          })) {
+            await tx.execute(statement);
+          }
+        }
+      });
+    },
+  });
+}
+
 /** 保存 plan 记录并返回前端展示结构。 */
 async function saveOperationPlan({
   op_id = randomUUID(),
@@ -256,7 +374,7 @@ async function saveOperationPlan({
   /** 数据库中的源表名。 */
   sourceTableName: string;
   /** 当前数据库实态。 */
-  catalogTable: ManagedTableCatalog;
+  catalogTable: TableCatalog;
   /** 保存到审计表的计划内容。 */
   plan: StoredTablePlan;
   /** SQL 摘要。 */
@@ -381,7 +499,8 @@ async function applySavedPlan({
     return {
       op_id,
       status: 'completed',
-      backupTableName: plan.backupTableName ?? null,
+      backupTableName:
+        plan.type === 'reset' ? (plan.backupTableName ?? null) : null,
     };
   } catch (error) {
     await db
@@ -461,7 +580,7 @@ async function copyTableData({
   /** Drizzle schema 目标结构。 */
   schemaTable: ManagedTableSchema;
   /** 保存的 reset 计划。 */
-  plan: StoredTablePlan;
+  plan: StoredResetPlan;
   /** 已校验存在的临时表名。 */
   temporaryTableName: string;
 }) {
