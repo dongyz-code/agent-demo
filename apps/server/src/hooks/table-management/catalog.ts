@@ -158,8 +158,7 @@ async function getCatalogIndexes({
       unique: /\bunique\b/i.test(row.definition),
       complex:
         columns.some((column) => column.includes('(')) ||
-        /\bwhere\b/i.test(row.definition) ||
-        !/\busing\s+btree\b/i.test(row.definition),
+        /\bwhere\b/i.test(row.definition),
     };
   });
 }

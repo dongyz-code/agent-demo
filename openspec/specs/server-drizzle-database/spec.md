@@ -5,11 +5,12 @@
 ## Requirements
 
 ### Requirement: 服务端 Drizzle schema 位置
-服务端数据库 schema SHALL 放置在 `apps/server/src/database/schema`，并使用 Drizzle schema 定义产品表、列类型、索引和关系。
+服务端数据库 schema SHALL 放置在 `apps/server/src/database/schema`，并通过本地封装的 `pgTable` 定义产品表、列类型、索引、关系、trigger function 和 trigger。
 
 #### Scenario: 开发者查看数据库 schema
 - **WHEN** 开发者需要查看产品数据库表结构
 - **THEN** 系统 MUST 在 `apps/server/src/database/schema` 下提供 Drizzle schema 定义
+- **THEN** trigger function 和 trigger MUST 在对应表的 `pgTable` 声明中维护，不能在迁移配置中重复维护
 
 ### Requirement: 服务端使用 Drizzle 访问数据库
 服务端业务代码 SHALL 使用 Drizzle client、Drizzle transaction 和 Drizzle SQL template 访问 PostgreSQL。
@@ -27,13 +28,13 @@
 - **THEN** 系统 MUST NOT 需要 `@repo/deploy-tables` 包
 - **THEN** 系统 MUST NOT 需要 `@repo/tables` 中的数据库 helper
 
-### Requirement: Drizzle 迁移作为数据库结构变更入口
-数据库结构变更 SHALL 通过 Drizzle schema 与迁移产物表达，并在部署或启动流程中有明确的执行入口。
+### Requirement: 自管迁移作为数据库结构变更入口
+数据库结构变更 SHALL 通过 Drizzle schema 与服务端自管迁移声明表达，并在部署或启动流程中有明确的执行入口。
 
 #### Scenario: 新增或修改表结构
 - **WHEN** 开发者修改 `apps/server/src/database/schema`
-- **THEN** 系统 MUST 能生成或维护对应 Drizzle migration
-- **THEN** 系统 MUST 能在目标数据库执行该 migration
+- **THEN** 系统 MUST 能维护对应自管迁移声明
+- **THEN** 系统 MUST 能在目标数据库执行该迁移
 
 ### Requirement: API 响应与数据库行显式映射
 服务端 SHALL 在数据库 row 类型和 API DTO 之间保持显式映射，避免前端契约直接暴露数据库实现。

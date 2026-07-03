@@ -4,6 +4,7 @@ import type {
   TableIndexInfo,
   TableStructureOpType,
 } from '@repo/types';
+import type { SchemaTrigger } from '@/database/schema/table.js';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 /** 表管理中允许被展示和操作的 schema 表快照。 */
@@ -20,6 +21,8 @@ export type ManagedTableSchema = {
   columns: TableColumnInfo[];
   /** 目标索引列表。 */
   indexes: TableIndexInfo[];
+  /** 目标 trigger 列表，用于 schema reset 后恢复自动化数据库行为。 */
+  triggers: SchemaTrigger[];
 };
 
 /** 数据库 catalog 中读取到的真实表结构。 */

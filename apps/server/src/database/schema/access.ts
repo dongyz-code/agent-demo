@@ -1,13 +1,13 @@
 import {
   boolean,
   index,
-  pgTable,
   text,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
 import { baseCols, timestamptz, varchar255 } from './columns.js';
+import { pgTable } from './table.js';
 
 export const user = pgTable(
   'user',

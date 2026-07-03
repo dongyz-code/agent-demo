@@ -1,9 +1,15 @@
 import { ROOT_ERROR } from '@/configs/index.js';
+import {
+  createTableIndexSqls,
+  createTableSql,
+  createTriggerSqls,
+  quoteIdent,
+  quoteQualified,
+} from '@/database/ddl.js';
 import { db, schema, sql } from '@/database/index.js';
 import { dayJsformat } from '@repo/utils-node';
 import { randomUUID } from 'node:crypto';
 import { eq, SQL } from 'drizzle-orm';
-import { getTableConfig } from 'drizzle-orm/pg-core';
 
 import { getTableCatalog } from './catalog.js';
 import { diffManagedTable } from './diff.js';
@@ -87,6 +93,11 @@ export async function createResetPlan({
   catalogTable.indexes.forEach((index) => {
     if (index.complex) {
       blockers.push(`复杂索引 ${index.name} 暂不支持自动重建`);
+    }
+  });
+  schemaTable.indexes.forEach((index) => {
+    if (index.complex) {
+      blockers.push(`Drizzle schema 复杂索引 ${index.name} 暂不支持自动重建`);
     }
   });
   catalogTable.constraints.forEach((constraint) => {
@@ -178,18 +189,36 @@ export async function applyResetPlan({
           lock table ${sql.identifier(plan.schemaName)}.${sql.identifier(plan.sourceTableName)}
           in access exclusive mode
         `);
-        await tx.execute(createTableSql({ schemaTable, tableName: temporaryTableName }));
+        await tx.execute(
+          createTableSql({
+            table: schemaTable.drizzleTable,
+            schemaName: schemaTable.schemaName,
+            tableName: temporaryTableName,
+          }),
+        );
         await copyTableData({
           execute: (statement) => tx.execute(statement),
           schemaTable,
           plan,
           temporaryTableName,
         });
-        await createSchemaIndexes({
-          execute: (statement) => tx.execute(statement),
-          schemaTable,
+        for (const statement of createTableIndexSqls({
+          table: schemaTable.drizzleTable,
+          schemaName: schemaTable.schemaName,
           tableName: temporaryTableName,
-        });
+          indexNamePrefix: temporaryTableName,
+          skipComplex: true,
+        })) {
+          await tx.execute(statement);
+        }
+        for (const trigger of schemaTable.triggers) {
+          for (const statement of createTriggerSqls(trigger, {
+            schemaName: schemaTable.schemaName,
+            tableName: temporaryTableName,
+          })) {
+            await tx.execute(statement);
+          }
+        }
         await tx.execute(sql`
           alter table ${sql.identifier(plan.schemaName)}.${sql.identifier(plan.sourceTableName)}
           rename to ${sql.identifier(backupTableName)}
@@ -420,67 +449,6 @@ async function updateOperationStatus({
     .where(eq(schema.table_structure_ops.op_id, op_id));
 }
 
-/** 生成 create table SQL，列定义直接取自 drizzle 原始 column，完整保留 default。 */
-function createTableSql({
-  schemaTable,
-  tableName,
-}: {
-  /** Drizzle schema 目标结构。 */
-  schemaTable: ManagedTableSchema;
-  /** 要创建的真实表名。 */
-  tableName: string;
-}) {
-  const { columns } = getTableConfig(schemaTable.drizzleTable);
-  const primaryColumns = columns.filter((column) => column.primary);
-  const columnDefs = columns.map((column) => {
-    const parts: SQL[] = [sql`${sql.identifier(column.name)}`, sql.raw(column.getSQLType())];
-    if (column.notNull) {
-      parts.push(sql`not null`);
-    }
-    if (column.default !== undefined) {
-      parts.push(sql`default ${defaultLiteral(column.default)}`);
-    }
-    if (primaryColumns.length === 1 && column.primary) {
-      parts.push(sql`primary key`);
-    }
-    return sql.join(parts, sql` `);
-  });
-
-  if (primaryColumns.length > 1) {
-    columnDefs.push(sql`
-      primary key (${sql.join(
-        primaryColumns.map((column) => sql.identifier(column.name)),
-        sql`, `,
-      )})
-    `);
-  }
-
-  return sql`
-    create table ${sql.identifier(schemaTable.schemaName)}.${sql.identifier(tableName)}
-    (${sql.join(columnDefs, sql`, `)})
-  `;
-}
-
-/** 将 drizzle column.default 转为可内联到 DDL 的 SQL 片段。 */
-function defaultLiteral(value: unknown): SQL {
-  if (value instanceof SQL) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return sql.raw(`'${value.replace(/'/g, "''")}'`);
-  }
-  if (typeof value === 'boolean') {
-    return sql.raw(value ? 'true' : 'false');
-  }
-  if (typeof value === 'number') {
-    return sql.raw(String(value));
-  }
-  if (value === null) {
-    return sql.raw('null');
-  }
-  return sql.raw(`'${String(value).replace(/'/g, "''")}'`);
-}
-
 /** 复制源表中可兼容字段的数据到临时新表。 */
 async function copyTableData({
   execute,
@@ -517,32 +485,6 @@ async function copyTableData({
   `);
 }
 
-/** 为临时新表创建 schema 中声明的普通索引。 */
-async function createSchemaIndexes({
-  execute,
-  schemaTable,
-  tableName,
-}: {
-  /** SQL 执行函数。 */
-  execute: (statement: SQL) => Promise<unknown>;
-  /** Drizzle schema 目标结构。 */
-  schemaTable: ManagedTableSchema;
-  /** 临时表名。 */
-  tableName: string;
-}) {
-  for (const index of schemaTable.indexes) {
-    if (index.complex) {
-      continue;
-    }
-    const indexName = `${tableName}_${index.name}`;
-    await execute(sql`
-      create ${index.unique ? sql`unique` : sql.empty()} index ${sql.identifier(indexName)}
-      on ${sql.identifier(schemaTable.schemaName)}.${sql.identifier(tableName)}
-      (${sql.join(index.columns.map((column) => sql.identifier(column)), sql`, `)})
-    `);
-  }
-}
-
 /** 校验数据库标识符，避免用户输入进入 SQL identifier。 */
 function validateIdentifier(value: string, label: string) {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
@@ -576,14 +518,4 @@ function buildBackupTableName({
     'table';
 
   return `${prefix}${safeTableName.slice(0, maxTableNameLength)}${postfix}`;
-}
-
-/** 安全引用单个 SQL 标识符，用于 SQL 摘要展示。 */
-function quoteIdent(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-/** 安全引用 schema.table，用于 SQL 摘要展示。 */
-function quoteQualified(schemaName: string, tableName: string) {
-  return `${quoteIdent(schemaName)}.${quoteIdent(tableName)}`;
 }

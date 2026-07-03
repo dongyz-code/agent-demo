@@ -1,6 +1,7 @@
-import { index, integer, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, text, uuid } from 'drizzle-orm/pg-core';
 
 import { timestamptz, varchar255 } from './columns.js';
+import { pgTable } from './table.js';
 
 import type { InterfaceMode, InterfaceStatus } from '@repo/types';
 

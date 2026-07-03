@@ -1,13 +1,13 @@
 import {
   boolean,
   index,
-  pgTable,
   smallint,
   text,
   uuid,
 } from 'drizzle-orm/pg-core';
 
 import { baseCols, timestamptz, varchar255 } from './columns.js';
+import { pgTable } from './table.js';
 
 export const sys_conf = pgTable('sys_conf', {
   /** 配置ID */
