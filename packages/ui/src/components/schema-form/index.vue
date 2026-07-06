@@ -152,8 +152,8 @@ import { normalizeColumns, resolveRuntimeField } from './normalize';
 import {
   buildReloadSignature,
   createOptionState,
-  getLegacyOptionsSource,
-  resolveLegacyOptions,
+  getDataOptionsSource,
+  resolveDataOptions,
   resolveStaticOptions,
 } from './options';
 import { SchemaFieldRenderer } from './renderers';
@@ -380,6 +380,7 @@ const collapseIcon = computed(() =>
 
 const actionStyle = computed(() =>
   buildActionStyle({
+    columns: columnCount.value,
     placement: searchConfig.value.actionPlacement,
   }),
 );
@@ -422,7 +423,7 @@ function getOptionState(field: NormalizedSchemaFormColumn<T>) {
 function shouldLoadOptions(field: NormalizedSchemaFormColumn<T>) {
   return (
     Boolean(field.column.request) ||
-    typeof getLegacyOptionsSource(field.column) === 'function'
+    typeof getDataOptionsSource(field.column) === 'function'
   );
 }
 
@@ -456,7 +457,7 @@ async function loadOptions(
           keyword,
           value: getFormValue(props.modelValue, field.dataIndex),
         })
-      : await resolveLegacyOptions(field);
+      : await resolveDataOptions(field);
 
     if (state.requestId === requestId) {
       state.items = items;

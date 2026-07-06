@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildActionStyle,
   buildLayoutItems,
   resolveColumnCount,
   resolveSearchLabelPosition,
@@ -29,7 +30,7 @@ function createField(
     key,
     readonly: false,
     title: key,
-    useLegacyData: false,
+    useDataControl: false,
     value: undefined,
     valueType,
   };
@@ -118,5 +119,14 @@ describe('schema-form layout utils', () => {
     });
 
     expect(item!.visibleWhenCollapsed).toBe(false);
+  });
+
+  it('内联查询动作区固定在最后一列', () => {
+    expect(buildActionStyle({ columns: 4, placement: 'inline' })).toEqual({
+      gridColumn: '4 / span 1',
+    });
+    expect(buildActionStyle({ columns: 1, placement: 'inline' })).toEqual({
+      gridColumn: '1 / span 1',
+    });
   });
 });

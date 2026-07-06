@@ -12,7 +12,6 @@ import type {
   ElSelect,
   ElSwitch,
 } from 'element-plus';
-import type { FormItem } from '../form-item/type';
 
 /** 表单值对象，组件所有字段都从该对象读取或写入。 */
 export type SchemaFormModel = Record<string, unknown>;
@@ -57,7 +56,7 @@ export interface SchemaFormOption {
   value: SchemaFormOptionValue;
   /** 是否禁用该选项。 */
   disabled?: boolean;
-  /** 自定义选项内容，主要服务旧 `FormItem['data']` 的 select render。 */
+  /** 自定义选项内容，适用于需要覆盖默认 label 的选择类控件。 */
   render?: VNode | string | (() => VNode | string);
   /** 子级选项，供 cascader 使用。 */
   children?: SchemaFormOption[];
@@ -68,8 +67,116 @@ export interface SchemaFormOption {
 /** 支持直接值、Ref 和 ComputedRef 的选项来源。 */
 export type SchemaMaybeRef<T> = T | Ref<T> | ComputedRef<T>;
 
-/** 旧控件 options 函数可能同步或异步返回值。 */
+/** 支持同步值和异步值的返回类型。 */
 export type SchemaMaybePromise<T> = T | Promise<T>;
+
+/** schema-form 控件选项来源，支持直接值、响应式值和懒执行函数。 */
+export type SchemaFormOptionsSource<T> =
+  | SchemaMaybeRef<T>
+  | (() => SchemaMaybePromise<SchemaMaybeRef<T>>);
+
+/** schema-form 控件懒加载选项配置，函数返回当前控件可直接使用的选项数组。 */
+export type SchemaFormLazyOptions<T> =
+  | boolean
+  | (() => SchemaMaybePromise<T>);
+
+/** 级联控件选项类型，直接复用 Element Plus 的 cascader options 结构。 */
+export type SchemaFormCascaderOptions = NonNullable<
+  InstanceType<typeof ElCascader>['$props']['options']
+>;
+
+/** schema-form `data` 控件配置，用于表达 Element Plus 控件和少量自定义控件。 */
+export type SchemaFormControlData =
+  | {
+      /** 控件类型，使用自定义 Vue 组件接管字段渲染。 */
+      type: 'component';
+      /** 渲染字段的 Vue 组件，组件会接收 modelValue 和 update 事件。 */
+      component: Component;
+      /** 传给自定义组件的业务参数。 */
+      props?: unknown;
+    }
+  | {
+      /** 控件类型，使用 render 函数接管字段渲染。 */
+      type: 'custom';
+      /** 自定义渲染函数；未提供时会回退展示当前值字符串。 */
+      render?: (props: {
+        /** 当前字段值。 */
+        modelValue: unknown;
+        /** 更新当前字段值的回调。 */
+        'onUpdate:modelValue': (val: unknown) => void;
+      }) => VNode;
+    }
+  | {
+      /** 控件类型，渲染 Element Plus Button。 */
+      type: 'button';
+      /** 按钮显示文案。 */
+      text: string;
+      /** 透传给 Element Plus Button 的属性。 */
+      props?: InstanceType<typeof ElButton>['$props'];
+    }
+  | {
+      /** 控件类型，渲染 Element Plus Select。 */
+      type: 'select';
+      /** select 选项来源，函数形式会在控件加载选项时执行。 */
+      options: SchemaFormOptionsSource<SchemaFormOption[]>;
+      /** 透传给 Element Plus Select 的属性，modelValue 由 schema-form 维护。 */
+      props?: Omit<InstanceType<typeof ElSelect>['$props'], 'modelValue'>;
+      /** 是否延迟加载选项；函数形式返回本次加载使用的选项。 */
+      lazy?: SchemaFormLazyOptions<SchemaFormOption[]>;
+    }
+  | {
+      /** 控件类型，渲染 Element Plus DatePicker。 */
+      type: 'date-picker';
+      /** 透传给 Element Plus DatePicker 的属性，modelValue 由 schema-form 维护。 */
+      props?: Omit<InstanceType<typeof ElDatePicker>['$props'], 'modelValue'>;
+    }
+  | {
+      /** 控件类型，渲染 Element Plus CheckboxGroup。 */
+      type: 'check-box-group';
+      /** checkbox 选项来源。 */
+      options: SchemaFormOptionsSource<SchemaFormOption[]>;
+      /** 透传给 Element Plus CheckboxGroup 的属性，modelValue 由 schema-form 维护。 */
+      props?: Omit<
+        InstanceType<typeof ElCheckboxGroup>['$props'],
+        'modelValue'
+      >;
+    }
+  | {
+      /** 控件类型，渲染 Element Plus Switch。 */
+      type: 'switch';
+      /** 透传给 Element Plus Switch 的属性，modelValue 由 schema-form 维护。 */
+      props?: Omit<InstanceType<typeof ElSwitch>['$props'], 'modelValue'>;
+    }
+  | {
+      /** 控件类型，渲染 Element Plus Cascader。 */
+      type: 'cascader';
+      /** cascader 选项来源。 */
+      options: SchemaFormOptionsSource<SchemaFormCascaderOptions>;
+      /** 透传给 Element Plus Cascader 的属性，modelValue 由 schema-form 维护。 */
+      props?: Omit<InstanceType<typeof ElCascader>['$props'], 'modelValue'>;
+      /** 是否延迟加载选项；函数形式返回本次加载使用的选项。 */
+      lazy?: SchemaFormLazyOptions<SchemaFormCascaderOptions>;
+    }
+  | {
+      /** 控件类型，渲染 Element Plus Input。 */
+      type: 'input';
+      /** 透传给 Element Plus Input 的属性，modelValue 由 schema-form 维护。 */
+      props?: Omit<InstanceType<typeof ElInput>['$props'], 'modelValue'>;
+    }
+  | {
+      /** 控件类型，渲染 Element Plus InputNumber。 */
+      type: 'input-number';
+      /** 透传给 Element Plus InputNumber 的属性，modelValue 由 schema-form 维护。 */
+      props?: Omit<InstanceType<typeof ElInputNumber>['$props'], 'modelValue'>;
+    }
+  | {
+      /** 控件类型，渲染 Element Plus RadioGroup。 */
+      type: 'radio-group';
+      /** radio 选项来源。 */
+      options: SchemaFormOptionsSource<SchemaFormOption[]>;
+      /** 透传给 Element Plus RadioGroup 的属性，modelValue 由 schema-form 维护。 */
+      props?: Omit<InstanceType<typeof ElRadioGroup>['$props'], 'modelValue'>;
+    };
 
 /** 字段运行时上下文，函数式 props 会通过它读取当前表单和字段配置。 */
 export interface SchemaFormColumnCtx<T extends SchemaFormModel> {
@@ -122,7 +229,7 @@ export type SchemaFieldProps =
   | Record<string, unknown>
   | ((ctx: SchemaFormColumnCtx<SchemaFormModel>) => Record<string, unknown>);
 
-/** 字段布局配置，替代旧 `range`。 */
+/** 字段布局配置，用于控制字段在 grid 中的跨度和偏移。 */
 export interface SchemaFormColProps {
   /** 占用列数。 */
   span?: number;
@@ -160,8 +267,8 @@ export interface SchemaFormColumn<T extends SchemaFormModel = SchemaFormModel> {
   title?: string;
   /** 新 schema 的控件类型。 */
   valueType?: SchemaValueType;
-  /** 旧 `FormItem['data']` 控件配置；存在时优先于 valueType。 */
-  data?: FormItem['data'];
+  /** schema-form 控件配置；存在时优先于 valueType。 */
+  data?: SchemaFormControlData;
   /** 静态枚举选项，适用于 select/radio/checkbox。 */
   valueEnum?: Record<string, string | { text: string; disabled?: boolean }>;
   /** 异步选项请求函数。 */
@@ -324,8 +431,8 @@ export interface NormalizedSchemaFormColumn<
   title?: string;
   /** 标准化后的控件类型。 */
   valueType: SchemaValueType;
-  /** 是否使用旧 FormItem data 渲染。 */
-  useLegacyData: boolean;
+  /** 是否使用 column.data 控件配置渲染。 */
+  useDataControl: boolean;
   /** 原始顺序，用于稳定排序。 */
   index: number;
 }
@@ -399,5 +506,5 @@ export interface SchemaFormSlotProps<T extends SchemaFormModel = SchemaFormModel
   toggleCollapsed: () => void;
 }
 
-/** 动态组件类型，用于旧 component/custom 控件传入 Vue 组件。 */
+/** 动态组件类型，用于 component/custom 控件传入 Vue 组件。 */
 export type SchemaFormComponent = Component;

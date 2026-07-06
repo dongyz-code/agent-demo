@@ -243,8 +243,11 @@ export function hasCollapsedItems<T extends SchemaFormModel>(
 
 /** 查询动作区样式，inline 模式下作为最后一个 grid item 渲染。 */
 export function buildActionStyle({
+  columns,
   placement,
 }: {
+  /** 当前列数。 */
+  columns: number;
   /** 动作区位置。 */
   placement: SchemaFormSearch['actionPlacement'];
 }): CSSProperties {
@@ -252,6 +255,6 @@ export function buildActionStyle({
     return {};
   }
   return {
-    gridColumn: 'auto / span 1',
+    gridColumn: `${Math.max(1, columns)} / span 1`,
   };
 }

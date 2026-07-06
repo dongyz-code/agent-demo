@@ -11,8 +11,8 @@ import type {
   SchemaValueType,
 } from './type';
 
-/** 旧 FormItem data 类型到新 valueType 的保守映射，仅用于内部 renderer 选择。 */
-const legacyTypeMap: Record<string, SchemaValueType> = {
+/** column.data 控件类型到 valueType 的保守映射，仅用于内部 renderer 选择。 */
+const dataControlTypeMap: Record<string, SchemaValueType> = {
   button: 'custom',
   cascader: 'cascader',
   'check-box-group': 'checkbox',
@@ -26,12 +26,12 @@ const legacyTypeMap: Record<string, SchemaValueType> = {
   switch: 'switch',
 };
 
-/** 根据旧 data 或新 valueType 得到实际控件类型；旧 data 优先。 */
+/** 根据 column.data 或 valueType 得到实际控件类型；column.data 优先。 */
 export function resolveValueType<T extends SchemaFormModel>(
   column: SchemaFormColumn<T>,
 ): SchemaValueType {
   if (column.data) {
-    return legacyTypeMap[column.data.type] ?? 'custom';
+    return dataControlTypeMap[column.data.type] ?? 'custom';
   }
   return column.valueType ?? 'text';
 }
@@ -60,7 +60,7 @@ export function normalizeColumns<T extends SchemaFormModel>({
         index,
         key: dataIndexToKey(column.dataIndex),
         title: column.title,
-        useLegacyData: Boolean(column.data),
+        useDataControl: Boolean(column.data),
         valueType: resolveValueType(column),
       };
     })

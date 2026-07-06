@@ -56,7 +56,7 @@ import { reactive, shallowRef, computed, onMounted } from 'vue';
 import { dayJsformat, debounce } from '@repo/utils-browser';
 import { api } from '@/api';
 import { staticMapping, staticOptions } from '@/static';
-import { httpCache, handleSelectUserLabel } from '@/cache';
+import { httpCache } from '@/cache';
 import { notify } from '@/plugins/notify';
 
 import {
@@ -167,7 +167,10 @@ const searchColumns: SchemaFormColumn<Form>[] = [
       /** 加载用户选项，供接口日志按用户筛选。 */
       async options() {
         const items = await httpCache.user.get({ full: true });
-        return handleSelectUserLabel(items);
+        return items.map(({ user_id, nickname, email }) => ({
+          label: `${nickname} / ${email ?? '-'}`,
+          value: user_id,
+        }));
       },
       props: {
         clearable: true,

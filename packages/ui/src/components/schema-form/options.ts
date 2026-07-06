@@ -96,15 +96,8 @@ export function normalizeOptions(options: unknown): SchemaFormOption[] {
   });
 }
 
-/** 判断 column 是否有旧 data.options 来源。 */
-export function hasLegacyOptions<T extends SchemaFormModel>(
-  column: SchemaFormColumn<T>,
-): boolean {
-  return Boolean(column.data && 'options' in column.data);
-}
-
-/** 获取旧 data.options 原始来源。 */
-export function getLegacyOptionsSource<T extends SchemaFormModel>(
+/** 获取 column.data.options 原始来源。 */
+export function getDataOptionsSource<T extends SchemaFormModel>(
   column: SchemaFormColumn<T>,
 ): unknown {
   if (!column.data || !('options' in column.data)) {
@@ -121,7 +114,7 @@ export function resolveStaticOptions<T extends SchemaFormModel>(
     return valueEnumToOptions(field.column.valueEnum);
   }
 
-  const source = getLegacyOptionsSource(field.column);
+  const source = getDataOptionsSource(field.column);
   if (source === undefined || typeof source === 'function') {
     return undefined;
   }
@@ -129,11 +122,11 @@ export function resolveStaticOptions<T extends SchemaFormModel>(
   return normalizeOptions(resolveMaybeRef(source as SchemaMaybeRef<unknown>));
 }
 
-/** 读取旧 data.options，兼容同步函数、异步函数、Ref 和 ComputedRef。 */
-export async function resolveLegacyOptions<T extends SchemaFormModel>(
+/** 读取 column.data.options，兼容同步函数、异步函数、Ref 和 ComputedRef。 */
+export async function resolveDataOptions<T extends SchemaFormModel>(
   field: NormalizedSchemaFormColumn<T>,
 ): Promise<SchemaFormOption[]> {
-  const source = getLegacyOptionsSource(field.column);
+  const source = getDataOptionsSource(field.column);
   if (source === undefined) {
     return [];
   }

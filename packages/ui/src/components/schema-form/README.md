@@ -1,6 +1,6 @@
 # VSchemaForm
 
-`VSchemaForm` 是 schema 驱动表单组件，字段通过 `columns` 描述。它独立于旧 `VFormItems`，不接收旧的二维 `options`，但 column 可以继续使用旧 `FormItem['data']` 控件配置。
+`VSchemaForm` 是 schema 驱动表单组件，字段通过 `columns` 描述。组件只接收 schema 配置，控件可以通过 `valueType` 或 `data` 描述。
 
 ## 查询表单
 
@@ -67,33 +67,14 @@ const columns: SchemaFormColumn<SearchForm>[] = [
 ];
 ```
 
-## 旧字段迁移
+## data 控件配置
 
-旧 `VFormItems` 字段：
-
-```ts
-{
-  label: '角色',
-  key: 'role_id',
-  range: 2,
-  required: true,
-  data: {
-    type: 'select',
-    options: roleOptions,
-    props: {
-      multiple: true,
-      placeholder: '请选择角色',
-    },
-  },
-}
-```
-
-迁移到 `VSchemaForm`：
+需要直接描述 Element Plus 控件时，可以使用 `data`：
 
 ```ts
 {
-  title: '角色',
   dataIndex: 'role_id',
+  title: '角色',
   formItemProps: { required: true },
   data: {
     type: 'select',
@@ -106,20 +87,7 @@ const columns: SchemaFormColumn<SearchForm>[] = [
 }
 ```
 
-`range` 迁移时不要机械复制成 `colProps.span`。搜索表单优先交给 `VSchemaForm` 的响应式布局处理；只有字段确实需要横跨多个栅格时才显式配置 `colProps.span`。
-
-## 配置映射
-
-| 旧字段 | 新字段 |
-| --- | --- |
-| `label` | `title` |
-| `key` | `dataIndex` |
-| `range` | `colProps.span` |
-| `required` | `formItemProps.required` |
-| `data` | `data` |
-| `labelWidth` | `formItemProps.labelWidth` 或 `layout.labelWidth` |
-| `hidden` | `hidden` |
-| `disabled` | `disabled` |
+搜索表单优先交给 `VSchemaForm` 的响应式布局处理；只有字段确实需要横跨多个栅格时才显式配置 `colProps.span`。
 
 ## 自定义渲染
 

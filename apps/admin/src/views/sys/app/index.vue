@@ -67,7 +67,7 @@
     />
 
     <v-dialog title="编辑" v-model="form.visible">
-      <v-form-items v-model="form.data" :options="formOptions" />
+      <v-schema-form v-model="form.data" :columns="formColumns" />
       <template #footer>
         <el-button type="primary" @click="handleConfirm"> 确认 </el-button>
         <el-button @click="form.visible = false">取消</el-button>
@@ -84,7 +84,7 @@ import { copyText, getKeys, debounce } from '@repo/utils-browser';
 import { api } from '@/api';
 import { notify, confirm } from '@/plugins/notify';
 import { ElSwitch, ElButton } from 'element-plus';
-import { VDialog, VFormItems, VIcon, VSchemaForm, usePage } from '@repo/ui';
+import { VDialog, VIcon, VSchemaForm, usePage } from '@repo/ui';
 import { staticOptions } from '@/static';
 
 import IconParkOutlinePlus from '~icons/icon-park-outline/plus';
@@ -92,12 +92,18 @@ import IconParkOutlineEditTwo from '~icons/icon-park-outline/edit-two';
 import IconParkOutlineCopy from '~icons/icon-park-outline/copy';
 import IconParkOutlineDelete from '~icons/icon-park-outline/delete';
 
-import type { FormItem, IconType, SchemaFormColumn } from '@repo/ui';
+import type { IconType, SchemaFormColumn } from '@repo/ui';
 import type { ApiSys } from '@/types';
 
 type Items = ApiSys.AppAction['detail']['resp'];
 type ApiAppListReq = ApiSys.AppAction['ids']['req'];
 type SearchForm = NonNullable<ApiAppListReq['form']>;
+type AppForm = {
+  /** 接口名称，提交前会去除首尾空格。 */
+  name: string;
+  /** 接口简介，提交前会去除首尾空格。 */
+  desc: string;
+};
 
 const create = {
   icon: IconParkOutlinePlus,
@@ -186,10 +192,7 @@ onMounted(() => {
 
 const form: {
   visible: boolean;
-  data: {
-    name: string;
-    desc: string;
-  };
+  data: AppForm;
   id?: number;
   status: 'add' | 'update';
 } = reactive({
@@ -201,34 +204,29 @@ const form: {
   status: 'add',
 });
 
-const formOptions: FormItem<keyof (typeof form)['data']>[][] = [
-  [
-    {
-      label: '名称',
-      key: 'name',
+const formColumns: SchemaFormColumn<AppForm>[] = [
+  {
+    dataIndex: 'name',
+    formItemProps: {
       required: true,
-      data: {
-        type: 'input',
+    },
+    title: '名称',
+    valueType: 'text',
+  },
+  {
+    dataIndex: 'desc',
+    fieldProps: {
+      autosize: {
+        minRows: 3,
+        maxRows: 3,
       },
     },
-  ],
-  [
-    {
-      label: '简介',
-      key: 'desc',
+    formItemProps: {
       required: true,
-      data: {
-        type: 'input',
-        props: {
-          type: 'textarea',
-          autosize: {
-            minRows: 3,
-            maxRows: 3,
-          },
-        },
-      },
     },
-  ],
+    title: '简介',
+    valueType: 'textarea',
+  },
 ];
 
 function setDialog(

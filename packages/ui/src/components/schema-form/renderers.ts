@@ -282,8 +282,8 @@ function renderValueTypeControl<T extends SchemaFormModel>(
   return null;
 }
 
-/** 使用旧 FormItem data 渲染字段。 */
-function renderLegacyControl<T extends SchemaFormModel>(
+/** 使用 column.data 控件配置渲染字段。 */
+function renderDataControl<T extends SchemaFormModel>(
   ctx: SchemaRendererCtx<T>,
 ): VNode | string | null {
   const data = ctx.field.column.data;
@@ -364,12 +364,12 @@ function renderLegacyControl<T extends SchemaFormModel>(
   return null;
 }
 
-/** 根据字段来源选择旧 data 或新 valueType renderer。 */
+/** 根据字段来源选择 column.data 或 valueType renderer。 */
 export function renderSchemaControl<T extends SchemaFormModel>(
   ctx: SchemaRendererCtx<T>,
 ): VNode | string | null {
-  if (ctx.field.useLegacyData) {
-    return renderLegacyControl(ctx);
+  if (ctx.field.useDataControl) {
+    return renderDataControl(ctx);
   }
   return renderValueTypeControl(ctx);
 }

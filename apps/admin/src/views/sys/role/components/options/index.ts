@@ -7,12 +7,12 @@ import {
   normalizeAdminPermissionKeys,
 } from '@repo/shared/permission';
 
-import { VFormItems, VDialog } from '@repo/ui';
+import { VDialog, VSchemaForm } from '@repo/ui';
 import { ElButton, ElInput, ElTree } from 'element-plus';
 
 import type { RoleItem } from '@/types';
 import type { PropType } from 'vue';
-import type { FormItem } from '@repo/ui';
+import type { SchemaFormColumn } from '@repo/ui';
 import type { AdminPermissionNode } from '@repo/shared/permission';
 
 export type Item = Pick<RoleItem, 'name' | 'desc' | 'permission'>;
@@ -119,7 +119,7 @@ export const setup = defineComponent({
     },
   },
   components: {
-    VFormItems,
+    VSchemaForm,
     VDialog,
     ElButton,
     ElInput,
@@ -148,33 +148,29 @@ export const setup = defineComponent({
     watch(formKey, set);
     watch(modelValue, set);
 
-    const formOptions = computed<FormItem<keyof Item>[][]>(() => [
-      [
-        {
-          label: '角色名称',
-          data: {
-            type: 'input',
-            props: {
-              disabled: !props.canEditBase,
-            },
-          },
-          key: 'name',
+    const formColumns = computed<SchemaFormColumn<Item>[]>(() => [
+      {
+        dataIndex: 'name',
+        fieldProps: {
+          disabled: !props.canEditBase,
+        },
+        formItemProps: {
           required: true,
         },
-      ],
-      [
-        {
-          label: '角色描述',
-          data: {
-            type: 'input',
-            props: {
-              disabled: !props.canEditBase,
-            },
-          },
-          key: 'desc',
+        title: '角色名称',
+        valueType: 'text',
+      },
+      {
+        dataIndex: 'desc',
+        fieldProps: {
+          disabled: !props.canEditBase,
+        },
+        formItemProps: {
           required: true,
         },
-      ],
+        title: '角色描述',
+        valueType: 'text',
+      },
     ]);
 
     const emitData = computed(() => {
@@ -201,7 +197,7 @@ export const setup = defineComponent({
 
     return {
       form,
-      formOptions,
+      formColumns,
       emit,
       submit,
       treeProps,

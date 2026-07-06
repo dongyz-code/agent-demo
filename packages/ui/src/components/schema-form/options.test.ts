@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { describe, expect, it } from 'vitest';
 import {
   normalizeOptions,
-  resolveLegacyOptions,
+  resolveDataOptions,
   resolveStaticOptions,
   valueEnumToOptions,
 } from './options';
@@ -42,7 +42,7 @@ describe('schema-form options utils', () => {
     ]);
   });
 
-  it('同步读取 ref 和 computed 旧 options', () => {
+  it('同步读取 ref 和 computed data options', () => {
     const field = {
       column: {
         data: {
@@ -53,6 +53,7 @@ describe('schema-form options utils', () => {
       },
       dataIndex: 'status',
       key: 'status',
+      useDataControl: true,
       valueType: 'select',
     } as NormalizedSchemaFormColumn;
 
@@ -66,7 +67,7 @@ describe('schema-form options utils', () => {
     ]);
   });
 
-  it('兼容异步函数形式旧 options', async () => {
+  it('兼容异步函数形式 data options', async () => {
     const field = {
       column: {
         data: {
@@ -79,10 +80,11 @@ describe('schema-form options utils', () => {
       },
       dataIndex: 'status',
       key: 'status',
+      useDataControl: true,
       valueType: 'select',
     } as NormalizedSchemaFormColumn;
 
-    await expect(resolveLegacyOptions(field)).resolves.toEqual([
+    await expect(resolveDataOptions(field)).resolves.toEqual([
       {
         children: undefined,
         disabled: false,

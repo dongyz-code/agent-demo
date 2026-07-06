@@ -44,7 +44,7 @@
 import { computed, onMounted, reactive, shallowRef } from 'vue';
 import { arrObject, dayJsformat, debounce } from '@repo/utils-browser';
 import { api } from '@/api';
-import { httpCache, handleSelectUserLabel } from '@/cache';
+import { httpCache } from '@/cache';
 import { notify } from '@/plugins/notify';
 
 import { ElButton } from 'element-plus';
@@ -101,7 +101,10 @@ const searchColumns: SchemaFormColumn<Form>[] = [
       /** 加载用户选项，供日志查询按用户筛选。 */
       async options() {
         const items = await httpCache.user.get({ full: true });
-        return handleSelectUserLabel(items);
+        return items.map(({ user_id, nickname, email }) => ({
+          label: `${nickname} / ${email ?? '-'}`,
+          value: user_id,
+        }));
       },
       props: {
         clearable: true,

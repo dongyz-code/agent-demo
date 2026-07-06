@@ -5,11 +5,11 @@
     @update:model-value="emit('update:modelValue', $event)"
     width="50%"
   >
-    <v-form-items
+    <v-schema-form
       class="mb-4 w-full"
-      :options="formOptions"
+      :columns="formColumns"
       v-model="form"
-    ></v-form-items>
+    />
 
     <div class="mb-3">
       <el-input
