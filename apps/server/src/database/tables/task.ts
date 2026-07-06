@@ -1,6 +1,6 @@
 import { index, text, uuid } from 'drizzle-orm/pg-core';
 
-import { bytea, timestamptz, varchar255 } from './columns.js';
+import { bytea, timestamptz, varchar255 } from './common-columns.js';
 import { pgTable } from '../structure/index.js';
 
 import type { TaskStatus, TaskTriggerMethod } from '@repo/types';

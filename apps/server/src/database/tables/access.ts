@@ -6,7 +6,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-import { baseCols, timestamptz, varchar255 } from './columns.js';
+import { baseCols, timestamptz, varchar255 } from './common-columns.js';
 import { pgTable, timestampsTrigger } from '../structure/index.js';
 
 export const user = pgTable(

@@ -1,6 +1,6 @@
 import { index, text, uuid } from 'drizzle-orm/pg-core';
 
-import { timestamptz, varchar255 } from './columns.js';
+import { timestamptz, varchar255 } from './common-columns.js';
 import { pgTable } from '../structure/index.js';
 
 import type {

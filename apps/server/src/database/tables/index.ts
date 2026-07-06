@@ -3,7 +3,6 @@ import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 export * from './access.js';
 export * from './log.js';
-export * from './main.js';
 export * from './structure.js';
 export * from './system.js';
 export * from './task.js';
