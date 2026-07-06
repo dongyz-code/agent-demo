@@ -15,18 +15,12 @@ export type LOGIN_RESPONSE = {
 
 export type Login = ApiMultAction<{
   login: {
-    req:
-      | {
-          /** 账户密码登录 */
-          username: string;
-          password: string;
-        }
-      | {
-          /** 状态标记，来源 */
-          state: string;
-          /** 授权后的回调URL（带CODE） */
-          url: string;
-        };
+    req: {
+      /** 账户密码登录的用户名。 */
+      username: string;
+      /** 账户密码登录的密码，前端可按服务端兼容规则传原文或哈希值。 */
+      password: string;
+    };
     resp: LOGIN_RESPONSE;
   };
   verify: {

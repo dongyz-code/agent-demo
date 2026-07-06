@@ -1,6 +1,5 @@
 import type { APIRoutes, APISource, PinoLogLevel } from '@repo/utils-node';
 import type { API } from '@repo/types';
-import type { OAuth2Configs } from '@repo/openid';
 
 export type * from '@repo/types';
 
@@ -16,14 +15,12 @@ export interface AiProviderSecret {
 
 /** 根配置文件中 `AI` 节点支持的语言模型供应商配置。 */
 export interface AiConf {
-  /** 千问模型供应商配置。 */
-  qwen?: AiProviderSecret;
-  /** 豆包模型供应商配置。 */
-  doubao?: AiProviderSecret;
-  /** Anthropic 模型供应商配置；当前按 OpenAI 兼容代理接入。 */
-  anthropic?: AiProviderSecret;
-  /** 智谱 GLM 模型供应商配置。 */
-  glm?: AiProviderSecret;
+  /** 阿里云百炼代理配置，承载千问、GLM 等百炼 compatible-mode 模型。 */
+  bailian?: AiProviderSecret;
+  /** 字节火山引擎代理配置，承载豆包系列模型。 */
+  volcengine?: AiProviderSecret;
+  /** AWS Bedrock 代理配置，当前用于 Anthropic 系列模型。 */
+  awsBedrock?: AiProviderSecret;
 }
 
 /** 额外补充的配置 */
@@ -53,12 +50,6 @@ export type ConfExtra = {
     path: string;
     user: string;
     password: string;
-  };
-  openid?: {
-    /** OAuth2 配置 */
-    configs: OAuth2Configs;
-    /** 默认角色列表 */
-    defaultRoleIds?: string[];
   };
   /** AI 供应商配置，密钥和代理地址统一放在本地 conf.json 的 `AI` 节点。 */
   AI?: AiConf;

@@ -6,8 +6,6 @@ import { db, schema, whereAll } from '@/database/index.js';
 import { getSha256Hex } from '@/utils/index.js';
 import { addUserLog } from '@/hooks/user-log/index.js';
 import { getAdminPermissionContext } from '@/router/permission.js';
-import { useOpenid } from '@/hooks/openid/index.js';
-import { createUser } from '../sys/user.create.js';
 import { eq } from 'drizzle-orm';
 
 import type { ApiLogin } from '@/types/index.js';
@@ -41,73 +39,35 @@ type UserItem = {
 async function getUserItem(
   body: ApiLogin.Login['login']['req'],
 ): Promise<UserItem | undefined> {
-  if ('state' in body) {
-    /** 自动注册 */
-    const { state, url } = body;
-    if (state === 'Casdoor') {
-      const { authorizationCodeGrant, fetchUserInfo } = useOpenid();
+  const { username, password } = body;
 
-      const tokens = await authorizationCodeGrant({ url, state });
-      const userInfo = await fetchUserInfo(tokens);
-
-      const { email, name, preferred_username } = userInfo.userInfo;
-      if (!email || !name || !preferred_username) {
-        return;
-      }
-
-      const user = await createUser({
-        list: [
-          {
-            username: preferred_username,
-            nickname: name,
-            email,
-            password: null,
-            role_id: ROOT.openid?.defaultRoleIds ?? [],
-          },
-        ],
-        operator: ROOT.SYS_ADMIN_USER_ID,
-        now: new Date(),
-        ignoreExist: true,
-      });
-      const [item] = user;
-
-      return {
-        user_id: item.user_id,
-        username: item.username,
-        nickname: item.nickname,
-      };
-    }
-  } else {
-    const { username, password } = body;
-
-    if (username == admin.username && adminPass.includes(password)) {
-      return {
-        user_id: ROOT.SYS_ADMIN_USER_ID,
-        username,
-        nickname: admin.nickname ?? '-',
-        sys_admin: true,
-      };
-    }
-    const [item] = await db
-      .select({
-        user_id: schema.user.user_id,
-        nickname: schema.user.nickname,
-      })
-      .from(schema.user)
-      .where(
-        whereAll(
-          eq(schema.user.username, username),
-          eq(schema.user.password, password),
-        ),
-      )
-      .limit(1);
-    if (item) {
-      return {
-        user_id: item.user_id,
-        username,
-        nickname: item.nickname,
-      };
-    }
+  if (username == admin.username && adminPass.includes(password)) {
+    return {
+      user_id: ROOT.SYS_ADMIN_USER_ID,
+      username,
+      nickname: admin.nickname ?? '-',
+      sys_admin: true,
+    };
+  }
+  const [item] = await db
+    .select({
+      user_id: schema.user.user_id,
+      nickname: schema.user.nickname,
+    })
+    .from(schema.user)
+    .where(
+      whereAll(
+        eq(schema.user.username, username),
+        eq(schema.user.password, password),
+      ),
+    )
+    .limit(1);
+  if (item) {
+    return {
+      user_id: item.user_id,
+      username,
+      nickname: item.nickname,
+    };
   }
 }
 

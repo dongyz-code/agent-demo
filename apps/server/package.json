@@ -12,7 +12,6 @@
     "@ai-sdk/google": "^4.0.2",
     "@ai-sdk/openai-compatible": "^3.0.1",
     "@repo/configs": "workspace:*",
-    "@repo/openid": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/types": "workspace:^",
     "@repo/utils-node": "workspace:^",
