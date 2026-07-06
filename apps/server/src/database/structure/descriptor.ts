@@ -5,22 +5,22 @@ import { SQL, sql } from 'drizzle-orm';
 import { getTableSchemaObjects } from './declaration.js';
 
 import type {
-  ColumnDescriptor,
+  TargetColumnDescriptor,
   DrizzleIndexConfig,
-  IndexDescriptor,
+  TargetIndexDescriptor,
   TableDdlTarget,
-  TableDescriptor,
+  TableTargetDescriptor,
 } from './types.js';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 /** 数据库连接配置中的默认 PostgreSQL schema，Drizzle 表未声明 schema 时使用它。 */
 export const defaultDatabaseSchema = ROOT.pg.path?.trim() || 'public';
 
-/** describeTable 与 DDL emitter 共用的目标覆盖选项。 */
+/** describeTableTarget 与 DDL 生成器共用的目标覆盖选项。 */
 export type DescribeTableOptions = {
   /** PostgreSQL schema 名称；未传时使用表声明或默认 schema。 */
   schemaName?: string;
-  /** 真实表名；未传时使用 Drizzle schema 中声明的表名。 */
+  /** 真实表名；未传时使用 Drizzle 表定义中的表名。 */
   tableName?: string;
 };
 
@@ -38,25 +38,25 @@ export function getTableDdlTarget({
 }
 
 /**
- * 单一 introspection 入口：一次 getTableConfig 产出表的完整目标态描述。
+ * 从 Drizzle 表定义推导数据库结构目标态，一次 getTableConfig 产出完整描述。
  *
  * 主键名集合只算一次、列只遍历一次、索引只归一一次、trigger 只取一次，
- * DDL emitter 与表管理 hooks 都消费本结果，不再各自重推。
+ * DDL 生成器与表管理 hooks 都消费本结果，不再各自重推。
  *
  * @param table Drizzle 表对象。
  * @param options schema/table 覆盖，用于表管理重建临时表场景。
  */
-export function describeTable(
+export function describeTableTarget(
   table: AnyPgTable,
   options: DescribeTableOptions = {},
-): TableDescriptor {
+): TableTargetDescriptor {
   const target = getTableDdlTarget({ table, ...options });
   const config = getTableConfig(table);
   const primaryNameSet = new Set(
     config.primaryKeys.flatMap((item) => item.columns.map((column) => column.name)),
   );
 
-  const columns: ColumnDescriptor[] = config.columns.map((column) => {
+  const columns: TargetColumnDescriptor[] = config.columns.map((column) => {
     const primaryKey = column.primary || primaryNameSet.has(column.name);
     return {
       name: column.name,
@@ -108,7 +108,7 @@ function normalizeIndexes({
   table: AnyPgTable;
   /** 兜底生成索引名时使用的表名。 */
   tableName: string;
-}): IndexDescriptor[] {
+}): TargetIndexDescriptor[] {
   const config = getTableConfig(table);
   return config.indexes.map((item) => {
     const index = item as unknown as { config: DrizzleIndexConfig };

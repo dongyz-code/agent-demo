@@ -7,7 +7,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { baseCols, timestamptz, varchar255 } from './columns.js';
-import { pgTable, timestampsTrigger } from '../schema/index.js';
+import { pgTable, timestampsTrigger } from '../structure/index.js';
 
 export const user = pgTable(
   'user',

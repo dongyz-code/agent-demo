@@ -1,9 +1,23 @@
-import type { TableDiffLevel, TableDiffSummary } from '@repo/types';
-import type { TableCatalog } from './catalog.js';
+import type { TableCatalogSnapshot } from './catalog.js';
+
+/** 表结构差异级别，用于调用方判断是否同步、不同或缺失。 */
+export type TableStructureDiffLevel = 'synced' | 'different' | 'missing';
+
+/** 表结构差异摘要项，保持纯结构语义，不绑定 API 展示层类型。 */
+export type TableStructureDiffItem = {
+  /** 差异对象类型。 */
+  scope: 'table' | 'column' | 'index' | 'constraint';
+  /** 差异动作类型。 */
+  type: 'missing' | 'extra' | 'changed' | 'complex';
+  /** 差异对象名称。 */
+  name: string;
+  /** 面向管理员的差异说明，由表管理层直接透传展示。 */
+  message: string;
+};
 
 /**
- * diffTable 对 schema 侧的最小结构契约。
- * TableDescriptor（DB 声明态）与 ManagedTableSchema（业务展示态）都结构满足，无需包装或重跑 describeTable。
+ * compareTableStructure 对目标态侧的最小结构契约。
+ * TableTargetDescriptor（DB 声明态）与 ManagedTableSchema（业务展示态）都结构满足，无需包装或重跑 describeTableTarget。
  */
 export type DiffSchemaSide = {
   /** 表名，用于缺失表时的差异描述。 */
@@ -17,12 +31,12 @@ export type DiffSchemaSide = {
   }>;
 };
 
-/** 计算单表 schema 目标态和数据库实态之间的差异。 */
-export function diffTable(
+/** 计算单表目标态和数据库实态之间的差异。 */
+export function compareTableStructure(
   schema: DiffSchemaSide,
-  catalog: TableCatalog,
-): { level: TableDiffLevel; diff: TableDiffSummary[] } {
-  const diff: TableDiffSummary[] = [];
+  catalog: TableCatalogSnapshot,
+): { level: TableStructureDiffLevel; diff: TableStructureDiffItem[] } {
+  const diff: TableStructureDiffItem[] = [];
 
   if (!catalog.exists) {
     diff.push({
@@ -32,7 +46,7 @@ export function diffTable(
       message: '数据库中不存在该表',
     });
     return {
-      level: 'missing' as TableDiffLevel,
+      level: 'missing',
       diff,
     };
   }
@@ -61,7 +75,7 @@ export function diffTable(
         scope: 'column',
         type: 'changed',
         name,
-        message: `字段 ${name} 类型不一致：schema=${column.sqlType}, database=${catalogColumn.sqlType}`,
+        message: `字段 ${name} 类型不一致：target=${column.sqlType}, database=${catalogColumn.sqlType}`,
       });
     }
 
@@ -90,7 +104,7 @@ export function diffTable(
         scope: 'column',
         type: 'extra',
         name,
-        message: `数据库存在 schema 未注册字段 ${name}`,
+        message: `数据库存在目标态未注册字段 ${name}`,
       });
     }
   }
@@ -118,7 +132,7 @@ export function diffTable(
   });
 
   return {
-    level: diff.length ? ('different' as TableDiffLevel) : ('synced' as TableDiffLevel),
+    level: diff.length ? 'different' : 'synced',
     diff,
   };
 }

@@ -1,7 +1,7 @@
 import { index, text, uuid } from 'drizzle-orm/pg-core';
 
 import { timestamptz, varchar255 } from './columns.js';
-import { pgTable } from '../schema/index.js';
+import { pgTable } from '../structure/index.js';
 
 import type {
   TableStructureOpStatus,
@@ -17,7 +17,7 @@ export const table_structure_ops = pgTable(
     type: varchar255('type').$type<TableStructureOpType>().notNull(),
     /** 操作状态，用于审计和失败恢复 */
     status: varchar255('status').$type<TableStructureOpStatus>().notNull(),
-    /** schemaTables 中的表 key */
+    /** managedTableRegistry 中的表 key */
     table_key: varchar255('table_key').notNull(),
     /** PostgreSQL schema 名称 */
     table_schema: varchar255('table_schema').notNull(),

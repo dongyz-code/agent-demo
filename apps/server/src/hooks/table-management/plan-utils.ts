@@ -1,8 +1,8 @@
-import { normalizeSqlType } from '@/database/introspection/index.js';
+import { normalizeSqlType } from '@/database/structure/index.js';
 
 import type { TableColumnMapping } from '@repo/types';
 import type { ManagedTableSchema } from './types.js';
-import type { TableCatalog } from '@/database/introspection/index.js';
+import type { TableCatalogSnapshot } from '@/database/structure/index.js';
 
 /** 构造 reset 计划的目标字段到源字段映射。 */
 export function buildResetColumnSourceMap({
@@ -11,10 +11,10 @@ export function buildResetColumnSourceMap({
   columnMappings,
   blockers,
 }: {
-  /** Drizzle schema 目标结构。 */
+  /** Drizzle 目标态结构。 */
   schemaTable: ManagedTableSchema;
   /** Postgres catalog 真实结构。 */
-  catalogTable: TableCatalog;
+  catalogTable: TableCatalogSnapshot;
   /** 字段复制映射。 */
   columnMappings: TableColumnMapping[];
   /** 收集阻塞项的数组。 */
@@ -50,7 +50,7 @@ export function buildResetColumnSourceMap({
       blockers.push(`源字段 ${from} 不存在`);
     }
     if (!schemaColumns.has(to)) {
-      blockers.push(`目标字段 ${to} 不在 Drizzle schema 中`);
+      blockers.push(`目标字段 ${to} 不在 Drizzle 目标态中`);
     }
   });
 

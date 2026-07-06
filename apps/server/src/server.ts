@@ -6,7 +6,7 @@ import {
   ROOT,
   PORT,
 } from '@/configs/index.js';
-import { startupSchemaSync } from '@/database/introspection/index.js';
+import { startupTableStructureSync } from '@/database/structure/index.js';
 import { getRoutes, callback } from '@/router/index.js';
 
 logger.info(
@@ -19,7 +19,7 @@ logger.info(
 
 async function createServer() {
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
-  await startupSchemaSync();
+  await startupTableStructureSync();
   await createFastify({
     fastify: {
       options: {

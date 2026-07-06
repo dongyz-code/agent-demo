@@ -1,4 +1,4 @@
-import { getTableCatalog } from '@/database/introspection/index.js';
+import { getTableCatalogSnapshot } from '@/database/structure/index.js';
 
 import { assertManagedTableSchema } from './schema.js';
 
@@ -6,11 +6,11 @@ import { assertManagedTableSchema } from './schema.js';
 export async function getAuthorizedTableState({
   table,
 }: {
-  /** schemaTables 中的表 key。 */
+  /** managedTableRegistry 中的表 key。 */
   table: string;
 }) {
   const schemaTable = assertManagedTableSchema(table);
-  const catalogTable = await getTableCatalog(schemaTable);
+  const catalogTable = await getTableCatalogSnapshot(schemaTable);
   return {
     schemaTable,
     catalogTable,

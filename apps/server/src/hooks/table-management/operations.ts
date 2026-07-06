@@ -1,17 +1,15 @@
 import { ROOT_ERROR } from '@/configs/index.js';
 import {
   createCatalogFingerprint,
-  diffTable,
-  getTableCatalog,
-} from '@/database/introspection/index.js';
-import {
+  compareTableStructure,
   createTableIndexSqls,
   createTableSql,
   createTriggerFunctionSql,
   createTriggerSqls,
+  getTableCatalogSnapshot,
   quoteIdent,
   quoteQualified,
-} from '@/database/schema/index.js';
+} from '@/database/structure/index.js';
 import { db, schema, sql } from '@/database/index.js';
 import { dayJsformat } from '@repo/utils-node';
 import { randomUUID } from 'node:crypto';
@@ -33,11 +31,11 @@ import type {
   StoredResetPlan,
   StoredTablePlan,
 } from './types.js';
-import type { TableCatalog } from '@/database/introspection/index.js';
+import type { TableCatalogSnapshot } from '@/database/structure/index.js';
 
 const planExpireMs = 30 * 60 * 1000;
 
-/** 生成按 Drizzle schema 无损重置表结构的计划，并保存到审计表。 */
+/** 生成按 Drizzle 目标态无损重置表结构的计划，并保存到审计表。 */
 export async function createResetPlan({
   user_id,
   table,
@@ -45,7 +43,7 @@ export async function createResetPlan({
 }: {
   /** 当前用户 ID。 */
   user_id: string;
-  /** schemaTables 中的目标表 key。 */
+  /** managedTableRegistry 中的目标表 key。 */
   table: string;
   /** 字段复制映射。 */
   columnMappings?: TableColumnMapping[];
@@ -62,7 +60,7 @@ export async function createResetPlan({
     date: new Date(),
   });
   const blockers: string[] = [];
-  const warnings = diffTable(schemaTable, catalogTable).diff.map(
+  const warnings = compareTableStructure(schemaTable, catalogTable).diff.map(
     (item) => item.message,
   );
 
@@ -76,11 +74,11 @@ export async function createResetPlan({
   }
 
   const [temporaryCatalog, backupCatalog] = await Promise.all([
-    getTableCatalog({
+    getTableCatalogSnapshot({
       schemaName: schemaTable.schemaName,
       tableName: temporaryTableName,
     }),
-    getTableCatalog({
+    getTableCatalogSnapshot({
       schemaName: schemaTable.schemaName,
       tableName: backupTableName,
     }),
@@ -99,7 +97,7 @@ export async function createResetPlan({
   });
   schemaTable.indexes.forEach((index) => {
     if (index.complex) {
-      blockers.push(`Drizzle schema 复杂索引 ${index.name} 暂不支持自动重建`);
+      blockers.push(`Drizzle 目标态复杂索引 ${index.name} 暂不支持自动重建`);
     }
   });
   catalogTable.constraints.forEach((constraint) => {
@@ -241,13 +239,13 @@ export async function createSyncPlan({
 }: {
   /** 当前用户 ID。 */
   user_id: string;
-  /** schemaTables 中的目标表 key。 */
+  /** managedTableRegistry 中的目标表 key。 */
   table: string;
 }): Promise<TableOperationPlan> {
   const { schemaTable, catalogTable } = await getAuthorizedTableState({ table });
   const op_id = randomUUID();
   const blockers: string[] = [];
-  const warnings = diffTable(schemaTable, catalogTable).diff.map(
+  const warnings = compareTableStructure(schemaTable, catalogTable).diff.map(
     (item) => item.message,
   );
 
@@ -369,12 +367,12 @@ async function saveOperationPlan({
   user_id: string;
   /** 操作类型。 */
   type: TableStructureOpType;
-  /** Drizzle schema 目标结构。 */
+  /** Drizzle 目标态结构。 */
   schemaTable: ManagedTableSchema;
   /** 数据库中的源表名。 */
   sourceTableName: string;
   /** 当前数据库实态。 */
-  catalogTable: TableCatalog;
+  catalogTable: TableCatalogSnapshot;
   /** 保存到审计表的计划内容。 */
   plan: StoredTablePlan;
   /** SQL 摘要。 */
@@ -446,7 +444,7 @@ async function applySavedPlan({
   execute: (opts: {
     /** 保存的计划内容。 */
     plan: StoredTablePlan;
-    /** Drizzle schema 目标结构。 */
+    /** Drizzle 目标态结构。 */
     schemaTable: ManagedTableSchema;
   }) => Promise<void>;
 }): Promise<TableOperationApplyResult> {
@@ -473,7 +471,7 @@ async function applySavedPlan({
 
   const plan = JSON.parse(row.plan) as StoredTablePlan;
   const schemaTable = assertManagedTableSchema(plan.table);
-  const catalogTable = await getTableCatalog({
+  const catalogTable = await getTableCatalogSnapshot({
     schemaName: plan.schemaName,
     tableName: plan.sourceTableName,
   });
@@ -577,7 +575,7 @@ async function copyTableData({
 }: {
   /** SQL 执行函数。 */
   execute: (statement: SQL) => Promise<unknown>;
-  /** Drizzle schema 目标结构。 */
+  /** Drizzle 目标态结构。 */
   schemaTable: ManagedTableSchema;
   /** 保存的 reset 计划。 */
   plan: StoredResetPlan;

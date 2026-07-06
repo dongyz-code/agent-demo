@@ -1,15 +1,14 @@
 import type { SQL, SQLChunk } from 'drizzle-orm';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
-import type { TableIndexInfo } from '@repo/types';
 
 /* ------------------------------------------------------------------ */
-/* trigger 声明类型（从旧 schema/table.ts 平移）                       */
+/* trigger 声明类型                                                    */
 /* ------------------------------------------------------------------ */
 
 /** PostgreSQL trigger 支持的事件类型。 */
 export type SchemaTriggerEvent = 'insert' | 'update' | 'delete' | 'truncate';
 
-/** PostgreSQL trigger function 的 schema 声明，和表结构一样属于数据库目标态。 */
+/** PostgreSQL trigger function 声明，和表结构一样属于数据库目标态。 */
 export type SchemaTriggerFunction = {
   /** 函数名，不包含 schema。 */
   name: string;
@@ -27,7 +26,7 @@ export type SchemaTriggerFunction = {
   body: string;
 };
 
-/** PostgreSQL trigger 的 schema 声明，目标表由本地 pgTable 自动补齐。 */
+/** PostgreSQL trigger 声明，目标表由本地 pgTable 自动补齐。 */
 export type SchemaTrigger = {
   /** trigger 名称，同一张表内必须唯一。 */
   name: string;
@@ -52,7 +51,7 @@ export type SchemaTrigger = {
 /** trigger 在 pgTable 第三个参数中声明时尚未绑定目标表。 */
 export type SchemaTriggerConfig = Omit<SchemaTrigger, 'table'>;
 
-/** 单表 schema 扩展对象，包含该表声明中的 trigger function 和 trigger。 */
+/** 单表结构扩展对象，包含该表声明中的 trigger function 和 trigger。 */
 export type TableSchemaObjects = {
   /** 当前表声明中直接或间接引用的 trigger function。 */
   triggerFunctions: SchemaTriggerFunction[];
@@ -61,11 +60,11 @@ export type TableSchemaObjects = {
 };
 
 /* ------------------------------------------------------------------ */
-/* 表描述类型（统一 introspection 来源，DDL 与表管理共用）             */
+/* 表目标态描述类型，DDL 与表管理共用                                  */
 /* ------------------------------------------------------------------ */
 
-/** 列描述，DDL 与表管理共用；sensitive/key 等展示属性由消费方投影追加。 */
-export type ColumnDescriptor = {
+/** 目标态列描述，DDL 与表管理共用；sensitive/key 等展示属性由消费方投影追加。 */
+export type TargetColumnDescriptor = {
   /** 数据库字段名。 */
   name: string;
   /** 字段 SQL 类型文本，取自 column.getSQLType()。 */
@@ -82,8 +81,16 @@ export type ColumnDescriptor = {
   primaryKey: boolean;
 };
 
-/** 索引描述，同时承载 DDL 字段（expressions/where/method）与展示字段（columns/unique/complex）。 */
-export type IndexDescriptor = TableIndexInfo & {
+/** 目标态索引描述，同时承载 DDL 字段（expressions/where/method）与结构摘要字段。 */
+export type TargetIndexDescriptor = {
+  /** 索引名称。 */
+  name: string;
+  /** 索引覆盖的字段名列表；表达式索引用占位文本表示。 */
+  columns: string[];
+  /** 是否唯一索引。 */
+  unique: boolean;
+  /** 是否表达式、动态 where 或其他无法安全还原的复杂索引。 */
+  complex?: boolean;
   /** PostgreSQL 索引方法。 */
   method: string;
   /** 参与 create index 的字段或表达式 SQL 片段。 */
@@ -92,8 +99,8 @@ export type IndexDescriptor = TableIndexInfo & {
   where?: SQL;
 };
 
-/** 表的完整目标态描述，introspection 单点产出，DDL 与表管理共用。 */
-export type TableDescriptor = {
+/** 表的完整目标态描述，由 Drizzle 表定义推导，DDL 与表管理共用。 */
+export type TableTargetDescriptor = {
   /** Drizzle 表对象。 */
   table: AnyPgTable;
   /** PostgreSQL schema 名称。 */
@@ -101,11 +108,11 @@ export type TableDescriptor = {
   /** 数据库表名。 */
   tableName: string;
   /** 字段列表。 */
-  columns: ColumnDescriptor[];
+  columns: TargetColumnDescriptor[];
   /** 有序主键列名。 */
   primaryKey: string[];
   /** 索引列表。 */
-  indexes: IndexDescriptor[];
+  indexes: TargetIndexDescriptor[];
   /** 已绑表的 trigger 列表。 */
   triggers: SchemaTrigger[];
   /** 当前表声明引用的 trigger function 列表。 */
@@ -113,7 +120,7 @@ export type TableDescriptor = {
 };
 
 /* ------------------------------------------------------------------ */
-/* DDL target / option 类型（从旧 ddl.ts 平移）                        */
+/* DDL target / option 类型                                             */
 /* ------------------------------------------------------------------ */
 
 /** Drizzle 表在 DDL 中的目标位置，可用于正式表、临时表或备份表。 */
@@ -122,11 +129,11 @@ export type TableDdlTarget = {
   table: AnyPgTable;
   /** PostgreSQL schema 名称；未传时使用数据库连接配置中的默认 schema。 */
   schemaName?: string;
-  /** 要创建的真实表名；未传时使用 Drizzle schema 中声明的表名。 */
+  /** 要创建的真实表名；未传时使用 Drizzle 表定义中的表名。 */
   tableName?: string;
 };
 
-/** describeTable 与 DDL emitter 共用的目标覆盖选项。 */
+/** describeTableTarget 与 DDL 生成器共用的目标覆盖选项。 */
 export type TableTargetOptions = TableDdlTarget;
 
 /** 生成建表语句时可选的幂等策略。 */
@@ -155,7 +162,7 @@ export type CreateTriggerSqlOptions = {
 
 /** Drizzle index 运行时结构的轻量描述，供索引归一化内部使用。 */
 export type DrizzleIndexConfig = {
-  /** Drizzle schema 中声明的索引名，缺省时按表名和字段名兜底生成。 */
+  /** Drizzle 表定义中的索引名，缺省时按表名和字段名兜底生成。 */
   name?: string;
   /** 索引字段或表达式列表。 */
   columns: unknown[];

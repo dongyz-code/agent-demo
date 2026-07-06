@@ -1,16 +1,16 @@
 import type { TableColumnInfo, TableIndexInfo } from '@repo/types';
-import type { SchemaTrigger } from '@/database/schema/types.js';
+import type { SchemaTrigger } from '@/database/structure/types.js';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 /** 表管理中允许被展示和操作的 schema 表快照。 */
 export type ManagedTableSchema = {
-  /** schemaTables 中的表 key。 */
+  /** managedTableRegistry 中的表 key。 */
   table: string;
   /** Drizzle 表对象。 */
   drizzleTable: AnyPgTable;
   /** PostgreSQL schema 名称。 */
   schemaName: string;
-  /** Drizzle schema 中的目标表名。 */
+  /** Drizzle 目标态中的目标表名。 */
   tableName: string;
   /** 目标字段列表。 */
   columns: TableColumnInfo[];
@@ -22,11 +22,11 @@ export type ManagedTableSchema = {
 
 /** 计划内容的公共字段。 */
 type StoredTablePlanBase = {
-  /** schemaTables 中的表 key。 */
+  /** managedTableRegistry 中的表 key。 */
   table: string;
   /** PostgreSQL schema 名称。 */
   schemaName: string;
-  /** Drizzle schema 中的目标表名。 */
+  /** Drizzle 目标态中的目标表名。 */
   tableName: string;
   /** 数据库中的源表名。 */
   sourceTableName: string;

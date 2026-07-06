@@ -7,7 +7,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { baseCols, timestamptz, varchar255 } from './columns.js';
-import { pgTable } from '../schema/index.js';
+import { pgTable } from '../structure/index.js';
 
 export const sys_conf = pgTable('sys_conf', {
   /** 配置ID */

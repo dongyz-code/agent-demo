@@ -7,13 +7,13 @@ import {
   createTableSql,
   createTriggerFunctionSql,
   createTriggerSqls,
-  describeTable,
-} from '../schema/index.js';
-import { databaseSchemaTables } from '../tables/index.js';
-import { getTableCatalog } from './catalog.js';
-import { diffTable } from './diff.js';
+} from './ddl.js';
+import { describeTableTarget } from './descriptor.js';
+import { bootstrappedTableRegistry } from '../tables/index.js';
+import { getTableCatalogSnapshot } from './catalog.js';
+import { compareTableStructure } from './diff.js';
 
-import type { TableDescriptor } from '../schema/index.js';
+import type { TableTargetDescriptor } from './types.js';
 
 /** 启动期建表串行化用的 advisory 锁 tag，避免多实例同时补建同一张表的 trigger。 */
 const STARTUP_LOCK_TAG = 'deploy-console:startup-schema-sync';
@@ -25,15 +25,15 @@ const STARTUP_LOCK_TAG = 'deploy-console:startup-schema-sync';
  * 由前端 sync 操作处理，列结构变更由 reset 处理）。多实例同时启动时通过 advisory 锁
  * 串行化建表，避免 trigger 抢建。
  */
-export async function startupSchemaSync() {
+export async function startupTableStructureSync() {
   logger.info({ event: 'startup.schema_sync.start' }, '启动期表结构自检开始');
   let created = 0;
   let drifted = 0;
   let failed = 0;
 
-  for (const drizzleTable of databaseSchemaTables) {
-    const descriptor = describeTable(drizzleTable);
-    const catalog = await getTableCatalog({
+  for (const drizzleTable of bootstrappedTableRegistry) {
+    const descriptor = describeTableTarget(drizzleTable);
+    const catalog = await getTableCatalogSnapshot({
       schemaName: descriptor.schemaName,
       tableName: descriptor.tableName,
     });
@@ -56,7 +56,7 @@ export async function startupSchemaSync() {
       continue;
     }
 
-    const { diff } = diffTable(descriptor, catalog);
+    const { diff } = compareTableStructure(descriptor, catalog);
     if (diff.length) {
       drifted++;
       logger.warn(
@@ -65,7 +65,7 @@ export async function startupSchemaSync() {
           table: descriptor.tableName,
           diff: diff.map((item) => item.message),
         },
-        `表 ${descriptor.tableName} 与 schema 不一致，未自动修改`,
+        `表 ${descriptor.tableName} 与目标态不一致，未自动修改`,
       );
     }
   }
@@ -77,7 +77,7 @@ export async function startupSchemaSync() {
 }
 
 /** 在 advisory 锁内创建缺失的表及其索引和 trigger，幂等可重入。 */
-async function createMissingTable(descriptor: TableDescriptor) {
+async function createMissingTable(descriptor: TableTargetDescriptor) {
   await db.transaction(async (tx) => {
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${STARTUP_LOCK_TAG}))`,

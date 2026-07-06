@@ -2,14 +2,50 @@ import { sql } from 'drizzle-orm';
 
 import { db } from '../client.js';
 
-import type {
-  TableColumnInfo,
-  TableConstraintInfo,
-  TableIndexInfo,
-} from '@repo/types';
+/** 数据库 catalog 中读取到的真实字段结构。 */
+export type CatalogColumnSnapshot = {
+  /** 字段名，对应数据库列名。 */
+  name: string;
+  /** PostgreSQL SQL 类型文本。 */
+  sqlType: string;
+  /** 是否不允许为空。 */
+  notNull: boolean;
+  /** 是否拥有默认值。 */
+  hasDefault: boolean;
+  /** 默认值表达式。 */
+  defaultValue?: string | null;
+  /** 是否主键字段。 */
+  primaryKey: boolean;
+};
+
+/** 数据库 catalog 中读取到的真实索引摘要。 */
+export type CatalogIndexSnapshot = {
+  /** 索引名称。 */
+  name: string;
+  /** 索引覆盖的字段名列表；表达式索引会放入表达式文本。 */
+  columns: string[];
+  /** 是否唯一索引。 */
+  unique: boolean;
+  /** 是否表达式或部分索引等无法由首版流程安全自动重建的复杂索引。 */
+  complex?: boolean;
+};
+
+/** 数据库 catalog 中读取到的真实约束摘要。 */
+export type CatalogConstraintSnapshot = {
+  /** 约束名称。 */
+  name: string;
+  /** 约束类型，例如 PRIMARY KEY、UNIQUE、FOREIGN KEY、CHECK。 */
+  type: string;
+  /** 约束涉及的字段名列表。 */
+  columns: string[];
+  /** 约束定义文本。 */
+  definition?: string;
+  /** 是否属于首版无法安全自动重建的复杂约束。 */
+  complex?: boolean;
+};
 
 /** 数据库 catalog 中读取到的真实表结构（不含 sensitive 等展示属性，由业务层投影追加）。 */
-export type TableCatalog = {
+export type TableCatalogSnapshot = {
   /** PostgreSQL schema 名称。 */
   schemaName: string;
   /** 数据库真实表名。 */
@@ -19,11 +55,11 @@ export type TableCatalog = {
   /** 数据库估算行数。 */
   estimatedRows: number | null;
   /** 真实字段列表。 */
-  columns: TableColumnInfo[];
+  columns: CatalogColumnSnapshot[];
   /** 真实索引列表。 */
-  indexes: TableIndexInfo[];
+  indexes: CatalogIndexSnapshot[];
   /** 真实约束列表。 */
-  constraints: TableConstraintInfo[];
+  constraints: CatalogConstraintSnapshot[];
 };
 
 type CatalogTableRow = {
@@ -51,7 +87,7 @@ type CatalogConstraintRow = {
 };
 
 /** 读取指定表的数据库真实结构，表不存在时返回空结构。 */
-export async function getTableCatalog({
+export async function getTableCatalogSnapshot({
   schemaName,
   tableName,
 }: {
@@ -59,7 +95,7 @@ export async function getTableCatalog({
   schemaName: string;
   /** 数据库表名。 */
   tableName: string;
-}): Promise<TableCatalog> {
+}): Promise<TableCatalogSnapshot> {
   const tableResult = await db.execute<CatalogTableRow>(sql`
     select c.reltuples::bigint as estimated_rows
     from pg_class c
@@ -106,7 +142,7 @@ export function createCatalogFingerprint({
   indexes,
   constraints,
   exists,
-}: TableCatalog) {
+}: TableCatalogSnapshot) {
   return JSON.stringify({
     exists,
     columns: columns.map((column) => [
@@ -139,7 +175,7 @@ async function getCatalogColumns({
   schemaName: string;
   /** 数据库表名。 */
   tableName: string;
-}): Promise<TableColumnInfo[]> {
+}): Promise<CatalogColumnSnapshot[]> {
   const result = await db.execute<CatalogColumnRow>(sql`
     select
       a.attname as name,
@@ -184,7 +220,7 @@ async function getCatalogIndexes({
   schemaName: string;
   /** 数据库表名。 */
   tableName: string;
-}): Promise<TableIndexInfo[]> {
+}): Promise<CatalogIndexSnapshot[]> {
   const result = await db.execute<CatalogIndexRow>(sql`
     select indexname as name, indexdef as definition
     from pg_indexes
@@ -215,7 +251,7 @@ async function getCatalogConstraints({
   schemaName: string;
   /** 数据库表名。 */
   tableName: string;
-}): Promise<TableConstraintInfo[]> {
+}): Promise<CatalogConstraintSnapshot[]> {
   const result = await db.execute<CatalogConstraintRow>(sql`
     select
       con.conname as name,

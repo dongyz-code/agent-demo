@@ -22,7 +22,7 @@ import type { AnyPgTable } from 'drizzle-orm/pg-core';
 export { db, pool, schema, sql };
 
 export const tableNames = Object.fromEntries(
-  Object.keys(schema.schemaTables).map((key) => [key, key]),
+  Object.keys(schema.managedTableRegistry).map((key) => [key, key]),
 ) as Record<schema.Table, string>;
 
 export type { Db } from './client.js';

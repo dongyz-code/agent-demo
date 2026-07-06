@@ -37,7 +37,7 @@ run(async ({ logger }) => {
     }
   };
 
-  if (!(table in schema.schemaTables)) {
+  if (!(table in schema.managedTableRegistry)) {
     throw new Error(`未知表名: ${table}`);
   }
 

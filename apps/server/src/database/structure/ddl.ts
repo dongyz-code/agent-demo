@@ -3,7 +3,7 @@ import { SQL, sql } from 'drizzle-orm';
 
 import {
   defaultDatabaseSchema,
-  describeTable,
+  describeTableTarget,
   getTableDdlTarget,
   validateSqlIdentifier,
 } from './descriptor.js';
@@ -25,14 +25,14 @@ export function createSchemaSql(schemaName = defaultDatabaseSchema) {
   return sql`create schema if not exists ${sql.identifier(schemaName)}`;
 }
 
-/** 生成 create table 语句，字段定义取自 describeTable 的统一描述。 */
+/** 生成 create table 语句，字段定义取自 describeTableTarget 的统一描述。 */
 export function createTableSql({
   table,
   schemaName,
   tableName,
   ifNotExists,
 }: CreateTableSqlOptions) {
-  const descriptor = describeTable(table, { schemaName, tableName });
+  const descriptor = describeTableTarget(table, { schemaName, tableName });
   const primaryNames = descriptor.primaryKey;
   const isSinglePrimaryKey = primaryNames.length === 1;
 
@@ -78,7 +78,7 @@ export function createTableIndexSqls({
   skipComplex,
   indexNamePrefix,
 }: CreateIndexSqlOptions) {
-  const descriptor = describeTable(table, { schemaName, tableName });
+  const descriptor = describeTableTarget(table, { schemaName, tableName });
   return descriptor.indexes
     .filter((index) => {
       if (!index.complex) {

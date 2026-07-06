@@ -20,7 +20,7 @@ const tableDownload = helperScript<[TableDownload]>({
           key: 'table',
           comment: '表格名称',
           type: 'select',
-          options: Object.keys(schema.schemaTables),
+          options: Object.keys(schema.managedTableRegistry),
           required: true,
         },
       ],

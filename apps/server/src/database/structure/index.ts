@@ -1,9 +1,8 @@
 /**
- * schema 基础设施子模块公共出口。
+ * 数据库结构子模块公共出口。
  *
- * 统一收口 schema 基础设施：表声明（pgTable）、trigger 捕获、表描述（describeTable）、
- * DDL 生成（createXxxSql）、内置 trigger 预设（timestampsTrigger）。migrations 与表管理
- * hooks 均从此处引入，避免表结构推导逻辑散落到多个消费者。具体表定义见 ../tables。
+ * 统一收口表声明捕获、目标态描述、live catalog 读取、结构差异比较、DDL 生成和启动期
+ * 结构自检。具体表定义见 ../tables。
  */
 
 export {
@@ -15,7 +14,7 @@ export {
 
 export {
   defaultDatabaseSchema,
-  describeTable,
+  describeTableTarget,
   getTableDdlTarget,
   validateSqlIdentifier,
 } from './descriptor.js';
@@ -34,13 +33,33 @@ export {
 export { timestampsTrigger } from './presets.js';
 export type { TimestampsTriggerOptions } from './presets.js';
 
+export {
+  createCatalogFingerprint,
+  getTableCatalogSnapshot,
+} from './catalog.js';
 export type {
-  ColumnDescriptor,
+  CatalogColumnSnapshot,
+  CatalogConstraintSnapshot,
+  CatalogIndexSnapshot,
+  TableCatalogSnapshot,
+} from './catalog.js';
+
+export { compareTableStructure, normalizeSqlType } from './diff.js';
+export type {
+  DiffSchemaSide,
+  TableStructureDiffItem,
+  TableStructureDiffLevel,
+} from './diff.js';
+
+export { startupTableStructureSync } from './startup-sync.js';
+
+export type {
+  TargetColumnDescriptor,
   CreateIndexSqlOptions,
   CreateTableSqlOptions,
   CreateTriggerSqlOptions,
   DrizzleIndexConfig,
-  IndexDescriptor,
+  TargetIndexDescriptor,
   PgTableExtraConfig,
   PgTableExtraConfigValue,
   SchemaTrigger,
@@ -48,7 +67,7 @@ export type {
   SchemaTriggerEvent,
   SchemaTriggerFunction,
   TableDdlTarget,
-  TableDescriptor,
+  TableTargetDescriptor,
   TableSchemaObjects,
   TableTargetOptions,
 } from './types.js';

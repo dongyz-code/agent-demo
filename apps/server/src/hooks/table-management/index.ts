@@ -1,5 +1,5 @@
 import { countRows, db, schema, sql, whereAll } from '@/database/index.js';
-import { diffTable, getTableCatalog } from '@/database/introspection/index.js';
+import { compareTableStructure, getTableCatalogSnapshot } from '@/database/structure/index.js';
 import { desc, eq, inArray } from 'drizzle-orm';
 
 import { getManagedTableSchemaByKey, listManagedTableSchemas } from './schema.js';
@@ -53,8 +53,8 @@ export async function listVisibleTables({
       continue;
     }
 
-    const catalogTable = await getTableCatalog(schemaTable);
-    const diff = diffTable(schemaTable, catalogTable);
+    const catalogTable = await getTableCatalogSnapshot(schemaTable);
+    const diff = compareTableStructure(schemaTable, catalogTable);
     const item: TableListItem = {
       table: schemaTable.table,
       schemaName: schemaTable.schemaName,
@@ -83,11 +83,11 @@ export async function listVisibleTables({
 export async function getVisibleTableDetail({
   table,
 }: {
-  /** schemaTables 中的表 key。 */
+  /** managedTableRegistry 中的表 key。 */
   table: string;
 }): Promise<TableDetail> {
   const { schemaTable, catalogTable } = await getAuthorizedTableState({ table });
-  const diff = diffTable(schemaTable, catalogTable);
+  const diff = compareTableStructure(schemaTable, catalogTable);
 
   return {
     table: schemaTable.table,
