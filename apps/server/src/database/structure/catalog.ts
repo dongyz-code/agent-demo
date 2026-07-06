@@ -192,7 +192,7 @@ async function getCatalogColumns({
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
     join pg_attribute a on a.attrelid = c.oid
-    left join pg_attrdef d on d.adrelid = c.oid and d.adnum = a.atnum
+    left join pg_attrdef d on d.adrelid = c.oid and d.adnum = a.attnum
     where n.nspname = ${schemaName}
       and c.relname = ${tableName}
       and c.relkind in ('r', 'p')

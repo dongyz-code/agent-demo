@@ -1,10 +1,4 @@
-import {
-  boolean,
-  index,
-  text,
-  uniqueIndex,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { boolean, index, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 import { baseCols, timestamptz, varchar255 } from './common-columns.js';
 import { pgTable, timestampsTrigger } from '../structure/index.js';
@@ -81,5 +75,9 @@ export const user_role = pgTable(
       table.user_id,
       table.role_id,
     ),
+    ...timestampsTrigger({
+      createColumn: 'last_update_timestamp',
+      updateColumn: 'last_update_timestamp',
+    }),
   ],
 );
