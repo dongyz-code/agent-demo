@@ -14,6 +14,8 @@ export type ConfExtra = {
     fastifyLevel?: PinoLogLevel;
     /** 系统日志级别，用于控制启动、任务、异常和外部调用日志输出。 */
     systemLevel?: PinoLogLevel;
+    /** 是否输出到 stdout；生产默认在文件日志开启时关闭，避免默认双写。 */
+    stdout?: boolean;
     /** 本地文件日志配置，作为 stdout 之外的短期兜底。 */
     file?: {
       /** 是否启用本地文件日志，默认启用。 */

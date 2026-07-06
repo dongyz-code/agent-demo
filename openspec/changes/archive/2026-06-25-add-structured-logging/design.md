@@ -12,7 +12,7 @@
 - 创建 `fastify` 和 `system` 两类 Pino logger，并保持外部引用在轮换后稳定。
 - 开发环境 stdout 使用可读文本，生产环境 stdout 和本地文件使用结构化 JSON。
 - 文件日志写入 `logDir/YYYY-MM-DD/{fastify,system}.log`。
-- 支持项目调度器触发每日轮换，未接入调度器时用进程内定时器兜底。
+- 文件输出目标在写入时按本地日期懒轮换，不依赖项目调度器或进程内定时器。
 - 支持过期日期目录清理，文件写入或清理失败时不影响服务启动和 stdout/stderr 输出。
 
 **Non-Goals:**
@@ -35,15 +35,12 @@
 
 - `fastifyLogger`：给 Fastify `loggerInstance` 使用。
 - `logger`：给项目系统代码使用，提供 `trace/debug/info/warn/error/fatal/log` 等方法。
-- `rotate`：手动触发文件轮换，便于测试或运维命令。
-- `close`：关闭当前文件流，便于测试和优雅退出。
-- `getLogFiles`：获取当前角色日志文件路径快照。
 
-内部创建真实 Pino logger，并把日志写入可替换的角色 sink。日期轮换时只替换 sink 后面的文件 writer，不重建 Pino logger，因此 Fastify 持有的 `loggerInstance` 引用保持稳定。
+内部创建真实 Pino logger，并通过 `pino.multistream` 写入 stdout 和按天懒轮换的文件输出目标。跨天后的第一条文件日志会替换内部文件 writer，不重建 Pino logger，因此 Fastify 持有的 `loggerInstance` 引用保持稳定。
 
 ### 3. stdout 和文件输出分离
 
-开发环境 stdout 可读文本由轻量 pretty writer 完成，不引入额外依赖；生产环境 stdout 直接输出 Pino JSON。本地文件始终写 Pino JSON 行，方便后续 grep、采集器或离线处理。
+开发环境 stdout 可读文本由 `pino-pretty` 完成；生产环境 stdout 直接输出 Pino JSON。本地文件始终写 Pino JSON 行，方便后续 grep、采集器或离线处理。
 
 ### 4. 本地文件采用日期目录
 
@@ -56,7 +53,7 @@ static/logs/
     system.log
 ```
 
-每天 00:00:01 执行一次轮换：创建当天目录、替换角色文件 writer、关闭旧文件 writer。过期日期目录根据配置保留天数清理。轮换失败时继续保持 stdout/stderr 兜底输出可用。
+文件输出目标维护下一次本地零点时间；每次写入只做 `Date.now()` 与阈值比较。跨天后的第一条日志会创建当天目录、替换角色文件 writer、关闭旧文件 writer，并按配置保留天数清理过期日期目录。轮换失败时继续保持 stdout/stderr 兜底输出可用。
 
 ### 5. 请求相关能力本阶段回退
 
@@ -64,9 +61,9 @@ static/logs/
 
 ## Risks / Trade-offs
 
-- [Risk] 应用内替换文件 writer 时可能存在短暂文件句柄问题。→ Mitigation：Pino logger 保持稳定，只替换底层 sink，并为轮换失败提供 stderr fallback。
+- [Risk] 写入时懒轮换可能让跨天目录在第一条日志到来时才创建。→ Mitigation：没有日志时无需创建空目录；Pino logger 保持稳定，只替换底层文件 writer，并为轮换失败提供 stderr fallback。
 - [Risk] 同时写 stdout 和文件会增加 I/O。→ Mitigation：文件落地作为配置开关，可通过配置关闭本地文件输出。
-- [Risk] 自定义 pretty writer 功能不如 `pino-pretty` 完整。→ Mitigation：仅用于开发 stdout 可读性，文件和生产输出仍保持标准 JSON。
+- [Risk] 开发环境 pretty 输出增加一个运行时依赖。→ Mitigation：仅 stdout 开启 `devPretty` 时使用，文件和生产输出仍保持标准 JSON。
 - [Risk] 后续又把请求上下文塞回 Fastify 工具模块。→ Mitigation：设计中明确 logger 模块独立，Fastify 模块不承载轮换或请求链路实现。
 
 ## Migration Plan
@@ -74,7 +71,7 @@ static/logs/
 1. 新增独立 logger 模块，迁移并简化 `initPinoLogger`。
 2. 从 Fastify 模块移除 logger 初始化实现。
 3. 扩展服务端日志配置类型，提供日志级别、文件开关和保留天数。
-4. 服务端 logger 配置传入 `DIRS.LOG` 和 `ROOT_SCHEDULE`。
+4. 服务端 logger 配置传入 `DIRS.LOG`，文件输出目标自行按写入日期懒轮换。
 5. 回退 requestId、请求上下文和错误响应体相关改动。
 6. 运行 utils-node 和 deploy-server lint，并用临时目录验证文件实际创建。
 

@@ -12,23 +12,24 @@ export type PinoLogLevel =
 /** 本地运行日志角色，分别对应 Fastify 日志和系统日志文件。 */
 export type LoggerRole = 'fastify' | 'system';
 
+/** Pino 写入目标的最小接口，便于 stdout、文件和轮换代理使用同一出口。 */
+export type LogWriter = {
+  /** 写入单行 Pino JSON 日志。 */
+  write: (line: string) => void;
+  /** 刷新底层缓冲区，文件流可选实现。 */
+  flush?: () => void;
+  /** 关闭底层资源，stdout 不应关闭。 */
+  end?: () => void;
+  /** 当前写入的文件路径，stdout 没有该字段。 */
+  file?: string;
+};
+
 /** 本地文件日志配置。 */
 export type InitPinoFileOptions = {
   /** 是否启用本地文件落地，默认跟随 logDir 是否存在。 */
   enabled?: boolean;
   /** 本地日期目录保留天数，默认 30 天；小于等于 0 时不清理。 */
   retentionDays?: number;
-};
-
-/** 供 logger 接入项目全局调度器的最小接口。 */
-export type InitPinoSchedule = {
-  /** 添加定时任务，由项目级调度器决定何时 install。 */
-  add: (item: {
-    name: string;
-    cron: string;
-    event: () => void | Promise<void>;
-    enable?: boolean;
-  }) => void;
 };
 
 /** 初始化本地 Pino 日志的配置项。 */
@@ -45,12 +46,6 @@ export type InitPinoLoggerOptions = {
   stdout?: boolean;
   /** 本地文件日志选项。 */
   file?: InitPinoFileOptions;
-  /** 项目全局调度器，用于注册跨日轮换任务。 */
-  schedule?: InitPinoSchedule;
-  /** 调度任务名称，避免多个 logger 实例接入同一调度器时重名。 */
-  scheduleName?: string;
-  /** 日期轮换 cron，默认每天 00:00:01。 */
-  rotationCron?: string;
   /** 按角色追加 Pino 原生配置。 */
   customOptions?: Partial<Record<LoggerRole, pino.LoggerOptions>>;
 };
@@ -67,10 +62,4 @@ export type InitPinoLoggerResult = {
   logger: SystemLogger;
   /** 供 Fastify loggerInstance 使用的真实 Pino logger。 */
   fastifyLogger: pino.Logger;
-  /** 手动触发本地文件日志轮换，主要用于测试或运维命令。 */
-  rotate: (date?: Date) => void;
-  /** 刷新并关闭当前本地文件流，主要用于测试或优雅退出。 */
-  close: () => void;
-  /** 获取当前角色对应的本地日志文件路径快照。 */
-  getLogFiles: () => Partial<Record<LoggerRole, string>>;
 };
