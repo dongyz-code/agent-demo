@@ -18,7 +18,7 @@
         v-bind="item.field.formItemProps"
         :label="item.field.title"
         :prop="getFormItemProp(item.field)"
-        :style="item.style"
+        :style="[baseFormItemStyle, item.field.formItemProps.style, item.style]"
       >
         <template v-if="$slots[getLabelSlotName(item.field)]" #label>
           <slot
@@ -39,7 +39,7 @@
         v-if="showInlineActions"
         class="v-schema-form__actions-item"
         :label="actionFormItemLabel"
-        :style="actionStyle"
+        :style="[baseFormItemStyle, actionStyle]"
       >
         <div
           class="v-schema-form__actions flex min-h-8 w-full min-w-0 items-center gap-2"
@@ -245,7 +245,7 @@ const searchConfig = computed<ResolvedSearchConfig>(() => {
     actionAlign: config.actionAlign ?? 'right',
     actionPlacement: config.actionPlacement ?? 'inline',
     actions: config.actions ?? [],
-    collapsedRows: Math.max(1, config.collapsedRows ?? 2),
+    collapsedRows: Math.max(1, config.collapsedRows ?? 1),
     columns: config.columns ?? props.layout?.columns,
     defaultCollapsed: config.defaultCollapsed ?? true,
     resetText: config.resetText ?? '重置',
@@ -408,6 +408,11 @@ const formProps = computed(() => ({
   disabled: props.disabled ?? props.formProps?.disabled,
   labelPosition: effectiveLabelPosition.value,
 }));
+
+const baseFormItemStyle = {
+  marginBottom: 0,
+  minWidth: 0,
+};
 
 const optionStates = reactive<Record<string, ReturnType<typeof createOptionState>>>(
   {},
@@ -623,11 +628,6 @@ defineExpose<SchemaFormExpose>({
 </script>
 
 <style lang="postcss" scoped>
-:deep(.el-form-item) {
-  margin-bottom: 0;
-  min-width: 0;
-}
-
 :deep(.el-form-item__content) {
   min-width: 0;
 }

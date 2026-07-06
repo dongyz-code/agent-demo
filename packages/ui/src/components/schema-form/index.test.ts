@@ -185,6 +185,69 @@ describe('VSchemaForm', () => {
     ).not.toBeNull();
   });
 
+  it('默认通过 form item style 清理 Element Plus 底部间距', async () => {
+    const TestView = defineComponent({
+      setup() {
+        const form = ref({ username: '' });
+        const columns: SchemaFormColumn[] = [
+          {
+            dataIndex: 'username',
+            title: '用户名',
+            valueType: 'text',
+          },
+        ];
+        return () =>
+          h(VSchemaForm, {
+            columns,
+            modelValue: form.value,
+            'onUpdate:modelValue': (value) => {
+              form.value = value as typeof form.value;
+            },
+          });
+      },
+    });
+
+    const root = mount(TestView);
+    await nextTick();
+
+    const item = root.querySelector('.el-form-item') as HTMLElement | null;
+    expect(item?.style.marginBottom).toBe('0px');
+  });
+
+  it('允许通过 formItemProps.style 覆盖表单项底部间距', async () => {
+    const TestView = defineComponent({
+      setup() {
+        const form = ref({ username: '' });
+        const columns: SchemaFormColumn[] = [
+          {
+            dataIndex: 'username',
+            formItemProps: {
+              style: {
+                marginBottom: '12px',
+              },
+            },
+            title: '用户名',
+            valueType: 'text',
+          },
+        ];
+        return () =>
+          h(VSchemaForm, {
+            columns,
+            modelValue: form.value,
+            'onUpdate:modelValue': (value) => {
+              form.value = value as typeof form.value;
+            },
+          });
+      },
+    });
+
+    const root = mount(TestView);
+    await nextTick();
+
+    const item = root.querySelector('.el-form-item') as HTMLElement | null;
+    expect(item?.style.marginBottom).toBe('12px');
+  });
+
   it('支持按 dataIndex 覆盖字段 slot', async () => {
     const TestView = defineComponent({
       setup() {

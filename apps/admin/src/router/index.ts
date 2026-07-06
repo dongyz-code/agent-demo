@@ -1,8 +1,8 @@
 import { helperRouterMethod } from '@repo/ui';
 
-import type { RouteName } from './type';
+import type { RouteName } from './types';
 
-export * from './type';
+export * from './types';
 
 export { useRouter } from '@repo/ui';
 

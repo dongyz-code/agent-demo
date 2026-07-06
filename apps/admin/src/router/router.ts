@@ -1,13 +1,12 @@
 import { helperRouter } from '@repo/ui';
-import { useStore } from '@/store';
-import { api } from '@/api';
+import { useStore } from '@/models';
+import { api, progress } from '@/utils';
 import { routes } from './routes';
-import { routeNameMap } from './type';
-import { BASE_URL } from '@/configs';
-import { progress } from '@/plugins/progress';
-import { loginHandle } from '@/hooks/login';
+import { routeNameMap } from './types';
+import { BASE_URL } from '@/constants';
+import { loginHandle } from '@/pages/login/login';
 
-import type { RouteName } from './type';
+import type { RouteName } from './types';
 
 export const { router, routerInstance } = helperRouter({
   base: import.meta.env.BASE_URL,

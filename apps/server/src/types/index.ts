@@ -4,6 +4,28 @@ import type { OAuth2Configs } from '@repo/openid';
 
 export type * from '@repo/types';
 
+/** AI 语言模型供应商的连接配置，来自根配置文件的 `AI` 节点。 */
+export interface AiProviderSecret {
+  /** 调用供应商代理时使用的密钥；会按 OpenAI 兼容协议写入 Authorization 请求头。 */
+  apiKey: string;
+  /** 供应商代理的基础地址，不包含具体模型路径。 */
+  baseUrl: string;
+  /** 需要额外透传给代理服务的固定请求头，适合放租户、网关或调试标识。 */
+  headers?: Record<string, string>;
+}
+
+/** 根配置文件中 `AI` 节点支持的语言模型供应商配置。 */
+export interface AiConf {
+  /** 千问模型供应商配置。 */
+  qwen?: AiProviderSecret;
+  /** 豆包模型供应商配置。 */
+  doubao?: AiProviderSecret;
+  /** Anthropic 模型供应商配置；当前按 OpenAI 兼容代理接入。 */
+  anthropic?: AiProviderSecret;
+  /** 智谱 GLM 模型供应商配置。 */
+  glm?: AiProviderSecret;
+}
+
 /** 额外补充的配置 */
 export type ConfExtra = {
   /** 日志配置，不配置时使用服务端默认结构化日志策略。 */
@@ -38,6 +60,8 @@ export type ConfExtra = {
     /** 默认角色列表 */
     defaultRoleIds?: string[];
   };
+  /** AI 供应商配置，密钥和代理地址统一放在本地 conf.json 的 `AI` 节点。 */
+  AI?: AiConf;
 };
 
 export type TokenData = {
