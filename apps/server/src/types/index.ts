@@ -5,23 +5,22 @@ export type * from '@repo/types';
 
 /** AI 语言模型供应商的连接配置，来自根配置文件的 `AI` 节点。 */
 export interface AiProviderSecret {
-  /** 调用供应商代理时使用的密钥；会按 OpenAI 兼容协议写入 Authorization 请求头。 */
+  /** 调用供应商时使用的密钥；按各 SDK 协议写入对应鉴权头（OpenAI 兼容走 Authorization，Google 走 x-goog-api-key）。 */
   apiKey: string;
-  /** 供应商代理的基础地址，不包含具体模型路径。 */
-  baseUrl: string;
+  /** 供应商代理的基础地址，不包含具体模型路径；非代理型供应商（如 Google 官方 SDK）可不填。 */
+  baseUrl?: string;
   /** 需要额外透传给代理服务的固定请求头，适合放租户、网关或调试标识。 */
   headers?: Record<string, string>;
 }
 
-/** 根配置文件中 `AI` 节点支持的语言模型供应商配置。 */
-export interface AiConf {
-  /** 阿里云百炼代理配置，承载千问、GLM 等百炼 compatible-mode 模型。 */
-  bailian?: AiProviderSecret;
-  /** 字节火山引擎代理配置，承载豆包系列模型。 */
-  volcengine?: AiProviderSecret;
-  /** AWS Bedrock 代理配置，当前用于 Anthropic 系列模型。 */
-  awsBedrock?: AiProviderSecret;
-}
+/**
+ * 当前服务端支持的 AI 供应商名；同时是 conf.json `AI` 节点的键。
+ * 配置是基础：新增供应商先在此登记键，再到 conf.json 补 secret，最后在 providers/ 补模型清单与工厂。
+ */
+export type AiProvider = 'bailian' | 'volcengine' | 'awsBedrock' | 'google';
+
+/** 根配置文件中 `AI` 节点支持的供应商配置；键由 `AiProvider` 派生，避免重复声明。 */
+export type AiConf = { [P in AiProvider]?: AiProviderSecret };
 
 /** 额外补充的配置 */
 export type ConfExtra = {
