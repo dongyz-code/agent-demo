@@ -17,6 +17,8 @@ import VHeader from '@/layouts/admin/components/AdminHeader.vue';
 import VBody from './AdminBody.vue';
 
 import MajesticonsApplications from '~icons/majesticons/applications';
+import LucideDatabase from '~icons/lucide/database';
+import LucideFolderOpen from '~icons/lucide/folder-open';
 
 import type { MenuItem } from '@/layouts/admin/types';
 import type { RouteName } from '@/router';
@@ -34,6 +36,16 @@ const _menuItems: MenuItem<RouteName>[] = [
       helperRouterName('system.task'),
       helperRouterName('system.table'),
     ],
+  },
+  {
+    label: '文件中心',
+    icon: LucideFolderOpen,
+    children: [helperRouterName('file.management')],
+  },
+  {
+    label: 'RAG 管理',
+    icon: LucideDatabase,
+    children: [helperRouterName('rag.dataset')],
   },
 ];
 

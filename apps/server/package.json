@@ -6,11 +6,16 @@
   "scripts": {
     "build": "rimraf build && tsc && tsc-alias --outDir build",
     "dev": "tsx src/index.ts",
-    "lint": "tsc"
+    "lint": "tsc",
+    "test": "tsx --test src/hooks/dependency-boundaries.test.ts src/hooks/upload/*.test.ts src/hooks/upload/preview/*.test.ts src/hooks/document/**/*.test.ts",
+    "test:minio": "tsx --test src/hooks/upload/storage/*.integration.test.ts",
+    "test:services": "tsx --test src/hooks/*.integration.test.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.2",
     "@ai-sdk/openai-compatible": "^3.0.1",
+    "@aws-sdk/client-s3": "^3.1085.0",
+    "@aws-sdk/s3-request-presigner": "^3.1085.0",
     "@repo/configs": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/types": "workspace:^",
@@ -18,7 +23,11 @@
     "ai": "^7.0.4",
     "axios": "^1.15.1",
     "drizzle-orm": "^0.45.2",
+    "file-type": "^21.3.4",
+    "marked": "^18.0.6",
     "pg": "^8.20.0",
+    "sanitize-html": "^2.17.6",
+    "sharp": "^0.35.3",
     "tslib": "^2.8.1",
     "yaml": "^2.8.3"
   },
@@ -27,6 +36,7 @@
     "@repo/typescript-config": "workspace:^",
     "@types/node": "^20.19.39",
     "@types/pg": "^8.20.0",
+    "@types/sanitize-html": "^2.16.0",
     "eslint": "^10.2.1",
     "prettier": "^3.8.3",
     "tsc-alias": "1.8.16",

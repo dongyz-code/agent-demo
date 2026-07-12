@@ -5,9 +5,11 @@ import {
   ROOT_SCHEDULE,
   ROOT,
   PORT,
+  validateUploadRuntimeConfig,
 } from '@/configs/index.js';
 import { startupTableStructureSync } from '@/database/structure/index.js';
 import { getRoutes, callback } from '@/router/index.js';
+import { checkUploadStorage } from '@/hooks/upload/index.js';
 
 logger.info(
   {
@@ -18,6 +20,8 @@ logger.info(
 );
 
 async function createServer() {
+  validateUploadRuntimeConfig();
+  await checkUploadStorage();
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
   await startupTableStructureSync();
   await createFastify({

@@ -22,6 +22,56 @@ export type AiProvider = 'bailian' | 'volcengine' | 'awsBedrock' | 'google';
 /** 根配置文件中 `AI` 节点支持的供应商配置；键由 `AiProvider` 派生，避免重复声明。 */
 export type AiConf = { [P in AiProvider]?: AiProviderSecret };
 
+/** S3 兼容对象存储连接配置，当前用于 MinIO 私有文件存储。 */
+export interface S3StorageConf {
+  /** 服务端访问对象存储的内部地址。 */
+  internalEndpoint: string;
+  /** 浏览器使用预签名 URL 时实际访问的公开地址。 */
+  publicEndpoint: string;
+  /** S3 区域；MinIO 单机环境可使用固定区域。 */
+  region?: string;
+  /** 仅服务端持有的访问密钥。 */
+  accessKey: string;
+  /** 仅服务端持有的私密密钥。 */
+  secretKey: string;
+  /** 存储原文件与派生文件的私有 Bucket。 */
+  bucket: string;
+}
+
+/** 通用上传行为配置，未填写字段使用服务端安全默认值。 */
+export interface UploadConf {
+  /** 预签名 URL 有效秒数。 */
+  presignExpiresSeconds?: number;
+  /** 达到该字节数时使用 Multipart。 */
+  multipartThresholdBytes?: number;
+  /** Multipart 默认分片字节数。 */
+  partSizeBytes?: number;
+  /** 单文件最大字节数。 */
+  maxFileSizeBytes?: number;
+  /** 单次允许签发的最大分片数量。 */
+  maxSignedParts?: number;
+  /** 上传会话有效秒数。 */
+  sessionExpiresSeconds?: number;
+  /** 未绑定文件保留天数。 */
+  unboundRetentionDays?: number;
+  /** 严格验证阶段读取文本预览的最大字节数。 */
+  maxTextPreviewBytes?: number;
+  /** Office 预览 Worker 地址；未配置时安全降级为不可预览。 */
+  officePreviewEndpoint?: string;
+}
+
+/** 通用文档处理配置。 */
+export interface DocumentConf {
+  /** PDF/Office 统一解析服务地址；未配置时相关类型返回明确不支持错误。 */
+  parserEndpoint?: string;
+  /** 外部解析服务超时毫秒数。 */
+  parserTimeoutMs?: number;
+  /** 默认 Segment 目标 token 数。 */
+  segmentSizeTokens?: number;
+  /** 相邻 Segment 重叠 token 数。 */
+  segmentOverlapTokens?: number;
+}
+
 /** 额外补充的配置 */
 export type ConfExtra = {
   /** 日志配置，不配置时使用服务端默认结构化日志策略。 */
@@ -50,6 +100,15 @@ export type ConfExtra = {
     user: string;
     password: string;
   };
+  /** 对象存储配置。 */
+  storage: {
+    /** S3 兼容存储配置。 */
+    s3: S3StorageConf;
+  };
+  /** 通用文件上传配置。 */
+  upload?: UploadConf;
+  /** 通用文档处理配置。 */
+  document?: DocumentConf;
   /** AI 供应商配置，密钥和代理地址统一放在本地 conf.json 的 `AI` 节点。 */
   AI?: AiConf;
 };

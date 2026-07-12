@@ -240,6 +240,94 @@ export const adminPermissionTree = [
           },
         ],
       },
+      {
+        key: 'pages.file',
+        label: '文件中心',
+        type: 'group',
+        icon: 'folder',
+        children: [
+          {
+            key: 'pages.file.management',
+            label: '文件管理',
+            type: 'page',
+            icon: 'files',
+            route: 'file.management',
+            children: [
+              {
+                key: 'actions.file.upload',
+                label: '上传文件',
+                type: 'button',
+                icon: 'upload',
+              },
+              {
+                key: 'actions.file.view',
+                label: '查看文件',
+                type: 'button',
+                icon: 'eye',
+              },
+              {
+                key: 'actions.file.delete',
+                label: '删除文件',
+                type: 'button',
+                icon: 'trash',
+              },
+            ],
+          },
+        ],
+      },
+      {
+        key: 'pages.rag',
+        label: 'RAG 管理',
+        type: 'group',
+        icon: 'database',
+        children: [
+          {
+            key: 'pages.rag.dataset',
+            label: '知识库管理',
+            type: 'page',
+            icon: 'book-open',
+            route: 'rag.dataset',
+            children: [
+              {
+                key: 'actions.rag.dataset.create',
+                label: '新建知识库',
+                type: 'button',
+                icon: 'plus',
+              },
+              {
+                key: 'actions.rag.dataset.update',
+                label: '编辑知识库',
+                type: 'button',
+                icon: 'edit',
+              },
+              {
+                key: 'actions.document.create',
+                label: '创建通用文档',
+                type: 'button',
+                icon: 'file-plus',
+              },
+              {
+                key: 'actions.document.delete',
+                label: '删除通用文档',
+                type: 'button',
+                icon: 'file-x',
+              },
+              {
+                key: 'actions.document.reprocess',
+                label: '重新处理文档',
+                type: 'button',
+                icon: 'refresh-cw',
+              },
+              {
+                key: 'actions.rag.dataset-document.manage',
+                label: '管理知识库文档',
+                type: 'button',
+                icon: 'link',
+              },
+            ],
+          },
+        ],
+      },
     ],
   },
 ] as const;
