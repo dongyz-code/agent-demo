@@ -69,6 +69,29 @@ export function createTableSql({
   `;
 }
 
+/** PostgreSQL 标识符长度上限。 */
+const PG_MAX_IDENTIFIER_LENGTH = 63;
+
+/**
+ * 生成带前缀的索引名，保证不超过 PostgreSQL 63 字符上限且唯一。
+ *
+ * 超长时截断原索引名并追加其短哈希：哈希基于完整原索引名计算，因此即便两个原名
+ * 截断后前缀相同，哈希也不同，避免 Postgres 静默截断导致的重名冲突
+ * （长表名场景下临时索引名拼接原名极易超长撞名）。
+ */
+function buildPrefixedIndexName(prefix: string, indexName: string): string {
+  const fullName = `${prefix}_${indexName}`;
+  if (fullName.length <= PG_MAX_IDENTIFIER_LENGTH) {
+    return fullName;
+  }
+  const hash = createHash('sha256').update(indexName).digest('hex').slice(0, 8);
+  const kept = Math.max(
+    1,
+    PG_MAX_IDENTIFIER_LENGTH - prefix.length - 1 - hash.length - 1,
+  );
+  return `${prefix}_${indexName.slice(0, kept)}_${hash}`;
+}
+
 /** 生成某张表的 create index 语句列表，默认遇到复杂索引时报错以避免静默丢失结构。 */
 export function createTableIndexSqls({
   table,
@@ -91,7 +114,7 @@ export function createTableIndexSqls({
     })
     .map((index) => {
       const indexName = indexNamePrefix
-        ? `${indexNamePrefix}_${index.name}`
+        ? buildPrefixedIndexName(indexNamePrefix, index.name)
         : index.name;
       return sql`
         create ${index.unique ? sql`unique` : sql.empty()} index
