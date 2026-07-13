@@ -172,16 +172,22 @@ export const adminPermissionTree = [
             route: 'sys.task',
             children: [
               {
-                key: 'actions.task.add',
-                label: '手动添加任务',
-                type: 'button',
-                icon: 'plus',
-              },
-              {
                 key: 'actions.task.kill',
                 label: '终止任务',
                 type: 'button',
                 icon: 'square',
+              },
+              {
+                key: 'actions.task.retry',
+                label: '重试任务',
+                type: 'button',
+                icon: 'refresh-cw',
+              },
+              {
+                key: 'actions.task.logs',
+                label: '查看技术日志',
+                type: 'button',
+                icon: 'file-text',
               },
               {
                 key: 'actions.task.schedule',
@@ -235,6 +241,74 @@ export const adminPermissionTree = [
                 label: '修改设置',
                 type: 'button',
                 icon: 'save',
+              },
+            ],
+          },
+        ],
+      },
+      {
+        key: 'pages.documents',
+        label: '文件中心',
+        type: 'group',
+        icon: 'folder',
+        children: [
+          {
+            key: 'pages.documents.management',
+            label: '文件管理',
+            type: 'page',
+            icon: 'files',
+            route: 'file.management',
+            children: [
+              {
+                key: 'actions.documents.upload',
+                label: '上传文件',
+                type: 'button',
+                icon: 'upload',
+              },
+              {
+                key: 'actions.documents.view',
+                label: '查看文件',
+                type: 'button',
+                icon: 'eye',
+              },
+              {
+                key: 'actions.documents.delete',
+                label: '删除文件',
+                type: 'button',
+                icon: 'trash',
+              },
+              {
+                key: 'actions.documents.process',
+                label: '处理文件',
+                type: 'button',
+                icon: 'refresh-cw',
+              },
+            ],
+          },
+          {
+            key: 'pages.documents.dataset',
+            label: '知识库管理',
+            type: 'page',
+            icon: 'book-open',
+            route: 'rag.dataset',
+            children: [
+              {
+                key: 'actions.documents.dataset-create',
+                label: '新建知识库',
+                type: 'button',
+                icon: 'plus',
+              },
+              {
+                key: 'actions.documents.dataset-update',
+                label: '编辑知识库',
+                type: 'button',
+                icon: 'edit',
+              },
+              {
+                key: 'actions.documents.dataset-document-manage',
+                label: '管理知识库文档',
+                type: 'button',
+                icon: 'link',
               },
             ],
           },

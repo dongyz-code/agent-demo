@@ -18,6 +18,16 @@ export const routeNameMap = {
   'system.user-log': '操作日志',
   'system.task': '任务管理',
   'system.table': '表管理',
+
+  /** ============ 文件中心相关 ============ */
+
+  file: '文件中心',
+  'file.management': '文件管理',
+
+  /** ============ RAG 管理相关 ============ */
+
+  rag: 'RAG 管理',
+  'rag.dataset': '知识库管理',
 };
 
 export type RouteName = keyof typeof routeNameMap;

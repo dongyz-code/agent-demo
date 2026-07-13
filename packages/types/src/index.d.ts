@@ -3,6 +3,7 @@ import type { ApiMultActionToApi } from './common/index.js';
 import type { Login } from './routes/login/index.js';
 import type { Main } from './routes/main/index.js';
 import type { Sys } from './routes/sys/index.js';
+import type { DocumentsAction } from './routes/documents/index.js';
 
 export type API = {
   prefix: '/api';
@@ -10,6 +11,7 @@ export type API = {
     '/login': ApiMultActionToApi<Login>;
     '/main': ApiMultActionToApi<Main>;
     '/sys': ApiMultActionToApi<Sys>;
+    '/documents': ApiMultActionToApi<DocumentsAction>;
   };
 };
 
@@ -20,3 +22,4 @@ export type * from '@repo/shared/permission';
 export type * as ApiLogin from './routes/login/index.js';
 export type * as ApiMain from './routes/main/index.js';
 export type * as ApiSys from './routes/sys/index.js';
+export type * as ApiDocuments from './routes/documents/index.js';

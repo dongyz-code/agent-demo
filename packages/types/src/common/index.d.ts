@@ -8,3 +8,4 @@ export type * from './utils.d.ts';
 export type * from './static.d.ts';
 export type * from './recursion-flat.js';
 export type * from './agent.js';
+export type * from './error.d.ts';

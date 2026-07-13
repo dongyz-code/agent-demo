@@ -2,9 +2,21 @@ import type { ApiMultAction } from '../../common/index.js';
 import type { TaskItem } from '../models.js';
 
 export type TaskSqlFilter = {
+  /** 统一任务分类。 */
+  category?: TaskItem['task_category'] | TaskItem['task_category'][];
   key?: string | string[];
   status?: TaskItem['status'] | TaskItem['status'][];
   trigger_method?: TaskItem['trigger_method'];
+  /** 当前执行阶段。 */
+  current_stage?: string | string[];
+  /** 关联业务对象标识。 */
+  business_id?: string;
+  /** 文件显示名称。 */
+  file_name?: string;
+  /** 目标知识库标识。 */
+  dataset_id?: string;
+  /** 任务发起用户。 */
+  execution_user_id?: string;
   search?: string;
   create_timestamp?: (Date | null)[];
 };
@@ -115,6 +127,16 @@ export type TaskAction = ApiMultAction<{
       list: (Omit<TaskItem, 'logs' | 'args'> & {
         /** 是否正在运行(如果任务状态是 pending 且 running 为 false, 则表示任务已经过期了) */
         running?: boolean;
+        /** 文件任务专属摘要；系统任务为空。 */
+        file_task?: {
+          file_id: string;
+          filename: string;
+          dataset_id: string | null;
+          dataset_name: string | null;
+          execution_no: number;
+          trigger_source: import('../models.js').FileProcessingTriggerSource;
+          processing_config_version: string;
+        } | null;
       })[];
       count: number;
     };

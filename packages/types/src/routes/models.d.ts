@@ -10,6 +10,29 @@ export type TaskStatus = TaskBaseStatus | 'deleted' | 'killed';
 
 export type TaskTriggerMethod = 'manual' | 'auto';
 
+/** 统一任务中心使用的任务分类。 */
+export type TaskCategory = 'system' | 'file-processing';
+
+/** 统一任务关联的业务对象类型。 */
+export type TaskBusinessType = 'file';
+
+/** 文件处理任务当前阶段。 */
+export type FileProcessingStage =
+  | 'queued'
+  | 'reading'
+  | 'parsing'
+  | 'normalizing'
+  | 'segmenting'
+  | 'rag-ingestion'
+  | 'completed';
+
+/** 文件处理任务的创建来源。 */
+export type FileProcessingTriggerSource =
+  | 'upload'
+  | 'manual'
+  | 'retry'
+  | 'rerun';
+
 export type InterfaceMode = 'active' | 'passive';
 
 export type InterfaceStatus = Extract<
@@ -74,6 +97,26 @@ export type TaskItem = {
   task_name: string | null;
   search_key: string | null;
   pending_uuid: string | null;
+  /** 任务所属租户；历史系统任务允许为空。 */
+  tenant_id: string | null;
+  /** 任务中心一级分类。 */
+  task_category: TaskCategory;
+  /** 任务关联的业务对象类型。 */
+  business_type: TaskBusinessType | null;
+  /** 任务关联的业务对象标识。 */
+  business_id: string | null;
+  /** 任务当前阶段；系统脚本任务允许为空。 */
+  current_stage: string | null;
+  /** 任务整数进度，范围为 0 到 100。 */
+  progress: number;
+  /** 当前任务已经处理的项目数量。 */
+  processed_items: number;
+  /** 当前任务需要处理的项目总数。 */
+  total_items: number;
+  /** 对外稳定错误码。 */
+  error_code: string | null;
+  /** 面向用户的安全错误摘要。 */
+  error_message: string | null;
   args: string | null;
   status: TaskStatus;
   execution_user_id: string | null;
