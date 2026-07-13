@@ -2,12 +2,14 @@ import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 export * from './access.js';
+export * from './agent.js';
 export * from './log.js';
 export * from './structure.js';
 export * from './system.js';
 export * from './task.js';
 
 import { role, user, user_role } from './access.js';
+import { agent_conversations, agent_messages } from './agent.js';
 import { api_logs, user_logs } from './log.js';
 import { table_structure_ops } from './structure.js';
 import { apps, sys_conf } from './system.js';
@@ -23,6 +25,8 @@ export const managedTableRegistry = {
   tasks,
   api_logs,
   user_logs,
+  agent_conversations,
+  agent_messages,
 };
 
 /** 所有需要落库的 Drizzle 表（含审计表），供启动期自检遍历。 */
