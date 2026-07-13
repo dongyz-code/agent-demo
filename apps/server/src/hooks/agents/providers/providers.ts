@@ -6,8 +6,6 @@ import type { AiProvider, AiProviderSecret } from '@/types/index.js';
 import type { ModelConfig, ModelResult } from './types.js';
 import type { JSONValue, LanguageModel } from 'ai';
 
-globalThis.AI_SDK_LOG_WARNINGS = false;
-
 /**
  * AI SDK provider 的最小调用契约：传入模型 ID 返回 `LanguageModel`。
  * 无论底层走哪个 `createXxx`，统一成此契约后 `getModel` 无需关心具体 SDK。
@@ -16,7 +14,7 @@ type AiLanguageProvider = (modelId: string) => LanguageModel;
 
 /**
  * 供应商工厂：把 conf.json 里的连接密钥构造成上述调用契约。
- * 每个 provider 各自校验自己需要的字段；新增非 OpenAI 兼容 SDK 只需追加一条工厂。
+ * 新增非 OpenAI 兼容 SDK 只需追加一条工厂。
  */
 type AiProviderFactory = (
   secret: AiProviderSecret | undefined,
@@ -25,30 +23,18 @@ type AiProviderFactory = (
 /** 已创建的 provider 调用句柄缓存，避免每次取模型都重复构造请求配置。 */
 const providerCache: Partial<Record<AiProvider, AiLanguageProvider>> = {};
 
-/** 供应商配置缺失时的统一错误前缀，方便启动或调用日志定位到 conf.json。 */
-const missingConfigMessage =
-  'AI provider configuration is missing in conf.json';
-
-/** 校验 secret 上的某个字段是非空字符串，否则抛出带 provider 与字段名的清晰错误；返回 trim 后的值。 */
-function requireSecretField(
-  provider: AiProvider,
-  value: string | undefined,
-  field: string,
-): string {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    throw new Error(`${missingConfigMessage}: AI.${provider}.${field}`);
-  }
-  return trimmed;
-}
-
 /** 构造 OpenAI 兼容供应商工厂（bailian/volcengine/awsBedrock 等代理共用，需要 apiKey + baseUrl）。 */
 function openAICompatibleFactory(provider: AiProvider): AiProviderFactory {
   return (secret) => {
-    const sdk = createOpenAICompatible<string, never, never, never>({
+    // baseURL 是 SDK 必填字段，缺失时不在构造期报错，会在首次请求抛模糊的 Invalid URL，故在此 fail-fast。
+    const baseURL = secret?.baseUrl;
+    if (!baseURL) {
+      throw new Error(`AI.${provider}.baseUrl is missing in conf.json`);
+    }
+    const sdk = createOpenAICompatible({
       name: provider,
-      apiKey: requireSecretField(provider, secret?.apiKey, 'apiKey'),
-      baseURL: requireSecretField(provider, secret?.baseUrl, 'baseUrl'),
+      apiKey: secret?.apiKey,
+      baseURL,
       headers: secret?.headers,
     });
     return (modelId) => sdk.languageModel(modelId);
@@ -56,10 +42,10 @@ function openAICompatibleFactory(provider: AiProvider): AiProviderFactory {
 }
 
 /** 构造 Google Generative AI 工厂（官方 SDK，仅需 apiKey；baseUrl 可选，用于代理）。 */
-function googleFactory(provider: AiProvider): AiProviderFactory {
+function googleFactory(): AiProviderFactory {
   return (secret) => {
     const sdk = createGoogle({
-      apiKey: requireSecretField(provider, secret?.apiKey, 'apiKey'),
+      apiKey: secret?.apiKey,
       baseURL: secret?.baseUrl,
       headers: secret?.headers,
     });
@@ -75,7 +61,7 @@ const AI_PROVIDER_FACTORIES: { [P in AiProvider]: AiProviderFactory } = {
   bailian: openAICompatibleFactory('bailian'),
   volcengine: openAICompatibleFactory('volcengine'),
   awsBedrock: openAICompatibleFactory('awsBedrock'),
-  google: googleFactory('google'),
+  google: googleFactory(),
 };
 
 /**
