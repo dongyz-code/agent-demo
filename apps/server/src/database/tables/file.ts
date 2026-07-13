@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   index,
   integer,
   text,
@@ -78,6 +79,12 @@ export const file_upload_sessions = pgTable(
     tenant_id: varchar255('tenant_id').notNull(),
     /** 服务端上传策略键。 */
     policy_key: varchar255('policy_key').$type<UploadPolicyKey>().notNull(),
+    /** 文件验证成功后是否自动创建 RAG 接入任务。 */
+    enter_rag: boolean('enter_rag').notNull().default(false),
+    /** 自动处理使用的目标知识库。 */
+    dataset_id: uuid('dataset_id'),
+    /** 自动处理使用的配置组合版本。 */
+    processing_config_version: varchar255('processing_config_version'),
     /** 客户端文件指纹，用于刷新后匹配。 */
     fingerprint: varchar255('fingerprint').notNull(),
     /** 客户端请求幂等键。 */

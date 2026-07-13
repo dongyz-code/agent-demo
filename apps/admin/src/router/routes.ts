@@ -87,7 +87,7 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             name: 'file.management',
             component: () => import('@/pages/file/management/index.vue'),
             meta: {
-              permissions: [adminPermissionKey('pages.file.management')],
+              permissions: [adminPermissionKey('pages.documents.management')],
             },
             root: true,
           },
@@ -103,7 +103,7 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             name: 'rag.dataset',
             component: () => import('@/pages/rag/dataset/index.vue'),
             meta: {
-              permissions: [adminPermissionKey('pages.rag.dataset')],
+              permissions: [adminPermissionKey('pages.documents.dataset')],
             },
             root: true,
           },

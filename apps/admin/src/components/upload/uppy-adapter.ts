@@ -40,13 +40,14 @@ export function createUploadUppy(options: UploaderOptions) {
           return;
         }
         const fingerprint = await createBrowserFingerprint(file);
-        const initialized = await api('/upload/init', {
+        const initialized = await api('/documents/upload-init', {
           policyKey: options.policyKey,
           filename: file.name,
           contentType: file.type || 'application/octet-stream',
           size: file.size ?? 0,
           fingerprint,
           idempotencyKey: fingerprint,
+          ...options.getProcessingIntent?.(),
         });
         uppy.setFileMeta(file.id, {
           ...file.meta,
@@ -92,7 +93,7 @@ export function createUploadUppy(options: UploaderOptions) {
       };
     },
     async listParts(_file, upload) {
-      const result = await api('/upload/list-parts', {
+      const result = await api('/documents/upload-list-parts', {
         sessionId: upload.key,
       });
       return result.parts.map((part) => ({
@@ -102,7 +103,7 @@ export function createUploadUppy(options: UploaderOptions) {
       }));
     },
     async signPart(_file, upload) {
-      const result = await api('/upload/sign-parts', {
+      const result = await api('/documents/upload-sign-parts', {
         sessionId: upload.key,
         partNumbers: [upload.partNumber],
       });
@@ -121,7 +122,7 @@ export function createUploadUppy(options: UploaderOptions) {
       return { location: '', file: storedFile };
     },
     async abortMultipartUpload(_file, upload) {
-      await api('/upload/abort', { sessionId: upload.key });
+      await api('/documents/upload-abort', { sessionId: upload.key });
     },
   });
 
@@ -173,7 +174,7 @@ async function completeStoredUpload(
   sessionId: string,
   parts: AwsS3Part[] | undefined,
 ) {
-  const storedFile = await api('/upload/complete', {
+  const storedFile = await api('/documents/upload-complete', {
     sessionId,
     parts: parts?.flatMap((part) =>
       part.PartNumber && part.ETag

@@ -5,11 +5,16 @@ import {
   ROOT_SCHEDULE,
   ROOT,
   PORT,
+  validateFileProcessingRuntimeConfig,
   validateUploadRuntimeConfig,
 } from '@/configs/index.js';
 import { startupTableStructureSync } from '@/database/structure/index.js';
 import { getRoutes, callback } from '@/router/index.js';
-import { checkUploadStorage } from '@/hooks/upload/index.js';
+import {
+  checkUploadBucket,
+  syncLegacyDocumentProcessingTasks,
+  startFileProcessingWorker,
+} from '@/hooks/documents/index.js';
 
 logger.info(
   {
@@ -21,9 +26,22 @@ logger.info(
 
 async function createServer() {
   validateUploadRuntimeConfig();
-  await checkUploadStorage();
+  validateFileProcessingRuntimeConfig();
+  await checkUploadBucket();
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
   await startupTableStructureSync();
+  try {
+    await syncLegacyDocumentProcessingTasks();
+    await startFileProcessingWorker();
+  } catch (error) {
+    logger.error(
+      {
+        event: 'file.processing.schema_not_ready',
+        err: error,
+      },
+      '文件任务表结构尚未完成 reset，服务继续启动但暂不执行文件任务',
+    );
+  }
   await createFastify({
     fastify: {
       options: {

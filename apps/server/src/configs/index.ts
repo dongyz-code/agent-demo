@@ -6,3 +6,4 @@ export * from './schedule.js';
 export * from './static.js';
 export * from './upload.js';
 export * from './document.js';
+export * from './file-processing.js';

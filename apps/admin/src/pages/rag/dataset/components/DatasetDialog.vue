@@ -51,12 +51,12 @@ async function submit() {
   submitting.value = true;
   try {
     if (form.datasetId) {
-      await api('/rag/dataset/update', {
+      await api('/documents/dataset-update', {
         datasetId: form.datasetId,
         update: { name: form.name, description: form.description },
       });
     } else {
-      await api('/rag/dataset/create', {
+      await api('/documents/dataset-create', {
         name: form.name,
         description: form.description,
       });

@@ -2,6 +2,8 @@ import type {
   StoredFileStatus,
   UploadPolicyKey,
   UploadSessionStatus,
+  FileProcessingStage,
+  TaskStatus,
 } from '@/types';
 
 /** 文件状态对应的中文展示文案。 */
@@ -30,6 +32,27 @@ export const uploadPolicyLabels: Record<UploadPolicyKey, string> = {
   'default-attachment': '通用附件',
   image: '图片',
   'rag-document': '知识文档',
+};
+
+/** 文件处理任务状态对应的中文文案。 */
+export const processingStatusLabels: Record<TaskStatus, string> = {
+  'to-be-started': '等待执行',
+  pending: '执行中',
+  completed: '接入成功',
+  failed: '执行失败',
+  killed: '已取消',
+  deleted: '已删除',
+};
+
+/** 文件处理阶段对应的中文文案。 */
+export const processingStageLabels: Record<FileProcessingStage, string> = {
+  queued: '等待执行',
+  reading: '读取内容',
+  parsing: '解析内容',
+  normalizing: '整理内容',
+  segmenting: '生成知识片段',
+  'rag-ingestion': 'RAG 接入',
+  completed: '已完成',
 };
 
 /** 判断上传会话是否仍可取消或恢复。 */

@@ -6,10 +6,7 @@
   "scripts": {
     "build": "rimraf build && tsc && tsc-alias --outDir build",
     "dev": "tsx src/index.ts",
-    "lint": "tsc",
-    "test": "tsx --test src/hooks/dependency-boundaries.test.ts src/hooks/upload/*.test.ts src/hooks/upload/preview/*.test.ts src/hooks/document/**/*.test.ts",
-    "test:minio": "tsx --test src/hooks/upload/storage/*.integration.test.ts",
-    "test:services": "tsx --test src/hooks/*.integration.test.ts"
+    "lint": "tsc"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.2",

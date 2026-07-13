@@ -8,6 +8,7 @@ import type {
 } from '@repo/utils-node';
 import type { AuthenticationContext } from '@repo/utils-node';
 import type { AdminPermissionRule } from './permission.js';
+import { logger } from '@/configs/index.js';
 
 /** 当前服务端 route handler 使用的认证上下文类型。 */
 type RouteAuth = AuthenticationContext<TokenDataWithExp>;
@@ -51,6 +52,19 @@ export function routerHandler<T extends keyof RoutesSource>({
     const { body, ip, query, params } = request;
     const auth = request.auth as RouteAuth | undefined;
     const __token = auth?.token as TokenDataWithExp;
+    if (
+      String(url).startsWith('/document/') ||
+      String(url).startsWith('/rag/dataset-document/')
+    ) {
+      logger.warn(
+        {
+          event: 'file.legacy_route_used',
+          url,
+          userId: __token?.user_id,
+        },
+        '旧文件处理接口仍被调用',
+      );
+    }
 
     return await _handler({
       now: new Date(),

@@ -9,6 +9,7 @@ export * from './task.js';
 export * from './file.js';
 export * from './document.js';
 export * from './rag.js';
+export * from './file-processing-task.js';
 
 import { role, user, user_role } from './access.js';
 import { api_logs, user_logs } from './log.js';
@@ -34,6 +35,10 @@ import {
   rag_datasets,
   rag_dataset_documents,
 } from './rag.js';
+import {
+  file_processing_tasks,
+  file_processing_task_stage_runs,
+} from './file-processing-task.js';
 
 /** 允许表管理功能展示和操作的业务表白名单，不包含内部审计表。 */
 export const managedTableRegistry = {
@@ -43,6 +48,7 @@ export const managedTableRegistry = {
   user_role,
   apps,
   tasks,
+  file_upload_sessions,
   api_logs,
   user_logs,
 };
@@ -52,7 +58,6 @@ export const bootstrappedTableRegistry = [
   ...Object.values(managedTableRegistry),
   table_structure_ops,
   files,
-  file_upload_sessions,
   file_upload_parts,
   file_references,
   file_variants,
@@ -64,6 +69,8 @@ export const bootstrappedTableRegistry = [
   document_segments,
   rag_datasets,
   rag_dataset_documents,
+  file_processing_tasks,
+  file_processing_task_stage_runs,
 ] satisfies AnyPgTable[];
 
 /** 允许作为 managedTableRegistry key 使用的表名联合类型。 */

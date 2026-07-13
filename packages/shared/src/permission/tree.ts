@@ -172,16 +172,22 @@ export const adminPermissionTree = [
             route: 'sys.task',
             children: [
               {
-                key: 'actions.task.add',
-                label: '手动添加任务',
-                type: 'button',
-                icon: 'plus',
-              },
-              {
                 key: 'actions.task.kill',
                 label: '终止任务',
                 type: 'button',
                 icon: 'square',
+              },
+              {
+                key: 'actions.task.retry',
+                label: '重试任务',
+                type: 'button',
+                icon: 'refresh-cw',
+              },
+              {
+                key: 'actions.task.logs',
+                label: '查看技术日志',
+                type: 'button',
+                icon: 'file-text',
               },
               {
                 key: 'actions.task.schedule',
@@ -241,85 +247,65 @@ export const adminPermissionTree = [
         ],
       },
       {
-        key: 'pages.file',
+        key: 'pages.documents',
         label: '文件中心',
         type: 'group',
         icon: 'folder',
         children: [
           {
-            key: 'pages.file.management',
+            key: 'pages.documents.management',
             label: '文件管理',
             type: 'page',
             icon: 'files',
             route: 'file.management',
             children: [
               {
-                key: 'actions.file.upload',
+                key: 'actions.documents.upload',
                 label: '上传文件',
                 type: 'button',
                 icon: 'upload',
               },
               {
-                key: 'actions.file.view',
+                key: 'actions.documents.view',
                 label: '查看文件',
                 type: 'button',
                 icon: 'eye',
               },
               {
-                key: 'actions.file.delete',
+                key: 'actions.documents.delete',
                 label: '删除文件',
                 type: 'button',
                 icon: 'trash',
               },
+              {
+                key: 'actions.documents.process',
+                label: '处理文件',
+                type: 'button',
+                icon: 'refresh-cw',
+              },
             ],
           },
-        ],
-      },
-      {
-        key: 'pages.rag',
-        label: 'RAG 管理',
-        type: 'group',
-        icon: 'database',
-        children: [
           {
-            key: 'pages.rag.dataset',
+            key: 'pages.documents.dataset',
             label: '知识库管理',
             type: 'page',
             icon: 'book-open',
             route: 'rag.dataset',
             children: [
               {
-                key: 'actions.rag.dataset.create',
+                key: 'actions.documents.dataset-create',
                 label: '新建知识库',
                 type: 'button',
                 icon: 'plus',
               },
               {
-                key: 'actions.rag.dataset.update',
+                key: 'actions.documents.dataset-update',
                 label: '编辑知识库',
                 type: 'button',
                 icon: 'edit',
               },
               {
-                key: 'actions.document.create',
-                label: '创建通用文档',
-                type: 'button',
-                icon: 'file-plus',
-              },
-              {
-                key: 'actions.document.delete',
-                label: '删除通用文档',
-                type: 'button',
-                icon: 'file-x',
-              },
-              {
-                key: 'actions.document.reprocess',
-                label: '重新处理文档',
-                type: 'button',
-                icon: 'refresh-cw',
-              },
-              {
-                key: 'actions.rag.dataset-document.manage',
+                key: 'actions.documents.dataset-document-manage',
                 label: '管理知识库文档',
                 type: 'button',
                 icon: 'link',

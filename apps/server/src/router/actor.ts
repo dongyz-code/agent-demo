@@ -1,7 +1,7 @@
 import { ROOT_ERROR } from '@/configs/index.js';
 
 import type { TokenDataWithExp } from '@/types/index.js';
-import type { UploadActor } from '@/hooks/upload/index.js';
+import type { UploadActor } from '@/hooks/documents/index.js';
 
 /**
  * 将认证 Token 转换为文件与 RAG 模块使用的最小调用者上下文。

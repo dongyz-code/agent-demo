@@ -72,6 +72,18 @@ export interface DocumentConf {
   segmentOverlapTokens?: number;
 }
 
+/** 文件处理任务配置。 */
+export interface FileProcessingConf {
+  /** 文件管理上传时是否默认进入 RAG 接入流程。 */
+  defaultEnterRag?: boolean;
+  /** 单个服务实例允许并行执行的文件处理任务数。 */
+  workerConcurrency?: number;
+  /** 执行中任务失去心跳的判定秒数。 */
+  staleTaskSeconds?: number;
+  /** 是否启用新文件处理流程，用于迁移期回滚。 */
+  enabled?: boolean;
+}
+
 /** 额外补充的配置 */
 export type ConfExtra = {
   /** 日志配置，不配置时使用服务端默认结构化日志策略。 */
@@ -109,6 +121,8 @@ export type ConfExtra = {
   upload?: UploadConf;
   /** 通用文档处理配置。 */
   document?: DocumentConf;
+  /** 文件处理任务配置。 */
+  fileProcessing?: FileProcessingConf;
   /** AI 供应商配置，密钥和代理地址统一放在本地 conf.json 的 `AI` 节点。 */
   AI?: AiConf;
 };

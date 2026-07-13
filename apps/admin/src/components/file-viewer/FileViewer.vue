@@ -65,8 +65,8 @@ async function load() {
   loading.value = true;
   try {
     const [file, preview] = await Promise.all([
-      api('/file/detail', { fileId: props.fileId }),
-      api('/file/preview', { fileId: props.fileId }),
+      api('/documents/file-detail', { fileId: props.fileId }),
+      api('/documents/file-preview', { fileId: props.fileId }),
     ]);
     state.value = { file, preview };
     if (preview.mode === 'pending' && pollingAttempts < maxPollingAttempts) {
@@ -91,7 +91,7 @@ async function refreshPreview() {
 
 /** 获取权限受控下载地址并立即打开。 */
 async function download() {
-  const result = await api('/file/download', { fileId: props.fileId });
+  const result = await api('/documents/file-download', { fileId: props.fileId });
   window.open(result.url, '_blank', 'noopener,noreferrer');
 }
 

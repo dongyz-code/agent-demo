@@ -1,6 +1,19 @@
 <template>
   <section v-loading="getListLoading">
     <div class="rounded-b bg-white p-4 shadow">
+      <el-radio-group v-model="categoryView" class="mb-4" @change="changeCategory">
+        <el-radio-button value="all">全部任务</el-radio-button>
+        <el-radio-button value="file-processing">文件处理</el-radio-button>
+        <el-radio-button value="system">系统任务</el-radio-button>
+      </el-radio-group>
+      <el-tag
+        v-if="taskForm.business_id"
+        class="mb-4 ml-3"
+        closable
+        @close="clearFileFilter"
+      >
+        已筛选指定文件
+      </el-tag>
       <v-schema-form
         v-model="taskForm"
         mode="search"
@@ -20,8 +33,7 @@
             @click="getList(true)"
           />
 
-          <v-schedule v-if="user?.sys_admin" />
-          <v-task-add :types="taskType" @create="getList(true)" />
+          <v-schedule v-if="user?.sys_admin && categoryView !== 'file-processing'" />
 
           <div class="flex items-center gap-4" v-if="sqlCounts.length">
             <div
@@ -56,7 +68,15 @@
         </template>
         <template #edit="{ row }">
           <div class="flex items-center justify-center gap-4 text-lg">
+            <el-button
+              v-if="row.self.file_task"
+              link
+              @click="fileTaskDetailRef?.open(row.task_id)"
+            >
+              详情
+            </el-button>
             <v-icon
+              v-else
               class="hover:text-primary"
               v-for="{ label, method, icon } in icons.filter((x) =>
                 x.visible(row),
@@ -68,6 +88,13 @@
             />
           </div>
         </template>
+        <template #file_name="{ row }">{{ row.self.file_task?.filename ?? '-' }}</template>
+        <template #execution_no="{ row }">
+          {{ row.self.file_task ? `第 ${row.self.file_task.execution_no} 次` : '-' }}
+        </template>
+        <template #stage="{ row }">{{ fileStageLabel(row.self.current_stage) }}</template>
+        <template #progress="{ row }">{{ row.self.progress }}%</template>
+        <template #dataset="{ row }">{{ row.self.file_task?.dataset_name ?? '-' }}</template>
         <template #infos="{ row }">
           <div class="space-y-1 text-sm">
             <div
@@ -100,14 +127,17 @@
         {{ taskLog.data.join('\n') }}
       </pre>
     </v-dialog>
+    <file-task-detail ref="fileTaskDetailRef" @changed="getList(true)" />
   </section>
 </template>
 
 <script setup lang="ts">
 import VSchedule from './components/Schedule.vue';
-import VTaskAdd from './components/TaskAdd.vue';
+import FileTaskDetail from './components/FileTaskDetail.vue';
 
-import { computed, onMounted, reactive, shallowRef } from 'vue';
+import { computed, onMounted, reactive, ref, shallowRef } from 'vue';
+import { ElButton, ElRadioButton, ElRadioGroup, ElTag } from 'element-plus';
+import { useRoute } from 'vue-router';
 import {
   arrObject,
   dayJsformat,
@@ -130,6 +160,7 @@ import VJsonView from './JsonView.vue';
 
 import { useStore } from '@/models';
 import { storeToRefs } from 'pinia';
+import { adminPermissionKey } from '@repo/shared/permission';
 
 import IconParkOutlineCloseOne from '~icons/icon-park-outline/close-one';
 import IconParkOutlineLog from '~icons/icon-park-outline/log';
@@ -144,7 +175,14 @@ const refresh = {
   tips: '刷新',
 };
 
-const { user } = storeToRefs(useStore());
+const store = useStore();
+const { user } = storeToRefs(store);
+const route = useRoute();
+
+/** 任务中心当前一级分类视图。 */
+const categoryView = ref<'all' | 'file-processing' | 'system'>('all');
+const fileTaskDetailRef = ref<InstanceType<typeof FileTaskDetail>>();
+const datasets = ref<{ datasetId: string; name: string }[]>([]);
 
 /** 任务类型 */
 const taskType = shallowRef<TaskType[]>([]);
@@ -184,8 +222,28 @@ const { pageComponent, setPageData, pageRange } = usePage({
 
 const taskForm = shallowRef<SearchForm>({});
 
+/** 将一级分类视图合并到接口筛选条件。 */
+function getTaskFilter(): SearchForm {
+  return {
+    ...taskForm.value,
+    category:
+      categoryView.value === 'all' ? undefined : categoryView.value,
+  };
+}
+
+/** 切换任务分类并重新统计。 */
+function changeCategory() {
+  void getList(true);
+}
+
+/** 清除从文件管理页面携带的文件筛选。 */
+function clearFileFilter() {
+  taskForm.value = { ...taskForm.value, business_id: undefined };
+  void getList(true);
+}
+
 /** 任务列表查询 schema。 */
-const taskColumns: SchemaFormColumn<SearchForm>[] = [
+const taskColumns = computed<SchemaFormColumn<SearchForm>[]>(() => [
   {
     dataIndex: 'search',
     fieldProps: {
@@ -238,7 +296,41 @@ const taskColumns: SchemaFormColumn<SearchForm>[] = [
     dataIndex: 'trigger_method',
     title: '触发方式',
   },
-];
+  ...(categoryView.value !== 'system'
+    ? [
+        {
+          dataIndex: 'file_name' as const,
+          title: '文件名',
+          valueType: 'text' as const,
+          fieldProps: { clearable: true },
+        },
+        {
+          dataIndex: 'dataset_id' as const,
+          title: '知识库',
+          valueType: 'select' as const,
+          valueEnum: Object.fromEntries(
+            datasets.value.map((dataset) => [dataset.datasetId, dataset.name]),
+          ),
+          fieldProps: { clearable: true },
+        },
+        {
+          dataIndex: 'current_stage' as const,
+          title: '当前阶段',
+          valueType: 'select' as const,
+          valueEnum: {
+            queued: '等待执行',
+            reading: '读取内容',
+            parsing: '解析内容',
+            normalizing: '整理内容',
+            segmenting: '生成知识片段',
+            'rag-ingestion': 'RAG 接入',
+            completed: '已完成',
+          },
+          fieldProps: { clearable: true },
+        },
+      ]
+    : []),
+]);
 
 /** 任务列表 */
 const tableData = computed(() => {
@@ -291,14 +383,21 @@ const tableData = computed(() => {
       self,
       task_id,
       task_key,
-      group_name: map[task_key] ?? task_key,
+      group_name:
+        self.task_category === 'file-processing'
+          ? '文件处理'
+          : map[task_key] ?? task_key,
       task_name,
       // detail: JSON.stringify(detail),
       create_timestamp: dayJsformat(create_timestamp, 'YYYY-MM-DD HH:mm:ss'),
       infos,
       status_text: (() => {
         let text = staticMapping.task_status.get(status);
-        if (status === 'pending' && !self.running) {
+        if (
+          self.task_category === 'system' &&
+          status === 'pending' &&
+          !self.running
+        ) {
           text += '(已过期)';
         }
         return text;
@@ -314,7 +413,7 @@ const tableData = computed(() => {
 });
 
 /** 任务列表列 */
-const tableRows: TableRow<
+const systemTableRows: TableRow<
   keyof (typeof tableData)['value'][number] | 'edit'
 >[] = [
   {
@@ -361,11 +460,23 @@ const tableRows: TableRow<
   },
 ];
 
-/** 获取任务分类 */
-async function getTypes() {
-  const types = await api('/sys/task/types', {});
-  taskType.value = types;
-}
+/** 文件任务视图使用的业务列。 */
+const fileTableRows: TableRow[] = [
+  { label: '文件', value: 'file_name', slot: 'file_name', minWidth: 180 },
+  { label: '执行次数', value: 'execution_no', slot: 'execution_no', width: 100 },
+  { label: '状态', value: 'status_text', slot: 'status_text', width: 130 },
+  { label: '当前阶段', value: 'stage', slot: 'stage', width: 140 },
+  { label: '进度', value: 'progress', slot: 'progress', width: 80 },
+  { label: '知识库', value: 'dataset', slot: 'dataset', minWidth: 140 },
+  { label: '触发用户', value: 'execution_user_name', width: 120 },
+  { label: '添加日期', value: 'create_timestamp', width: 180 },
+  { label: '操作', value: 'edit', slot: 'edit', width: 100, fixed: 'right' },
+];
+
+/** 根据分类选择任务表格列。 */
+const tableRows = computed(() =>
+  categoryView.value === 'file-processing' ? fileTableRows : systemTableRows,
+);
 
 /** 获取任务列表 */
 const { getList, getListLoading, getLogs } = loadingFunc({
@@ -379,7 +490,7 @@ const { getList, getListLoading, getLogs } = loadingFunc({
         const list = await api('/sys/task/list', {
           withCount,
           limit: pageRange.value,
-          form: taskForm.value,
+          form: getTaskFilter(),
         });
         if (withCount) {
           setPageData({ total: list.count });
@@ -392,7 +503,7 @@ const { getList, getListLoading, getLogs } = loadingFunc({
           return;
         }
         const counts = await api('/sys/task/counts', {
-          form: taskForm.value,
+          form: getTaskFilter(),
         });
         const map = arrObject(counts, 'status', 'count');
         sqlCounts.value = staticOptions.task_status
@@ -438,30 +549,38 @@ const icons: {
     },
     icon: IconParkOutlineLog,
     visible: (row) =>
-      row.self.status !== 'to-be-started' && row.self.status !== 'deleted',
-  },
-  {
-    label: '停止任务',
-    method: async ({ row }) => {
-      confirm({
-        title: '停止当前任务?',
-        async confirmCallback() {
-          await api('/sys/task/kill', {
-            task_id: row.task_id,
-          });
-          getList(true);
-          notify('success', '操作成功');
-        },
-      });
-    },
-    icon: IconParkOutlineCloseOne,
-    visible: (row) => row.self.status === 'pending',
+      store.hasPermission(adminPermissionKey('actions.task.logs')) &&
+      row.self.status !== 'to-be-started' &&
+      row.self.status !== 'deleted',
   },
 ];
 
+/** 将文件任务阶段转换为业务文案。 */
+function fileStageLabel(stage: string | null) {
+  const labels: Record<string, string> = {
+    queued: '等待执行',
+    reading: '读取内容',
+    parsing: '解析内容',
+    normalizing: '整理内容',
+    segmenting: '生成知识片段',
+    'rag-ingestion': 'RAG 接入',
+    completed: '已完成',
+  };
+  return stage ? labels[stage] ?? stage : '-';
+}
+
 onMounted(async () => {
+  const fileId = typeof route.query.fileId === 'string' ? route.query.fileId : undefined;
+  const category = route.query.category;
+  if (category === 'file-processing' || category === 'system') {
+    categoryView.value = category;
+  }
+  if (fileId) {
+    taskForm.value = { ...taskForm.value, business_id: fileId };
+  }
+  const processingOptions = await api('/documents/file-processing-options', {});
+  datasets.value = processingOptions.datasets;
   await Promise.all([
-    getTypes(),
     getList(true),
     httpCache.user.get({ full: true }),
   ]);

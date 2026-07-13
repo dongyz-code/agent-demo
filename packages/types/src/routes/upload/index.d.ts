@@ -93,6 +93,12 @@ export interface UploadSessionInfo {
   fileId: string;
   /** 服务端上传策略。 */
   policyKey: UploadPolicyKey;
+  /** 文件验证成功后是否自动创建 RAG 接入任务。 */
+  enterRag: boolean;
+  /** 自动处理使用的目标知识库。 */
+  datasetId: string | null;
+  /** 自动处理使用的配置组合版本。 */
+  processingConfigVersion: string | null;
   /** 当前传输模式。 */
   mode: UploadMode;
   /** 当前会话状态。 */
@@ -131,6 +137,12 @@ export type Upload = ApiMultAction<{
       fingerprint: string;
       /** 客户端请求幂等键。 */
       idempotencyKey: string;
+      /** 文件验证成功后是否自动进入 RAG 接入流程。 */
+      enterRag?: boolean;
+      /** 自动处理使用的目标知识库。 */
+      datasetId?: string;
+      /** 自动处理使用的配置组合版本。 */
+      processingConfigVersion?: string;
     };
     resp:
       | {

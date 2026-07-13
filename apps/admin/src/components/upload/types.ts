@@ -56,6 +56,13 @@ export interface UploaderOptions {
   policyKey: UploadPolicyKey;
   /** 单次队列最多允许加入的文件数。 */
   maxNumberOfFiles?: number;
+  /** 每次初始化上传会话时读取最新的文件处理意图。 */
+  getProcessingIntent?: () => {
+    /** 文件验证成功后是否自动进入 RAG。 */
+    enterRag: boolean;
+    /** 自动处理使用的目标知识库。 */
+    datasetId?: string;
+  };
   /** 文件完成验证后的业务回调；Promise 完成前队列项不会标记成功。 */
   onUploaded?: (file: StoredFileInfo) => void | Promise<void>;
 }
