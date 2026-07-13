@@ -23,8 +23,6 @@ export const tasks = pgTable(
     search_key: text('search_key'),
     /** 运行中任务唯一标识，用于避免重复执行同 pending_uuid 任务 */
     pending_uuid: varchar255('pending_uuid'),
-    /** 任务所属租户；历史系统任务允许为空。 */
-    tenant_id: varchar255('tenant_id'),
     /** 统一任务中心分类。 */
     task_category: varchar255('task_category')
       .$type<TaskCategory>()
@@ -70,10 +68,7 @@ export const tasks = pgTable(
   (table) => [
     index('tasks_task_key_idx').on(table.task_key),
     index('tasks_pending_uuid_idx').on(table.pending_uuid),
-    index('tasks_tenant_category_idx').on(
-      table.tenant_id,
-      table.task_category,
-    ),
+    index('tasks_category_idx').on(table.task_category),
     index('tasks_business_idx').on(table.business_type, table.business_id),
     index('tasks_stage_idx').on(table.current_stage),
     index('tasks_status_idx').on(table.status),

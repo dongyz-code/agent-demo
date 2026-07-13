@@ -21,15 +21,14 @@ import type {
   StoredFileInfo,
   UploadedPartInfo,
 } from '@repo/types';
-import type { UploadActor } from './types.js';
 
 /** 为一批合法分片编号签发上传 URL。 */
 export async function signUploadParts(
   sessionId: string,
   partNumbers: number[],
-  actor: UploadActor,
+  userId: string,
 ) {
-  const session = await getOwnedSession(sessionId, actor);
+  const session = await getOwnedSession(sessionId, userId);
   const config = getUploadRuntimeConfig();
   assertActiveSession(session);
   if (session.mode !== 'multipart' || !session.upload_id || !session.part_count) {
@@ -66,9 +65,9 @@ export async function signUploadParts(
 /** 读取并同步 Multipart 已上传分片。 */
 export async function getUploadedParts(
   sessionId: string,
-  actor: UploadActor,
+  userId: string,
 ) {
-  const session = await getOwnedSession(sessionId, actor);
+  const session = await getOwnedSession(sessionId, userId);
   assertActiveSession(session);
   if (session.mode !== 'multipart' || !session.upload_id || !session.part_count) {
     return { parts: [], uploadedSize: 0, missingPartNumbers: [] };
@@ -109,7 +108,7 @@ export async function getUploadedParts(
       .set({
         status: session.status === 'initialized' ? 'uploading' : session.status,
         uploaded_size: parts.reduce((sum, part) => sum + part.size, 0),
-        last_update_user_id: actor.userId,
+        last_update_user_id: userId,
         last_update_timestamp: now,
       })
       .where(eq(schema.file_upload_sessions.session_id, session.session_id));
@@ -129,9 +128,9 @@ export async function getUploadedParts(
 export async function finishUpload(
   sessionId: string,
   submittedParts: Pick<UploadedPartInfo, 'partNumber' | 'etag'>[] | undefined,
-  actor: UploadActor,
+  userId: string,
 ): Promise<StoredFileInfo> {
-  const session = await getOwnedSession(sessionId, actor);
+  const session = await getOwnedSession(sessionId, userId);
   if (session.status === 'completed') {
     return toStoredFileInfo(await getInternalFile(session.file_id));
   }
@@ -141,7 +140,7 @@ export async function finishUpload(
     .update(schema.file_upload_sessions)
     .set({
       status: 'completing',
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: new Date(),
     })
     .where(
@@ -179,7 +178,7 @@ export async function finishUpload(
       });
     }
 
-    const verified = await validateStoredFile(file.file_id, actor);
+    const verified = await validateStoredFile(file.file_id, userId);
     await db
       .update(schema.file_upload_sessions)
       .set({
@@ -188,7 +187,7 @@ export async function finishUpload(
         completed_timestamp: new Date(),
         error_code: null,
         error_message: null,
-        last_update_user_id: actor.userId,
+        last_update_user_id: userId,
         last_update_timestamp: new Date(),
       })
       .where(eq(schema.file_upload_sessions.session_id, sessionId));
@@ -200,7 +199,7 @@ export async function finishUpload(
         status: 'failed',
         error_code: 'UPLOAD_FILE_REJECTED',
         error_message: error instanceof Error ? error.message : '上传完成失败',
-        last_update_user_id: actor.userId,
+        last_update_user_id: userId,
         last_update_timestamp: new Date(),
       })
       .where(eq(schema.file_upload_sessions.session_id, sessionId));
@@ -209,8 +208,8 @@ export async function finishUpload(
 }
 
 /** 取消尚未完成的上传会话。 */
-export async function cancelUpload(sessionId: string, actor: UploadActor) {
-  const session = await getOwnedSession(sessionId, actor);
+export async function cancelUpload(sessionId: string, userId: string) {
+  const session = await getOwnedSession(sessionId, userId);
   if (['canceled', 'expired'].includes(session.status)) {
     return;
   }
@@ -233,7 +232,7 @@ export async function cancelUpload(sessionId: string, actor: UploadActor) {
     .update(schema.file_upload_sessions)
     .set({
       status: 'canceled',
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: new Date(),
     })
     .where(eq(schema.file_upload_sessions.session_id, sessionId));

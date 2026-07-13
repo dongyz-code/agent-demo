@@ -26,8 +26,6 @@ export const files = pgTable(
   {
     /** 通用文件稳定标识。 */
     file_id: uuid('file_id').primaryKey(),
-    /** 文件所属租户；当前由认证上下文中的 client_id 或 system 派生。 */
-    tenant_id: varchar255('tenant_id').notNull(),
     /** 用户上传时的显示名称。 */
     filename: text('filename').notNull(),
     /** 经服务端规范化后的扩展名，不包含点。 */
@@ -59,7 +57,7 @@ export const files = pgTable(
       table.bucket,
       table.object_key,
     ),
-    index('files_tenant_status_idx').on(table.tenant_id, table.status),
+    index('files_status_idx').on(table.status),
     index('files_sha256_idx').on(table.sha256),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
@@ -75,8 +73,6 @@ export const file_upload_sessions = pgTable(
     session_id: uuid('session_id').primaryKey(),
     /** 初始化时创建的通用文件标识。 */
     file_id: uuid('file_id').notNull(),
-    /** 上传会话所属租户。 */
-    tenant_id: varchar255('tenant_id').notNull(),
     /** 服务端上传策略键。 */
     policy_key: varchar255('policy_key').$type<UploadPolicyKey>().notNull(),
     /** 文件验证成功后是否自动创建 RAG 接入任务。 */
@@ -121,7 +117,6 @@ export const file_upload_sessions = pgTable(
   },
   (table) => [
     uniqueIndex('file_upload_sessions_idempotency_unique').on(
-      table.tenant_id,
       table.create_user_id,
       table.policy_key,
       table.fingerprint,
@@ -132,10 +127,7 @@ export const file_upload_sessions = pgTable(
       table.status,
       table.expire_timestamp,
     ),
-    index('file_upload_sessions_tenant_user_idx').on(
-      table.tenant_id,
-      table.create_user_id,
-    ),
+    index('file_upload_sessions_user_idx').on(table.create_user_id),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
       updateColumn: 'last_update_timestamp',

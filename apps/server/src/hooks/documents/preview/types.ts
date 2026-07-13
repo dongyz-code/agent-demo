@@ -1,5 +1,4 @@
 import type { FilePreviewDescriptor } from '@repo/types';
-import type { UploadActor } from '../upload/index.js';
 
 /** 预览提供器接收的可信文件行。 */
 export interface PreviewFile {
@@ -30,6 +29,6 @@ export interface PreviewProvider {
   /** 生成或返回预览描述。 */
   getPreview: (
     file: PreviewFile,
-    actor: UploadActor,
+    userId: string,
   ) => Promise<FilePreviewDescriptor>;
 }

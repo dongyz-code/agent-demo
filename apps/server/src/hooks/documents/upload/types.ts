@@ -5,14 +5,6 @@ import type {
   UploadPolicyKey,
 } from '@repo/types';
 
-/** 调用通用文件服务时携带的最小权限上下文。 */
-export interface UploadActor {
-  /** 当前逻辑租户。 */
-  tenantId: string;
-  /** 当前操作用户。 */
-  userId: string;
-}
-
 /** 服务端注册的上传策略。 */
 export interface UploadPolicy {
   /** 策略稳定键。 */

@@ -3,7 +3,6 @@ import {
   enrichFileTaskList,
   findFileProcessingTaskIds,
 } from '@/hooks/documents/index.js';
-import { getTaskVisibility } from '@/router/task-visibility.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -11,8 +10,7 @@ const { api } = routerHandler({
   url: '/sys/task/list',
   method: 'POST',
   permission: adminPermissionKey('pages.sys.sys.task'),
-  handler: async ({ body, __token }) => {
-    const visibility = await getTaskVisibility(__token);
+  handler: async ({ body }) => {
     const form = body.form ?? {};
     let taskIds: string[] | undefined;
     if (form.file_name?.trim() || form.dataset_id) {
@@ -26,7 +24,6 @@ const { api } = routerHandler({
       limit: body.limit,
       withCount: body.withCount,
       form,
-      visibility,
       taskIds,
     });
     const enriched = list.length

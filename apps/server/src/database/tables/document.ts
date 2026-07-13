@@ -21,8 +21,6 @@ export const documents = pgTable(
   {
     /** 逻辑文档标识。 */
     document_id: uuid('document_id').primaryKey(),
-    /** 所属租户。 */
-    tenant_id: varchar255('tenant_id').notNull(),
     /** 文档显示名称。 */
     name: text('name').notNull(),
     /** 当前生效文档版本。 */
@@ -32,7 +30,7 @@ export const documents = pgTable(
     ...baseCols(),
   },
   (table) => [
-    index('documents_tenant_status_idx').on(table.tenant_id, table.status),
+    index('documents_status_idx').on(table.status),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
       updateColumn: 'last_update_timestamp',

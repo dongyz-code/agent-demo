@@ -97,8 +97,6 @@ export type TaskItem = {
   task_name: string | null;
   search_key: string | null;
   pending_uuid: string | null;
-  /** 任务所属租户；历史系统任务允许为空。 */
-  tenant_id: string | null;
   /** 任务中心一级分类。 */
   task_category: TaskCategory;
   /** 任务关联的业务对象类型。 */

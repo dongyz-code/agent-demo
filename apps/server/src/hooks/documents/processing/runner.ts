@@ -167,7 +167,6 @@ async function claimTask(
     .limit(1);
   if (
     !row ||
-    !row.task.tenant_id ||
     !row.fileTask.document_id ||
     !row.fileTask.document_version_id ||
     !row.fileTask.dataset_id
@@ -185,10 +184,7 @@ async function claimTask(
     documentId: row.fileTask.document_id,
     documentVersionId: row.fileTask.document_version_id,
     datasetId: row.fileTask.dataset_id,
-    actor: {
-      tenantId: row.task.tenant_id,
-      userId: row.fileTask.create_user_id,
-    },
+    userId: row.fileTask.create_user_id,
   };
 }
 
@@ -196,7 +192,7 @@ async function claimTask(
 async function executeTask(context: FileProcessingTaskContext) {
   try {
     const file = await runTaskStage(context.taskId, 'reading', async () =>
-      getReadableFile(context.fileId, context.actor.tenantId),
+      getReadableFile(context.fileId),
     );
     const parser = getDocumentParser(file.contentType);
     const parsed = await runTaskStage(context.taskId, 'parsing', async () =>
@@ -226,7 +222,7 @@ async function executeTask(context: FileProcessingTaskContext) {
       segmentProfileVersion: profile.version,
     });
     await runTaskStage(context.taskId, 'rag-ingestion', async () =>
-      addDocumentToDataset(context.datasetId, context.documentId, context.actor),
+      addDocumentToDataset(context.datasetId, context.documentId, context.userId),
     );
     await completeTask(context, segments.length, {
       documentId: context.documentId,
@@ -244,7 +240,7 @@ async function executeTask(context: FileProcessingTaskContext) {
         .update(schema.document_versions)
         .set({
           status: 'failed',
-          last_update_user_id: context.actor.userId,
+          last_update_user_id: context.userId,
           last_update_timestamp: new Date(),
         })
         .where(
@@ -260,7 +256,7 @@ async function executeTask(context: FileProcessingTaskContext) {
         .update(schema.documents)
         .set({
           status: 'failed',
-          last_update_user_id: context.actor.userId,
+          last_update_user_id: context.userId,
           last_update_timestamp: new Date(),
         })
         .where(
@@ -432,7 +428,7 @@ async function persistContentResult(
         parser_version: result.parserVersion,
         normalizer_version: result.normalizerVersion,
         segment_profile_version: result.segmentProfileVersion,
-        last_update_user_id: context.actor.userId,
+        last_update_user_id: context.userId,
         last_update_timestamp: now,
       })
       .where(
@@ -445,7 +441,7 @@ async function persistContentResult(
       .update(schema.documents)
       .set({
         status: 'ready',
-        last_update_user_id: context.actor.userId,
+        last_update_user_id: context.userId,
         last_update_timestamp: now,
       })
       .where(eq(schema.documents.document_id, context.documentId));
@@ -478,7 +474,7 @@ async function completeTask(
       .update(schema.file_processing_tasks)
       .set({
         result_summary: JSON.stringify(resultSummary),
-        last_update_user_id: context.actor.userId,
+        last_update_user_id: context.userId,
         last_update_timestamp: now,
       })
       .where(eq(schema.file_processing_tasks.task_id, context.taskId));

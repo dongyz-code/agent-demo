@@ -75,7 +75,6 @@ export async function syncLegacyDocumentProcessingTasks() {
         task_name: `${row.file.filename} / 历史第 ${executionNo} 次处理`,
         search_key: row.file.filename,
         pending_uuid: null,
-        tenant_id: row.document.tenant_id,
         task_category: 'file-processing',
         business_type: 'file',
         business_id: row.file.file_id,

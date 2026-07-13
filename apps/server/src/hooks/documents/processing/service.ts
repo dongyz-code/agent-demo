@@ -17,10 +17,7 @@ import type {
   FileProcessingTaskDetail,
   FileProcessingTaskInfo,
 } from '@repo/types';
-import type {
-  CreateFileProcessingTaskInput,
-  FileActor,
-} from './types.js';
+import type { CreateFileProcessingTaskInput } from './types.js';
 
 /** 文件任务处于等待或执行中时视为活动任务。 */
 const ACTIVE_TASK_STATUSES = ['to-be-started', 'pending'] as const;
@@ -28,7 +25,7 @@ const ACTIVE_TASK_STATUSES = ['to-be-started', 'pending'] as const;
 /** 创建或返回等价的活动文件处理任务。 */
 export async function createFileProcessingTask(
   input: CreateFileProcessingTaskInput,
-  actor: FileActor,
+  userId: string,
 ): Promise<FileProcessingTaskInfo> {
   if (!getFileProcessingRuntimeConfig().enabled) {
     throw createDomainError(
@@ -37,8 +34,8 @@ export async function createFileProcessingTask(
       'unavailable',
     );
   }
-  const file = await getReadableFile(input.fileId, actor.tenantId);
-  const dataset = await getRagDataset(input.datasetId, actor);
+  const file = await getReadableFile(input.fileId);
+  const dataset = await getRagDataset(input.datasetId, userId);
   if (dataset.status !== 'active') {
     throw createDomainError(
       'FILE_PROCESSING_DATASET_DISABLED',
@@ -50,10 +47,9 @@ export async function createFileProcessingTask(
     input.processingConfigVersion ?? DEFAULT_FILE_PROCESSING_CONFIG_VERSION;
   const document = await ensureDocumentForFile(
     { fileId: input.fileId, name: file.filename },
-    actor,
+    userId,
   );
   const lockKey = [
-    actor.tenantId,
     input.fileId,
     input.datasetId,
     processingConfigVersion,
@@ -72,7 +68,6 @@ export async function createFileProcessingTask(
       )
       .where(
         and(
-          eq(schema.tasks.tenant_id, actor.tenantId),
           eq(schema.file_processing_tasks.file_id, input.fileId),
           eq(schema.file_processing_tasks.dataset_id, input.datasetId),
           eq(
@@ -99,7 +94,6 @@ export async function createFileProcessingTask(
       task_name: `${file.filename} / 第 ${executionNo} 次处理`,
       search_key: `${file.filename} ${dataset.name}`,
       pending_uuid: lockKey,
-      tenant_id: actor.tenantId,
       task_category: 'file-processing',
       business_type: 'file',
       business_id: input.fileId,
@@ -111,7 +105,7 @@ export async function createFileProcessingTask(
       error_message: null,
       args: null,
       status: 'to-be-started',
-      execution_user_id: actor.userId,
+      execution_user_id: userId,
       trigger_method: triggerSource === 'upload' ? 'auto' : 'manual',
       create_timestamp: now,
       start_timestamp: null,
@@ -129,32 +123,24 @@ export async function createFileProcessingTask(
       trigger_source: triggerSource,
       processing_config_version: processingConfigVersion,
       result_summary: null,
-      create_user_id: actor.userId,
+      create_user_id: userId,
       create_timestamp: now,
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: now,
     });
     return nextTaskId;
   });
 
   notifyFileProcessingWorker();
-  return await getFileProcessingTask(taskId, actor);
+  return await getFileProcessingTask(taskId);
 }
 
 /** 查询文件处理任务详情及阶段时间线。 */
 export async function getFileProcessingTask(
   taskId: string,
-  actor: FileActor,
-  scope: 'owner' | 'tenant' = 'owner',
 ): Promise<FileProcessingTaskDetail> {
   const [row] = await selectTaskRows(
-    and(
-      eq(schema.tasks.task_id, taskId),
-      eq(schema.tasks.tenant_id, actor.tenantId),
-      scope === 'owner'
-        ? eq(schema.tasks.execution_user_id, actor.userId)
-        : undefined,
-    ),
+    and(eq(schema.tasks.task_id, taskId)),
   ).limit(1);
   if (!row) {
     throw createDomainError(
@@ -192,12 +178,8 @@ export async function getFileProcessingTask(
 }
 
 /** 取消等待或执行中的文件处理任务。 */
-export async function cancelFileProcessingTask(
-  taskId: string,
-  actor: FileActor,
-  scope: 'owner' | 'tenant' = 'owner',
-) {
-  await getFileProcessingTask(taskId, actor, scope);
+export async function cancelFileProcessingTask(taskId: string) {
+  await getFileProcessingTask(taskId);
   const [updated] = await db
     .update(schema.tasks)
     .set({
@@ -222,12 +204,8 @@ export async function cancelFileProcessingTask(
 }
 
 /** 为失败或成功任务创建新的执行记录。 */
-export async function retryFileProcessingTask(
-  taskId: string,
-  actor: FileActor,
-  scope: 'owner' | 'tenant' = 'owner',
-) {
-  const source = await getFileProcessingTask(taskId, actor, scope);
+export async function retryFileProcessingTask(taskId: string, userId: string) {
+  const source = await getFileProcessingTask(taskId);
   if (!['failed', 'completed'].includes(source.status)) {
     throw createDomainError(
       'FILE_PROCESSING_TASK_STATE_CONFLICT',
@@ -249,7 +227,7 @@ export async function retryFileProcessingTask(
       processingConfigVersion: source.processingConfigVersion,
       triggerSource: source.status === 'failed' ? 'retry' : 'rerun',
     },
-    actor,
+    userId,
   );
 }
 

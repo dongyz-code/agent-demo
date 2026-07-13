@@ -5,11 +5,11 @@ import { db, schema } from '@/database/index.js';
 import { createDomainError } from '../errors.js';
 import { getFileRowForConsumer } from './file-service.js';
 
-import type { BindFileInput, UploadActor } from '../upload/index.js';
+import type { BindFileInput } from '../upload/index.js';
 
 /** 幂等创建业务文件引用。 */
-export async function bindFile(input: BindFileInput, actor: UploadActor) {
-  const file = await getFileRowForConsumer(input.fileId, actor.tenantId);
+export async function bindFile(input: BindFileInput, userId: string) {
+  const file = await getFileRowForConsumer(input.fileId);
   if (file.status !== 'verified') {
     throw createDomainError(
       'UPLOAD_FILE_REJECTED',
@@ -27,9 +27,9 @@ export async function bindFile(input: BindFileInput, actor: UploadActor) {
       namespace: input.namespace,
       owner_id: input.ownerId,
       role: input.role,
-      create_user_id: actor.userId,
+      create_user_id: userId,
       create_timestamp: now,
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: now,
     })
     .onConflictDoNothing({
@@ -43,8 +43,8 @@ export async function bindFile(input: BindFileInput, actor: UploadActor) {
 }
 
 /** 幂等释放业务文件引用。 */
-export async function releaseFile(input: BindFileInput, actor: UploadActor) {
-  await getFileRowForConsumer(input.fileId, actor.tenantId);
+export async function releaseFile(input: BindFileInput) {
+  await getFileRowForConsumer(input.fileId);
   await db
     .delete(schema.file_references)
     .where(
@@ -58,11 +58,8 @@ export async function releaseFile(input: BindFileInput, actor: UploadActor) {
 }
 
 /** 查询文件当前全部业务引用，供删除和一致性巡检使用。 */
-export async function listFileReferences(
-  fileId: string,
-  tenantId: string,
-) {
-  await getFileRowForConsumer(fileId, tenantId);
+export async function listFileReferences(fileId: string) {
+  await getFileRowForConsumer(fileId);
   return await db
     .select()
     .from(schema.file_references)

@@ -9,18 +9,16 @@ import {
   listStoredObjectKeys,
 } from '../storage/index.js';
 
-import type { UploadActor } from '../upload/index.js';
 
 /** 逻辑删除文件，并将物理删除放入异步执行队列。 */
-export async function removeFile(fileId: string, actor: UploadActor) {
+export async function removeFile(fileId: string, userId: string) {
   const [file] = await db
     .select()
     .from(schema.files)
     .where(
       and(
         eq(schema.files.file_id, fileId),
-        eq(schema.files.tenant_id, actor.tenantId),
-        eq(schema.files.create_user_id, actor.userId),
+        eq(schema.files.create_user_id, userId),
       ),
     )
     .limit(1);
@@ -45,11 +43,11 @@ export async function removeFile(fileId: string, actor: UploadActor) {
     .set({
       status: 'deleting',
       deleted_timestamp: new Date(),
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: new Date(),
     })
     .where(eq(schema.files.file_id, fileId));
-  scheduleFileDeletion(fileId, actor.userId);
+  scheduleFileDeletion(fileId, userId);
 }
 
 /** 异步执行对象删除；失败时保留 deleting 状态供清理任务重试。 */
@@ -199,10 +197,7 @@ export async function cleanupUnboundFiles(operator: string) {
       ),
     );
   for (const { file } of candidates) {
-    await removeFile(file.file_id, {
-      tenantId: file.tenant_id,
-      userId: file.create_user_id || operator,
-    });
+    await removeFile(file.file_id, file.create_user_id || operator);
   }
   return candidates.length;
 }

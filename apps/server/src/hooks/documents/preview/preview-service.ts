@@ -1,11 +1,10 @@
 import { getOwnedFileRow } from '../files/index.js';
 import { getPreviewProvider } from './registry.js';
 
-import type { UploadActor } from '../upload/index.js';
 
 /** 返回权限受控的统一文件预览描述。 */
-export async function getFilePreview(fileId: string, actor: UploadActor) {
-  const file = await getOwnedFileRow(fileId, actor);
+export async function getFilePreview(fileId: string, userId: string) {
+  const file = await getOwnedFileRow(fileId, userId);
   if (file.status !== 'verified' || !file.content_type || !file.sha256) {
     return {
       mode: 'pending' as const,
@@ -54,7 +53,7 @@ export async function getFilePreview(fileId: string, actor: UploadActor) {
         bucket: file.bucket,
         objectKey: file.object_key,
       },
-      actor,
+      userId,
     );
   } catch (error) {
     return {

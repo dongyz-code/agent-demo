@@ -9,7 +9,6 @@ import { createFileProcessingTask } from '../processing/index.js';
 import { createDomainError } from '../errors.js';
 
 import type { Upload } from '@repo/types';
-import type { UploadActor as FileActor } from './types.js';
 
 type UploadInitBody = Upload['init']['body'];
 
@@ -20,7 +19,7 @@ type UploadInitBody = Upload['init']['body'];
  */
 export async function initFileUpload(
   input: UploadInitBody,
-  actor: FileActor,
+  userId: string,
 ) {
   const defaultEnterRag =
     input.policyKey === 'rag-document' &&
@@ -36,7 +35,7 @@ export async function initFileUpload(
     );
   }
   if (enterRag && input.datasetId) {
-    const dataset = await getRagDataset(input.datasetId, actor);
+    const dataset = await getRagDataset(input.datasetId, userId);
     if (dataset.status !== 'active') {
       throw createDomainError(
         'FILE_PROCESSING_DATASET_DISABLED',
@@ -51,7 +50,7 @@ export async function initFileUpload(
       enterRag,
       datasetId: enterRag ? input.datasetId : undefined,
     },
-    actor,
+    userId,
   );
 }
 
@@ -59,10 +58,10 @@ export async function initFileUpload(
 export async function finishFileUpload(
   sessionId: string,
   parts: Upload['complete']['body']['parts'],
-  actor: FileActor,
+  userId: string,
 ) {
-  const file = await finishStoredUpload(sessionId, parts, actor);
-  const session = await getUploadSessionInfo(sessionId, actor);
+  const file = await finishStoredUpload(sessionId, parts, userId);
+  const session = await getUploadSessionInfo(sessionId, userId);
   if (
     getFileProcessingRuntimeConfig().enabled &&
     session.enterRag &&
@@ -76,7 +75,7 @@ export async function finishFileUpload(
           session.processingConfigVersion ?? undefined,
         triggerSource: 'upload',
       },
-      actor,
+      userId,
     );
   }
   return file;

@@ -19,9 +19,9 @@ export const imagePreviewProvider: PreviewProvider = {
   supports(contentType) {
     return IMAGE_TYPES.includes(contentType);
   },
-  async getPreview(file, actor) {
+  async getPreview(file, userId) {
     const existing = await findReadyVariant(file.fileId, file.sha256);
-    const variant = existing ?? (await createThumbnail(file, actor.userId));
+    const variant = existing ?? (await createThumbnail(file, userId));
     const signed = await presignGetObject({
       bucket: variant.bucket!,
       objectKey: variant.object_key!,

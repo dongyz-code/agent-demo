@@ -8,12 +8,11 @@ import type {
   RagDatasetInfo,
   RagDatasetStatus,
 } from '@repo/types';
-import type { RagActor } from '../types.js';
 
 /** 新建当前租户的 RAG 知识库。 */
 export async function createRagDataset(
   input: { name: string; description?: string },
-  actor: RagActor,
+  userId: string,
 ) {
   const name = input.name.trim();
   if (!name) {
@@ -24,13 +23,12 @@ export async function createRagDataset(
     .insert(schema.rag_datasets)
     .values({
       dataset_id: randomUUID(),
-      tenant_id: actor.tenantId,
       name,
       description: input.description?.trim() || null,
       status: 'active',
-      create_user_id: actor.userId,
+      create_user_id: userId,
       create_timestamp: now,
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: now,
     })
     .returning();
@@ -52,11 +50,10 @@ export async function listRagDatasets(
     /** 是否返回总数。 */
     withCount?: boolean;
   },
-  actor: RagActor,
+  userId: string,
 ) {
   const [start = 0, end = 20] = form.limit ?? [];
   const where = and(
-    eq(schema.rag_datasets.tenant_id, actor.tenantId),
     form.search?.trim()
       ? ilike(schema.rag_datasets.name, `%${form.search.trim()}%`)
       : undefined,
@@ -80,8 +77,8 @@ export async function listRagDatasets(
 }
 
 /** 查询当前租户单个知识库。 */
-export async function getRagDataset(datasetId: string, actor: RagActor) {
-  const row = await getDatasetRow(datasetId, actor.tenantId);
+export async function getRagDataset(datasetId: string, userId: string) {
+  const row = await getDatasetRow(datasetId);
   return toDatasetInfo(row);
 }
 
@@ -89,9 +86,9 @@ export async function getRagDataset(datasetId: string, actor: RagActor) {
 export async function updateRagDataset(
   datasetId: string,
   update: Partial<Pick<RagDatasetInfo, 'name' | 'description' | 'status'>>,
-  actor: RagActor,
+  userId: string,
 ) {
-  await getDatasetRow(datasetId, actor.tenantId);
+  await getDatasetRow(datasetId);
   const nextName = update.name?.trim();
   if (update.name !== undefined && !nextName) {
     throw createDomainError('RAG_DATASET_NAME_REQUIRED', '知识库名称不能为空');
@@ -104,7 +101,7 @@ export async function updateRagDataset(
         ? { description: update.description?.trim() || null }
         : {}),
       ...(update.status !== undefined ? { status: update.status } : {}),
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: new Date(),
     })
     .where(eq(schema.rag_datasets.dataset_id, datasetId))
@@ -116,21 +113,16 @@ export async function updateRagDataset(
 }
 
 /** 停用当前租户知识库，保留文档和处理产物供后续审计或恢复。 */
-export async function disableRagDataset(datasetId: string, actor: RagActor) {
-  return await updateRagDataset(datasetId, { status: 'disabled' }, actor);
+export async function disableRagDataset(datasetId: string, userId: string) {
+  return await updateRagDataset(datasetId, { status: 'disabled' }, userId);
 }
 
-/** 查询租户内知识库内部行。 */
-export async function getDatasetRow(datasetId: string, tenantId: string) {
+/** 查询知识库内部行。 */
+export async function getDatasetRow(datasetId: string) {
   const [row] = await db
     .select()
     .from(schema.rag_datasets)
-    .where(
-      and(
-        eq(schema.rag_datasets.dataset_id, datasetId),
-        eq(schema.rag_datasets.tenant_id, tenantId),
-      ),
-    )
+    .where(eq(schema.rag_datasets.dataset_id, datasetId))
     .limit(1);
   if (!row) {
     throw createDomainError('RAG_DATASET_NOT_FOUND', '知识库不存在', 'not-found');

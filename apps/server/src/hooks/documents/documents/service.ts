@@ -12,7 +12,6 @@ import { NORMALIZER_VERSION } from '../content/normalization/normalize.js';
 import { getDefaultSegmentProfile } from '../content/segmentation/profiles.js';
 
 import type { DocumentInfo, DocumentStatus } from '@repo/types';
-import type { DocumentActor } from '../content/types.js';
 
 /**
  * 为文件幂等创建文档与首个版本，但不创建任何处理任务。
@@ -21,12 +20,11 @@ import type { DocumentActor } from '../content/types.js';
  */
 export async function ensureDocumentForFile(
   input: { fileId: string; name?: string },
-  actor: DocumentActor,
+  userId: string,
 ) {
-  const file = await getReadableFile(input.fileId, actor.tenantId);
+  const file = await getReadableFile(input.fileId);
   const [existing] = await selectDocumentRows(
     and(
-      eq(schema.documents.tenant_id, actor.tenantId),
       eq(schema.document_versions.source_file_id, input.fileId),
       ne(schema.documents.status, 'deleted'),
     ),
@@ -46,13 +44,12 @@ export async function ensureDocumentForFile(
   await db.transaction(async (tx) => {
     await tx.insert(schema.documents).values({
       document_id: documentId,
-      tenant_id: actor.tenantId,
       name: input.name?.trim() || file.filename,
       active_version_id: versionId,
       status: 'queued',
-      create_user_id: actor.userId,
+      create_user_id: userId,
       create_timestamp: now,
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: now,
     });
     await tx.insert(schema.document_versions).values({
@@ -64,9 +61,9 @@ export async function ensureDocumentForFile(
       parser_version: 'pending',
       normalizer_version: NORMALIZER_VERSION,
       segment_profile_version: profile.version,
-      create_user_id: actor.userId,
+      create_user_id: userId,
       create_timestamp: now,
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: now,
     });
   });
@@ -79,7 +76,7 @@ export async function ensureDocumentForFile(
         ownerId: versionId,
         role: 'source',
       },
-      actor,
+      userId,
     );
   } catch (error) {
     await db.transaction(async (tx) => {
@@ -94,7 +91,7 @@ export async function ensureDocumentForFile(
   }
 
   return {
-    document: await getDocument(documentId, actor),
+    document: await getDocument(documentId, userId),
     documentVersionId: versionId,
     created: true,
   };
@@ -112,11 +109,10 @@ export async function listDocuments(
     /** 是否返回总数。 */
     withCount?: boolean;
   },
-  actor: DocumentActor,
+  userId: string,
 ) {
   const [start = 0, end = 20] = form.limit ?? [];
   const where = and(
-    eq(schema.documents.tenant_id, actor.tenantId),
     ne(schema.documents.status, 'deleted'),
     form.search?.trim()
       ? ilike(schema.documents.name, `%${form.search.trim()}%`)
@@ -138,12 +134,11 @@ export async function listDocuments(
 /** 按标识批量查询当前租户文档，供 RAG 等消费者组合业务视图。 */
 export async function listDocumentsByIds(
   documentIds: string[],
-  actor: DocumentActor,
+  userId: string,
 ) {
   if (!documentIds.length) return [];
   const rows = await selectDocumentRows(
     and(
-      eq(schema.documents.tenant_id, actor.tenantId),
       inArray(schema.documents.document_id, documentIds),
       ne(schema.documents.status, 'deleted'),
     ),
@@ -158,11 +153,10 @@ export async function listDocumentsByIds(
 }
 
 /** 查询当前租户单个文档。 */
-export async function getDocument(documentId: string, actor: DocumentActor) {
+export async function getDocument(documentId: string, userId: string) {
   const [row] = await selectDocumentRows(
     and(
       eq(schema.documents.document_id, documentId),
-      eq(schema.documents.tenant_id, actor.tenantId),
       ne(schema.documents.status, 'deleted'),
     ),
   ).limit(1);
@@ -177,8 +171,8 @@ export async function getDocument(documentId: string, actor: DocumentActor) {
 }
 
 /** 逻辑删除文档并释放当前版本源文件引用。 */
-export async function removeDocument(documentId: string, actor: DocumentActor) {
-  const document = await getDocument(documentId, actor);
+export async function removeDocument(documentId: string, userId: string) {
+  const document = await getDocument(documentId, userId);
   const [version] = await db
     .select()
     .from(schema.document_versions)
@@ -194,19 +188,16 @@ export async function removeDocument(documentId: string, actor: DocumentActor) {
     .update(schema.documents)
     .set({
       status: 'deleted',
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: new Date(),
     })
     .where(eq(schema.documents.document_id, documentId));
-  await releaseFile(
-    {
-      fileId: version.source_file_id,
-      namespace: 'document.version',
-      ownerId: version.document_version_id,
-      role: 'source',
-    },
-    actor,
-  );
+  await releaseFile({
+    fileId: version.source_file_id,
+    namespace: 'document.version',
+    ownerId: version.document_version_id,
+    role: 'source',
+  });
 }
 
 /** 构造文档与当前版本联合查询。 */

@@ -10,15 +10,14 @@ import { getDatasetRow } from '../datasets/service.js';
 import { createDomainError } from '../../errors.js';
 
 import type { DocumentStatus } from '@repo/types';
-import type { RagActor } from '../types.js';
 
 /** 将通用文档幂等加入当前租户知识库。 */
 export async function addDocumentToDataset(
   datasetId: string,
   documentId: string,
-  actor: RagActor,
+  userId: string,
 ) {
-  const dataset = await getDatasetRow(datasetId, actor.tenantId);
+  const dataset = await getDatasetRow(datasetId);
   if (dataset.status !== 'active') {
     throw createDomainError(
       'RAG_DATASET_DISABLED',
@@ -26,7 +25,7 @@ export async function addDocumentToDataset(
       'conflict',
     );
   }
-  const document = await getDocument(documentId, actor);
+  const document = await getDocument(documentId, userId);
   const now = new Date();
   await db
     .insert(schema.rag_dataset_documents)
@@ -34,9 +33,9 @@ export async function addDocumentToDataset(
       dataset_document_id: randomUUID(),
       dataset_id: datasetId,
       document_id: documentId,
-      create_user_id: actor.userId,
+      create_user_id: userId,
       create_timestamp: now,
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: now,
     })
     .onConflictDoNothing({
@@ -62,9 +61,9 @@ export async function listDatasetDocuments(
     /** 是否返回总数。 */
     withCount?: boolean;
   },
-  actor: RagActor,
+  userId: string,
 ) {
-  await getDatasetRow(form.datasetId, actor.tenantId);
+  await getDatasetRow(form.datasetId);
   const links = await db
     .select({ documentId: schema.rag_dataset_documents.document_id })
     .from(schema.rag_dataset_documents)
@@ -72,7 +71,7 @@ export async function listDatasetDocuments(
     .orderBy(asc(schema.rag_dataset_documents.create_timestamp));
   const documents = await listDocumentsByIds(
     links.map((link) => link.documentId),
-    actor,
+    userId,
   );
   const search = form.search?.trim().toLocaleLowerCase();
   const filtered = documents.filter(
@@ -91,9 +90,9 @@ export async function listDatasetDocuments(
 export async function removeDocumentFromDataset(
   datasetId: string,
   documentId: string,
-  actor: RagActor,
+  userId: string,
 ) {
-  await getDatasetRow(datasetId, actor.tenantId);
+  await getDatasetRow(datasetId);
   await db
     .delete(schema.rag_dataset_documents)
     .where(
@@ -107,9 +106,9 @@ export async function removeDocumentFromDataset(
 /** 返回知识库引用当前文档的数量，供删除文档前提示业务影响。 */
 export async function countDocumentDatasets(
   documentId: string,
-  actor: RagActor,
+  userId: string,
 ) {
-  await getDocument(documentId, actor);
+  await getDocument(documentId, userId);
   const [row] = await db
     .select({ value: count() })
     .from(schema.rag_dataset_documents)
@@ -123,7 +122,6 @@ export async function countDocumentDatasets(
     .where(
       and(
         eq(schema.rag_dataset_documents.document_id, documentId),
-        eq(schema.rag_datasets.tenant_id, actor.tenantId),
       ),
     );
   return row?.value ?? 0;

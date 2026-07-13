@@ -39,27 +39,23 @@ export function normalizeExtension(filename: string): string {
 /**
  * 构造服务端控制的不可猜测对象路径。
  *
- * @param tenantId 当前逻辑租户。
  * @param fileId 通用文件标识。
  * @param extension 已规范化扩展名。
  * @param now 用于稳定生成日期分区的当前时间。
  * @returns 不依赖用户文件名的对象路径。
  */
 export function buildObjectKey({
-  tenantId,
   fileId,
   extension,
   now,
 }: {
-  tenantId: string;
   fileId: string;
   extension: string;
   now: Date;
 }): string {
   const year = String(now.getUTCFullYear());
   const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const tenant = createHash('sha256').update(tenantId).digest('hex').slice(0, 16);
-  return `tenants/${tenant}/files/${year}/${month}/${fileId}/${randomUUID()}.${extension}`;
+  return `files/${year}/${month}/${fileId}/${randomUUID()}.${extension}`;
 }
 
 /**

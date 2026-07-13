@@ -7,14 +7,13 @@ import type {
   UploadPolicyKey,
   UploadSessionStatus,
 } from '@repo/types';
-import type { UploadActor } from './types.js';
 
 /** 查询单个上传会话状态。 */
 export async function getUploadSessionInfo(
   sessionId: string,
-  actor: UploadActor,
+  userId: string,
 ) {
-  return toUploadSessionInfo(await getOwnedSession(sessionId, actor));
+  return toUploadSessionInfo(await getOwnedSession(sessionId, userId));
 }
 
 /** 查询当前调用者的上传会话列表。 */
@@ -29,12 +28,11 @@ export async function listUploadSessions(
     /** 是否返回总数。 */
     withCount?: boolean;
   },
-  actor: UploadActor,
+  userId: string,
 ) {
   const [start = 0, end = 20] = form.limit ?? [];
   const where = and(
-    eq(schema.file_upload_sessions.tenant_id, actor.tenantId),
-    eq(schema.file_upload_sessions.create_user_id, actor.userId),
+    eq(schema.file_upload_sessions.create_user_id, userId),
     form.status?.length
       ? inArray(schema.file_upload_sessions.status, form.status)
       : undefined,

@@ -4,12 +4,11 @@ import { db, schema } from '@/database/index.js';
 import { createDomainError } from '../errors.js';
 
 import type { UploadSessionInfo } from '@repo/types';
-import type { UploadActor } from './types.js';
 
 /** 查询调用者拥有的上传会话，不存在则抛 not-found。 */
 export async function getOwnedSession(
   sessionId: string,
-  actor: UploadActor,
+  userId: string,
 ) {
   const [session] = await db
     .select()
@@ -17,8 +16,7 @@ export async function getOwnedSession(
     .where(
       and(
         eq(schema.file_upload_sessions.session_id, sessionId),
-        eq(schema.file_upload_sessions.tenant_id, actor.tenantId),
-        eq(schema.file_upload_sessions.create_user_id, actor.userId),
+        eq(schema.file_upload_sessions.create_user_id, userId),
       ),
     )
     .limit(1);

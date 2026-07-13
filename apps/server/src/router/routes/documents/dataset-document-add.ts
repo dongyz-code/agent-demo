@@ -1,5 +1,4 @@
 import { addDocumentToDataset } from '@/hooks/documents/index.js';
-import { getUploadActor } from '@/router/actor.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -11,7 +10,7 @@ const { api } = routerHandler({
     return await addDocumentToDataset(
       body.datasetId,
       body.documentId,
-      getUploadActor(__token),
+      __token.user_id,
     );
   },
 });

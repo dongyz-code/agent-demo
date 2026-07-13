@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { db, schema } from '@/database/index.js';
 import { createDomainError } from '../errors.js';
@@ -7,7 +7,6 @@ import { headStoredObject, openStoredObject } from '../storage/index.js';
 import { calculateSha256Stream } from './validators/checksum.js';
 import { detectTrustedContentType } from './validators/registry.js';
 
-import type { UploadActor } from './types.js';
 
 /** 文件签名检测读取的最大前缀，足以覆盖常见格式识别。 */
 const MAGIC_PREFIX_BYTES = 8192;
@@ -16,19 +15,14 @@ const MAGIC_PREFIX_BYTES = 8192;
  * 验证上传完成后的对象并写入可信文件信息。
  *
  * @param fileId 通用文件标识。
- * @param actor 当前调用者，用于防止跨租户验证。
+ * @param userId 当前调用者，用于记录操作人。
  * @returns 验证完成后的文件数据库行。
  */
-export async function validateStoredFile(fileId: string, actor: UploadActor) {
+export async function validateStoredFile(fileId: string, userId: string) {
   const [file] = await db
     .select()
     .from(schema.files)
-    .where(
-      and(
-        eq(schema.files.file_id, fileId),
-        eq(schema.files.tenant_id, actor.tenantId),
-      ),
-    )
+    .where(eq(schema.files.file_id, fileId))
     .limit(1);
   if (!file) {
     throw createDomainError(
@@ -56,7 +50,7 @@ export async function validateStoredFile(fileId: string, actor: UploadActor) {
     .update(schema.files)
     .set({
       status: 'verifying',
-      last_update_user_id: actor.userId,
+      last_update_user_id: userId,
       last_update_timestamp: now,
     })
     .where(eq(schema.files.file_id, fileId));
@@ -105,7 +99,7 @@ export async function validateStoredFile(fileId: string, actor: UploadActor) {
         etag: head.ETag ?? file.etag,
         status: 'verified',
         verified_timestamp: now,
-        last_update_user_id: actor.userId,
+        last_update_user_id: userId,
         last_update_timestamp: now,
       })
       .where(eq(schema.files.file_id, fileId))
@@ -119,7 +113,7 @@ export async function validateStoredFile(fileId: string, actor: UploadActor) {
       .update(schema.files)
       .set({
         status: 'rejected',
-        last_update_user_id: actor.userId,
+        last_update_user_id: userId,
         last_update_timestamp: new Date(),
       })
       .where(eq(schema.files.file_id, fileId));

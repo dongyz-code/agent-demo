@@ -20,7 +20,6 @@ import type {
   StoredFileStatus,
   TaskStatus,
 } from '@repo/types';
-import type { UploadActor as FileActor } from '../upload/index.js';
 
 /** 查询文件管理页面需要的文件基础信息和任务摘要。 */
 export async function listManagedFiles(
@@ -40,7 +39,7 @@ export async function listManagedFiles(
     /** 是否返回总数。 */
     withCount?: boolean;
   },
-  actor: FileActor,
+  userId: string,
 ) {
   const [start = 0, end = 20] = form.limit ?? [];
   const [createdStart, createdEnd] = form.createdAt ?? [];
@@ -65,8 +64,7 @@ export async function listManagedFiles(
       )`
     : undefined;
   const where = and(
-    eq(schema.files.tenant_id, actor.tenantId),
-    eq(schema.files.create_user_id, actor.userId),
+    eq(schema.files.create_user_id, userId),
     ne(schema.files.status, 'deleted'),
     form.search?.trim()
       ? ilike(schema.files.filename, `%${form.search.trim()}%`)

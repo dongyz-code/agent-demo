@@ -20,7 +20,6 @@ import {
 import { getInternalFile, toUploadSessionInfo } from './shared.js';
 
 import type { UploadPolicyKey } from '@repo/types';
-import type { UploadActor } from './types.js';
 
 /** 初始化普通或 Multipart 上传。 */
 export async function initUpload(
@@ -44,7 +43,7 @@ export async function initUpload(
     /** 自动处理使用的配置组合版本。 */
     processingConfigVersion?: string;
   },
-  actor: UploadActor,
+  userId: string,
 ) {
   const policy = getUploadPolicy(input.policyKey);
   const filename = sanitizeUploadFilename(input.filename);
@@ -76,8 +75,7 @@ export async function initUpload(
     .from(schema.file_upload_sessions)
     .where(
       and(
-        eq(schema.file_upload_sessions.tenant_id, actor.tenantId),
-        eq(schema.file_upload_sessions.create_user_id, actor.userId),
+        eq(schema.file_upload_sessions.create_user_id, userId),
         eq(schema.file_upload_sessions.policy_key, input.policyKey),
         eq(schema.file_upload_sessions.fingerprint, fingerprint),
         eq(schema.file_upload_sessions.idempotency_key, input.idempotencyKey),
@@ -93,7 +91,6 @@ export async function initUpload(
   const fileId = randomUUID();
   const sessionId = randomUUID();
   const objectKey = buildObjectKey({
-    tenantId: actor.tenantId,
     fileId,
     extension,
     now,
@@ -117,7 +114,6 @@ export async function initUpload(
     await db.transaction(async (tx) => {
       await tx.insert(schema.files).values({
         file_id: fileId,
-        tenant_id: actor.tenantId,
         filename,
         extension,
         declared_content_type: input.contentType,
@@ -130,15 +126,14 @@ export async function initUpload(
         status: 'pending',
         verified_timestamp: null,
         deleted_timestamp: null,
-        create_user_id: actor.userId,
+        create_user_id: userId,
         create_timestamp: now,
-        last_update_user_id: actor.userId,
+        last_update_user_id: userId,
         last_update_timestamp: now,
       });
       await tx.insert(schema.file_upload_sessions).values({
         session_id: sessionId,
         file_id: fileId,
-        tenant_id: actor.tenantId,
         policy_key: input.policyKey,
         enter_rag: input.enterRag ?? false,
         dataset_id: input.datasetId ?? null,
@@ -160,9 +155,9 @@ export async function initUpload(
         completed_timestamp: null,
         error_code: null,
         error_message: null,
-        create_user_id: actor.userId,
+        create_user_id: userId,
         create_timestamp: now,
-        last_update_user_id: actor.userId,
+        last_update_user_id: userId,
         last_update_timestamp: now,
       });
     });

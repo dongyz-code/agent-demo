@@ -6,7 +6,7 @@ import {
   searchFilter,
   whereAll,
 } from '@/database/index.js';
-import { and, count as countSql, desc, eq, inArray } from 'drizzle-orm';
+import { count as countSql, desc, eq, inArray } from 'drizzle-orm';
 import { NdGz } from '@repo/utils-node';
 
 import type { ApiSys } from '@/types/index.js';
@@ -16,20 +16,13 @@ const jsonArrayGzbufferToJson = ndGz.gzBufferToArr.bind(ndGz);
 
 type SqlFilter = ApiSys.TaskSqlFilter;
 
-/** 任务中心列表的可见范围。 */
-type Visibility = { userId?: string; tenantId?: string };
-
 /**
  * 通用任务主表筛选条件。
  *
  * 查询层领域无关:仅基于 `tasks` 主表字段筛选;`file_name`/`dataset_id` 等
  * 文件域筛选由 documents 域解析为 `taskIds` 后注入,本函数不直接引用文件表。
  */
-function getSqlFilter(
-  form: SqlFilter,
-  visibility: Visibility = {},
-  taskIds?: string[],
-) {
+function getSqlFilter(form: SqlFilter, taskIds?: string[]) {
   return whereAll(
     listFilter(schema.tasks.task_category, form.category),
     listFilter(schema.tasks.status, form.status),
@@ -39,12 +32,6 @@ function getSqlFilter(
     listFilter(schema.tasks.current_stage, form.current_stage),
     listFilter(schema.tasks.business_id, form.business_id),
     listFilter(schema.tasks.execution_user_id, form.execution_user_id),
-    visibility.userId
-      ? eq(schema.tasks.execution_user_id, visibility.userId)
-      : undefined,
-    visibility.tenantId
-      ? eq(schema.tasks.tenant_id, visibility.tenantId)
-      : undefined,
     taskIds?.length ? inArray(schema.tasks.task_id, taskIds) : undefined,
     rangeFilter(schema.tasks.create_timestamp, form.create_timestamp),
   );
@@ -53,40 +40,18 @@ function getSqlFilter(
 /** 任务中心状态计数(领域无关 tasks 主表查询)。 */
 export async function sqlCounts(
   form: SqlFilter = {},
-  visibility: Visibility = {},
   taskIds?: string[],
 ) {
   const data = await db
     .select({ status: schema.tasks.status, count: countSql() })
     .from(schema.tasks)
-    .where(getSqlFilter(form, visibility, taskIds))
+    .where(getSqlFilter(form, taskIds))
     .groupBy(schema.tasks.status);
   return data.map(({ status, count }) => ({ count, status }));
 }
 
 /** 任务中心日志(领域无关 tasks 主表查询)。 */
-export async function sqlLogsById(
-  task_id: string,
-  visibility: Visibility = {},
-) {
-  if (visibility.userId || visibility.tenantId) {
-    const [visible] = await db
-      .select({ taskId: schema.tasks.task_id })
-      .from(schema.tasks)
-      .where(
-        and(
-          eq(schema.tasks.task_id, task_id),
-          visibility.userId
-            ? eq(schema.tasks.execution_user_id, visibility.userId)
-            : undefined,
-          visibility.tenantId
-            ? eq(schema.tasks.tenant_id, visibility.tenantId)
-            : undefined,
-        ),
-      )
-      .limit(1);
-    if (!visible) return null;
-  }
+export async function sqlLogsById(task_id: string) {
   const [item] = await db
     .select({ logs: schema.tasks.logs })
     .from(schema.tasks)
@@ -102,18 +67,15 @@ export async function sqlList({
   limit = [0, 10],
   withCount = false,
   form = {},
-  visibility,
   taskIds,
 }: {
   limit?: number[];
   withCount?: boolean;
   form?: SqlFilter;
-  /** 非系统管理员使用的用户或租户任务范围。 */
-  visibility?: Visibility;
   /** 文件域筛选解析出的 task_id 集合。 */
   taskIds?: string[];
 }) {
-  const where = getSqlFilter(form, visibility, taskIds);
+  const where = getSqlFilter(form, taskIds);
 
   const getCount = async () => {
     if (withCount) {
@@ -140,7 +102,6 @@ export async function sqlList({
         task_name: schema.tasks.task_name,
         search_key: schema.tasks.search_key,
         pending_uuid: schema.tasks.pending_uuid,
-        tenant_id: schema.tasks.tenant_id,
         task_category: schema.tasks.task_category,
         business_type: schema.tasks.business_type,
         business_id: schema.tasks.business_id,

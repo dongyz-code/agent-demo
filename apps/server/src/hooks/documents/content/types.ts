@@ -2,10 +2,7 @@ import type {
   DocumentSegment,
   DocumentParsedBlock,
 } from '@repo/types';
-import type { ReadableStoredFile, UploadActor } from '../upload/index.js';
-
-/** 文档调用者上下文与通用文件权限上下文保持一致。 */
-export type DocumentActor = UploadActor;
+import type { ReadableStoredFile } from '../upload/index.js';
 
 /** 文档解析器输入。 */
 export interface DocumentParserInput {

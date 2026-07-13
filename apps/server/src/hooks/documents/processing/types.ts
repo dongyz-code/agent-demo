@@ -5,7 +5,6 @@ import type {
   FileProcessingTaskInfo,
   FileProcessingTriggerSource,
 } from '@repo/types';
-import type { UploadActor as FileActor } from '../upload/index.js';
 
 /** 创建文件处理任务的输入。 */
 export interface CreateFileProcessingTaskInput {
@@ -32,7 +31,7 @@ export interface FileProcessingTaskContext {
   /** 目标知识库。 */
   datasetId: string;
   /** 操作租户与用户。 */
-  actor: FileActor;
+  userId: string;
 }
 
 /** 文件处理流水线的中间结果。 */
@@ -50,7 +49,6 @@ export interface FileProcessingPipelineResult {
 }
 
 export type {
-  FileActor,
   FileProcessingTaskDetail,
   FileProcessingTaskInfo,
 };

@@ -6,22 +6,21 @@ import { sanitizeUploadFilename } from '../upload/index.js';
 import { openStoredObject, presignGetObject } from '../storage/index.js';
 
 import type { StoredFileInfo, StoredFileStatus } from '@repo/types';
-import type { ReadableStoredFile, UploadActor } from '../upload/index.js';
+import type { ReadableStoredFile } from '../upload/index.js';
 
 /**
  * 查询调用者可访问的通用文件数据库行。
  *
  * 当前通用 route 仅允许创建人访问；业务模块通过自己的权限校验后调用公共读取接口。
  */
-export async function getOwnedFileRow(fileId: string, actor: UploadActor) {
+export async function getOwnedFileRow(fileId: string, userId: string) {
   const [file] = await db
     .select()
     .from(schema.files)
     .where(
       and(
         eq(schema.files.file_id, fileId),
-        eq(schema.files.tenant_id, actor.tenantId),
-        eq(schema.files.create_user_id, actor.userId),
+        eq(schema.files.create_user_id, userId),
       ),
     )
     .limit(1);
@@ -36,19 +35,11 @@ export async function getOwnedFileRow(fileId: string, actor: UploadActor) {
 }
 
 /** 查询业务模块已完成权限判断后的文件行。 */
-export async function getFileRowForConsumer(
-  fileId: string,
-  tenantId: string,
-) {
+export async function getFileRowForConsumer(fileId: string) {
   const [file] = await db
     .select()
     .from(schema.files)
-    .where(
-      and(
-        eq(schema.files.file_id, fileId),
-        eq(schema.files.tenant_id, tenantId),
-      ),
-    )
+    .where(eq(schema.files.file_id, fileId))
     .limit(1);
   if (!file || file.status === 'deleted') {
     throw createDomainError(
@@ -76,8 +67,8 @@ export function toStoredFileInfo(
 }
 
 /** 返回通用 route 使用的文件信息。 */
-export async function getFileInfo(fileId: string, actor: UploadActor) {
-  return toStoredFileInfo(await getOwnedFileRow(fileId, actor));
+export async function getFileInfo(fileId: string, userId: string) {
+  return toStoredFileInfo(await getOwnedFileRow(fileId, userId));
 }
 
 /** 查询当前调用者拥有的通用文件列表。 */
@@ -92,12 +83,11 @@ export async function listFiles(
     /** 是否返回总数。 */
     withCount?: boolean;
   },
-  actor: UploadActor,
+  userId: string,
 ) {
   const [start = 0, end = 20] = form.limit ?? [];
   const where = and(
-    eq(schema.files.tenant_id, actor.tenantId),
-    eq(schema.files.create_user_id, actor.userId),
+    eq(schema.files.create_user_id, userId),
     ne(schema.files.status, 'deleted'),
     form.search?.trim()
       ? ilike(schema.files.filename, `%${form.search.trim()}%`)
@@ -121,13 +111,11 @@ export async function listFiles(
  * 为文档等业务模块返回文件描述和可重复打开的流工厂。
  *
  * @param fileId 通用文件标识。
- * @param tenantId 已由业务模块确认的租户。
  */
 export async function getReadableFile(
   fileId: string,
-  tenantId: string,
 ): Promise<ReadableStoredFile> {
-  const file = await getFileRowForConsumer(fileId, tenantId);
+  const file = await getFileRowForConsumer(fileId);
   if (file.status !== 'verified') {
     throw createDomainError(
       'UPLOAD_FILE_REJECTED',
@@ -148,9 +136,9 @@ export async function getReadableFile(
 /** 为授权用户签发附件下载地址。 */
 export async function createFileDownload(
   fileId: string,
-  actor: UploadActor,
+  userId: string,
 ) {
-  const file = await getOwnedFileRow(fileId, actor);
+  const file = await getOwnedFileRow(fileId, userId);
   if (file.status !== 'verified') {
     throw createDomainError(
       'UPLOAD_FILE_REJECTED',

@@ -24,7 +24,7 @@ export const officePreviewProvider: PreviewProvider = {
   supports(contentType) {
     return OFFICE_TYPES.includes(contentType);
   },
-  async getPreview(file, actor) {
+  async getPreview(file, userId) {
     const config = getUploadRuntimeConfig();
     if (!config.officePreviewEndpoint) {
       return {
@@ -40,7 +40,7 @@ export const officePreviewProvider: PreviewProvider = {
     }
     const existing = await findReadyVariant(file.fileId, file.sha256);
     const variant =
-      existing ?? (await convertOffice(file, actor.userId, config.officePreviewEndpoint));
+      existing ?? (await convertOffice(file, userId, config.officePreviewEndpoint));
     const signed = await presignGetObject({
       bucket: variant.bucket!,
       objectKey: variant.object_key!,
