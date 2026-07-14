@@ -1,6 +1,4 @@
-/** 文件行 CRUD、流、下载、引用、清理与文件管理列表公共出口。 */
-export * from './file-service.js';
-export * from './reference-service.js';
-export * from './cleanup-service.js';
-export * from './management.js';
-export * from './processing-options.js';
+/** 文件行查询、文档/版本查询与共享类型公共出口。 */
+export * from './queries.js';
+export * from './documents.js';
+export type * from './types.js';

@@ -1,4 +1,4 @@
-import { createDomainError } from '../../errors.js';
+import { createDomainError } from '@/configs/index.js';
 import { localTextParser } from './local-text.js';
 import { remoteDocumentParser } from './remote-document.js';
 

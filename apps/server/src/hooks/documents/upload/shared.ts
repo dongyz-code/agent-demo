@@ -1,7 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 
 import { db, schema } from '@/database/index.js';
-import { createDomainError } from '../errors.js';
+import { createDomainError } from '@/configs/index.js';
+import { canTransferUploadSession } from './state.js';
 
 import type { UploadSessionInfo } from '@repo/types';
 
@@ -24,27 +25,10 @@ export async function getOwnedSession(
     throw createDomainError(
       'UPLOAD_SESSION_NOT_FOUND',
       '上传会话不存在',
-      'not-found',
+      '相关文件不存在',
     );
   }
   return session;
-}
-
-/** 查询上传模块内部文件行，不存在则抛 not-found。 */
-export async function getInternalFile(fileId: string) {
-  const [file] = await db
-    .select()
-    .from(schema.files)
-    .where(eq(schema.files.file_id, fileId))
-    .limit(1);
-  if (!file) {
-    throw createDomainError(
-      'UPLOAD_SESSION_NOT_FOUND',
-      '文件记录不存在',
-      'not-found',
-    );
-  }
-  return file;
 }
 
 /** 将数据库会话行转换为公共响应。 */
@@ -69,4 +53,28 @@ export function toUploadSessionInfo(
     errorCode: session.error_code,
     errorMessage: session.error_message,
   };
+}
+
+/** 查询单个上传会话状态。 */
+export async function getUploadSessionInfo(
+  sessionId: string,
+  userId: string,
+) {
+  return toUploadSessionInfo(await getOwnedSession(sessionId, userId));
+}
+
+/** 检查上传会话是否仍可进行网络操作。 */
+export function assertActiveSession(
+  session: typeof schema.file_upload_sessions.$inferSelect,
+) {
+  if (session.expire_timestamp.getTime() <= Date.now()) {
+    throw createDomainError('UPLOAD_SESSION_EXPIRED', '上传会话已过期');
+  }
+  if (!canTransferUploadSession(session.status)) {
+    throw createDomainError(
+      'UPLOAD_SESSION_STATE_CONFLICT',
+      `当前状态不允许上传：${session.status}`,
+      '数据异常',
+    );
+  }
 }

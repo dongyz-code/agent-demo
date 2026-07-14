@@ -1,22 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 
-import { getFileProcessingRuntimeConfig, logger } from '@/configs/index.js';
+import { createDomainError, getFileProcessingRuntimeConfig, logger } from '@/configs/index.js';
 import { countRows, db, schema } from '@/database/index.js';
-import { getErrorCode, stableParsedBlockId } from '../task-runtime/index.js';
-import { createDomainError } from '../errors.js';
-import {
-  createDocumentSegments,
-  getDefaultSegmentProfile,
-  getDocumentParser,
-  normalizeDocumentBlocks,
-  NORMALIZER_VERSION,
-} from '../content/index.js';
+import { getErrorCode, stableParsedBlockId } from './ids.js';
+import { createDocumentSegments } from './pipeline/segment.js';
+import { getDocumentParser } from './pipeline/parsers/registry.js';
+import { normalizeDocumentBlocks } from './pipeline/normalize.js';
 import { getReadableFile } from '../files/index.js';
 import { addDocumentToDataset } from '../knowledge/index.js';
 import {
   FILE_PROCESSING_STAGE_PROGRESS,
   FILE_PROCESSING_TASK_KEY,
+  getDefaultSegmentProfile,
+  NORMALIZER_VERSION,
 } from './definition.js';
 
 import type {
@@ -501,7 +498,7 @@ async function assertTaskNotCanceled(taskId: string) {
     throw createDomainError(
       'FILE_PROCESSING_TASK_CANCELED',
       '文件处理任务已取消',
-      'conflict',
+      '数据异常',
     );
   }
 }

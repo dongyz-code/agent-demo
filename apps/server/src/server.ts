@@ -12,7 +12,6 @@ import { startupTableStructureSync } from '@/database/structure/index.js';
 import { getRoutes, callback } from '@/router/index.js';
 import {
   checkUploadBucket,
-  syncLegacyDocumentProcessingTasks,
   startFileProcessingWorker,
 } from '@/hooks/documents/index.js';
 
@@ -31,7 +30,6 @@ async function createServer() {
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
   await startupTableStructureSync();
   try {
-    await syncLegacyDocumentProcessingTasks();
     await startFileProcessingWorker();
   } catch (error) {
     logger.error(

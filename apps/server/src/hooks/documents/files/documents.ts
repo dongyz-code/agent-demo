@@ -1,22 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, ilike, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 
-import { countRows, db, schema } from '@/database/index.js';
+import { db, schema } from '@/database/index.js';
+import { createDomainError } from '@/configs/index.js';
 import {
-  bindFile,
-  getReadableFile,
-  releaseFile,
-} from '../files/index.js';
-import { createDomainError } from '../errors.js';
-import { NORMALIZER_VERSION } from '../content/normalization/normalize.js';
-import { getDefaultSegmentProfile } from '../content/segmentation/profiles.js';
+  NORMALIZER_VERSION,
+  getDefaultSegmentProfile,
+} from '../processing/definition.js';
+import { getReadableFile } from './queries.js';
 
-import type { DocumentInfo, DocumentStatus } from '@repo/types';
+import type { DocumentInfo } from '@repo/types';
 
 /**
  * 为文件幂等创建文档与首个版本，但不创建任何处理任务。
  *
- * 文件处理统一由 `hooks/documents/processing` worker 承载，本函数仅负责文档实体与首版本落库。
+ * 文件处理统一由 `processing` worker 承载，本函数仅负责文档实体与首版本落库，
+ * 并把源文件以 document.version 引用绑定（文件已由 getReadableFile 校验为 verified）。
  */
 export async function ensureDocumentForFile(
   input: { fileId: string; name?: string },
@@ -69,15 +68,27 @@ export async function ensureDocumentForFile(
   });
 
   try {
-    await bindFile(
-      {
-        fileId: input.fileId,
+    await db
+      .insert(schema.file_references)
+      .values({
+        reference_id: randomUUID(),
+        file_id: input.fileId,
         namespace: 'document.version',
-        ownerId: versionId,
+        owner_id: versionId,
         role: 'source',
-      },
-      userId,
-    );
+        create_user_id: userId,
+        create_timestamp: now,
+        last_update_user_id: userId,
+        last_update_timestamp: now,
+      })
+      .onConflictDoNothing({
+        target: [
+          schema.file_references.namespace,
+          schema.file_references.owner_id,
+          schema.file_references.role,
+          schema.file_references.file_id,
+        ],
+      });
   } catch (error) {
     await db.transaction(async (tx) => {
       await tx
@@ -97,41 +108,7 @@ export async function ensureDocumentForFile(
   };
 }
 
-/** 查询当前租户文档列表。 */
-export async function listDocuments(
-  form: {
-    /** 名称搜索。 */
-    search?: string;
-    /** 状态筛选。 */
-    status?: DocumentStatus[];
-    /** 分页范围。 */
-    limit?: number[];
-    /** 是否返回总数。 */
-    withCount?: boolean;
-  },
-  userId: string,
-) {
-  const [start = 0, end = 20] = form.limit ?? [];
-  const where = and(
-    ne(schema.documents.status, 'deleted'),
-    form.search?.trim()
-      ? ilike(schema.documents.name, `%${form.search.trim()}%`)
-      : undefined,
-    form.status?.length
-      ? inArray(schema.documents.status, form.status)
-      : undefined,
-  );
-  const [rows, count] = await Promise.all([
-    selectDocumentRows(where)
-      .orderBy(desc(schema.documents.create_timestamp))
-      .offset(start)
-      .limit(Math.max(0, end - start)),
-    form.withCount ? countRows(schema.documents, where) : Promise.resolve(0),
-  ]);
-  return { list: rows.map(toDocumentInfo), count };
-}
-
-/** 按标识批量查询当前租户文档，供 RAG 等消费者组合业务视图。 */
+/** 按标识批量查询文档，供 RAG 等消费者组合业务视图。 */
 export async function listDocumentsByIds(
   documentIds: string[],
   userId: string,
@@ -152,7 +129,7 @@ export async function listDocumentsByIds(
   });
 }
 
-/** 查询当前租户单个文档。 */
+/** 查询单个文档。 */
 export async function getDocument(documentId: string, userId: string) {
   const [row] = await selectDocumentRows(
     and(
@@ -164,40 +141,10 @@ export async function getDocument(documentId: string, userId: string) {
     throw createDomainError(
       'DOCUMENT_NOT_FOUND',
       '文档不存在',
-      'not-found',
+      '相关文件不存在',
     );
   }
   return toDocumentInfo(row);
-}
-
-/** 逻辑删除文档并释放当前版本源文件引用。 */
-export async function removeDocument(documentId: string, userId: string) {
-  const document = await getDocument(documentId, userId);
-  const [version] = await db
-    .select()
-    .from(schema.document_versions)
-    .where(
-      and(
-        eq(schema.document_versions.document_id, documentId),
-        eq(schema.document_versions.version, document.version),
-      ),
-    )
-    .limit(1);
-  if (!version) return;
-  await db
-    .update(schema.documents)
-    .set({
-      status: 'deleted',
-      last_update_user_id: userId,
-      last_update_timestamp: new Date(),
-    })
-    .where(eq(schema.documents.document_id, documentId));
-  await releaseFile({
-    fileId: version.source_file_id,
-    namespace: 'document.version',
-    ownerId: version.document_version_id,
-    role: 'source',
-  });
 }
 
 /** 构造文档与当前版本联合查询。 */

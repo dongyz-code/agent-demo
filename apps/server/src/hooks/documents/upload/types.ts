@@ -1,7 +1,5 @@
-import type { Readable } from 'node:stream';
 import type {
   FilePreviewDescriptor,
-  StoredFileInfo,
   UploadPolicyKey,
 } from '@repo/types';
 
@@ -23,32 +21,6 @@ export interface UploadPolicy {
   previewEnabled: boolean;
   /** 未绑定文件的保留天数。 */
   unboundRetentionDays: number;
-}
-
-/** 仅服务端内部使用的对象定位。 */
-export interface StoredObjectLocation {
-  /** 私有 Bucket。 */
-  bucket: string;
-  /** 服务端生成的对象路径。 */
-  objectKey: string;
-}
-
-/** RAG 等业务模块读取文件时使用的稳定描述。 */
-export interface ReadableStoredFile extends StoredFileInfo {
-  /** 每次调用均重新打开对象流，避免重试复用已消费流。 */
-  openStream: () => Promise<Readable>;
-}
-
-/** 文件引用输入；namespace、ownerId 和 role 对上传模块均为不透明文本。 */
-export interface BindFileInput {
-  /** 被引用文件。 */
-  fileId: string;
-  /** 业务命名空间。 */
-  namespace: string;
-  /** 业务资源标识。 */
-  ownerId: string;
-  /** 文件业务角色。 */
-  role: string;
 }
 
 /** 通用预览服务公共返回类型。 */

@@ -2,16 +2,13 @@ export type * from './types.js';
 export {
   createFileProcessingTask,
   getFileProcessingTask,
-  cancelFileProcessingTask,
-  retryFileProcessingTask,
-} from './service.js';
+} from './queries.js';
 export {
   startFileProcessingWorker,
   notifyFileProcessingWorker,
   recoverStaleFileProcessingTasks,
   runFileProcessingTask,
 } from './runner.js';
-export { syncLegacyDocumentProcessingTasks } from './legacy.js';
 export {
   findFileProcessingTaskIds,
   enrichFileTaskList,

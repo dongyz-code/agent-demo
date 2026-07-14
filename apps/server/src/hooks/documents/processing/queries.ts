@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
 
+import { createDomainError, getFileProcessingRuntimeConfig } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { getFileProcessingRuntimeConfig } from '@/configs/index.js';
 import { getReadableFile } from '../files/index.js';
 import { ensureDocumentForFile } from '@/hooks/documents/index.js';
 import { getRagDataset } from '../knowledge/index.js';
-import { createDomainError } from '../errors.js';
 import {
   DEFAULT_FILE_PROCESSING_CONFIG_VERSION,
   FILE_PROCESSING_TASK_KEY,
@@ -31,16 +30,16 @@ export async function createFileProcessingTask(
     throw createDomainError(
       'FILE_PROCESSING_DISABLED',
       '新文件处理流程当前已关闭',
-      'unavailable',
+      '服务异常',
     );
   }
   const file = await getReadableFile(input.fileId);
-  const dataset = await getRagDataset(input.datasetId, userId);
+  const dataset = await getRagDataset(input.datasetId);
   if (dataset.status !== 'active') {
     throw createDomainError(
       'FILE_PROCESSING_DATASET_DISABLED',
       '目标知识库已停用',
-      'conflict',
+      '数据异常',
     );
   }
   const processingConfigVersion =
@@ -146,7 +145,7 @@ export async function getFileProcessingTask(
     throw createDomainError(
       'FILE_PROCESSING_TASK_NOT_FOUND',
       '文件处理任务不存在',
-      'not-found',
+      '相关文件不存在',
     );
   }
   const stageRuns = await db
@@ -175,60 +174,6 @@ export async function getFileProcessingTask(
       endedAt: stage.end_timestamp,
     })),
   };
-}
-
-/** 取消等待或执行中的文件处理任务。 */
-export async function cancelFileProcessingTask(taskId: string) {
-  await getFileProcessingTask(taskId);
-  const [updated] = await db
-    .update(schema.tasks)
-    .set({
-      status: 'killed',
-      end_timestamp: new Date(),
-      last_update_timestamp: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.tasks.task_id, taskId),
-        inArray(schema.tasks.status, [...ACTIVE_TASK_STATUSES]),
-      ),
-    )
-    .returning({ taskId: schema.tasks.task_id });
-  if (!updated) {
-    throw createDomainError(
-      'FILE_PROCESSING_TASK_STATE_CONFLICT',
-      '只有等待或执行中的任务可以取消',
-      'conflict',
-    );
-  }
-}
-
-/** 为失败或成功任务创建新的执行记录。 */
-export async function retryFileProcessingTask(taskId: string, userId: string) {
-  const source = await getFileProcessingTask(taskId);
-  if (!['failed', 'completed'].includes(source.status)) {
-    throw createDomainError(
-      'FILE_PROCESSING_TASK_STATE_CONFLICT',
-      '只有失败或成功任务可以重新执行',
-      'conflict',
-    );
-  }
-  if (!source.datasetId) {
-    throw createDomainError(
-      'FILE_PROCESSING_DATASET_REQUIRED',
-      '原任务缺少目标知识库',
-      'conflict',
-    );
-  }
-  return await createFileProcessingTask(
-    {
-      fileId: source.fileId,
-      datasetId: source.datasetId,
-      processingConfigVersion: source.processingConfigVersion,
-      triggerSource: source.status === 'failed' ? 'retry' : 'rerun',
-    },
-    userId,
-  );
 }
 
 /** 查询任务、文件、知识库和文件任务扩展的联合行。 */

@@ -49,7 +49,7 @@ export const tasks = pgTable(
     /** 任务状态：待开始、进行中、完成、失败、删除、主动停止 */
     status: varchar255('status').$type<TaskStatus>().notNull(),
     /** 执行用户或添加任务的用户，自动任务可为空 */
-    execution_user_id: uuid('execution_user_id'),
+    execution_user_id: varchar255('execution_user_id'),
     /** 任务触发方式：手动或自动 */
     trigger_method: varchar255('trigger_method')
       .$type<TaskTriggerMethod>()

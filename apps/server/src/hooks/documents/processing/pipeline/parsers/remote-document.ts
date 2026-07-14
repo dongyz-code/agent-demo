@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-import { getDocumentRuntimeConfig } from '@/configs/index.js';
-import { createDomainError } from '../../errors.js';
+import { createDomainError, getDocumentRuntimeConfig } from '@/configs/index.js';
 
 import type { DocumentParsedBlock } from '@repo/types';
 import type { DocumentParser } from '../types.js';
@@ -33,7 +32,7 @@ export const remoteDocumentParser: DocumentParser = {
       throw createDomainError(
         'DOCUMENT_PARSER_UNAVAILABLE',
         '未配置 PDF/Office 解析服务',
-        'conflict',
+        '数据异常',
       );
     }
     const response = await axios.post<DocumentParsedBlock[]>(
@@ -60,7 +59,7 @@ function validateRemoteBlocks(value: unknown): DocumentParsedBlock[] {
     throw createDomainError(
       'DOCUMENT_PARSER_INVALID_RESPONSE',
       '解析服务返回格式错误',
-      'internal',
+      '服务异常',
     );
   }
   return value.map((item, position) => {
@@ -74,7 +73,7 @@ function validateRemoteBlocks(value: unknown): DocumentParsedBlock[] {
       throw createDomainError(
         'DOCUMENT_PARSER_INVALID_RESPONSE',
         `解析服务第 ${position + 1} 个块格式错误`,
-        'internal',
+        '服务异常',
       );
     }
     const block = item as DocumentParsedBlock;
@@ -82,7 +81,7 @@ function validateRemoteBlocks(value: unknown): DocumentParsedBlock[] {
       throw createDomainError(
         'DOCUMENT_PARSER_INVALID_RESPONSE',
         `解析服务第 ${position + 1} 个块类型不受支持`,
-        'internal',
+        '服务异常',
       );
     }
     return {

@@ -1,4 +1,4 @@
-import { hashToUuid } from '../segmentation/segment.js';
+import { hashToUuid } from '../../ids.js';
 
 import type { DocumentParsedBlock } from '@repo/types';
 import type { DocumentParser } from '../types.js';

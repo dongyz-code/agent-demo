@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 
 import type { DocumentSegment, DocumentParsedBlock } from '@repo/types';
-import type { DocumentSegmentProfile } from '../types.js';
+import type { DocumentSegmentProfile } from './types.js';
+import { hashToUuid } from '../ids.js';
 
 /**
  * 将标准化块按结构和 token 预算切分为确定性 Segment。
@@ -114,11 +115,4 @@ function buildOverlap(blocks: DocumentParsedBlock[], overlapTokens: number) {
 /** 使用字符数近似 token，后续可在不改变接口的情况下替换模型 tokenizer。 */
 export function estimateTokens(text: string) {
   return Math.max(1, Math.ceil(text.length / 4));
-}
-
-/** 将任意稳定文本摘要转换为符合 UUID 格式的确定性标识。 */
-export function hashToUuid(value: string) {
-  const digest = createHash('sha256').update(value).digest('hex').slice(0, 32);
-  const versioned = `${digest.slice(0, 12)}5${digest.slice(13, 16)}8${digest.slice(17)}`;
-  return `${versioned.slice(0, 8)}-${versioned.slice(8, 12)}-${versioned.slice(12, 16)}-${versioned.slice(16, 20)}-${versioned.slice(20)}`;
 }

@@ -119,3 +119,26 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
     },
   ],
 });
+
+/** createDomainError 可用的 ROOT_ERROR 注册键（决定 HTTP 状态码）。 */
+type DomainErrorKey =
+  | '非法参数'
+  | '认证: 权限不足'
+  | '相关文件不存在'
+  | '数据异常'
+  | '服务异常';
+
+/**
+ * 创建统一业务错误，直接复用 ROOT_ERROR 已注册的键决定 HTTP 状态码。
+ *
+ * @param code 稳定错误码，供日志和管理端定位阶段。
+ * @param message 面向用户的中文说明，不得包含签名 URL 和存储凭证。
+ * @param key ROOT_ERROR 注册键，决定 HTTP 状态码，默认 '非法参数'(400)。
+ */
+export function createDomainError(
+  code: string,
+  message: string,
+  key: DomainErrorKey = '非法参数',
+) {
+  return new ROOT_ERROR(key, `${code}: ${message}`);
+}

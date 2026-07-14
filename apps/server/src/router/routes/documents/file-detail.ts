@@ -1,4 +1,4 @@
-import { getFileInfo } from '@/hooks/documents/index.js';
+import { getOwnedFileRow, toStoredFileInfo } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -7,7 +7,9 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.documents.view'),
   handler: async ({ body, __token }) => {
-    return await getFileInfo(body.fileId, __token.user_id);
+    return toStoredFileInfo(
+      await getOwnedFileRow(body.fileId, __token.user_id),
+    );
   },
 });
 

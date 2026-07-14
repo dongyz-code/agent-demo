@@ -2,7 +2,7 @@ import type {
   DocumentSegment,
   DocumentParsedBlock,
 } from '@repo/types';
-import type { ReadableStoredFile } from '../upload/index.js';
+import type { ReadableStoredFile } from '../../files/types.js';
 
 /** 文档解析器输入。 */
 export interface DocumentParserInput {

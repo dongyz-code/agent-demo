@@ -6,8 +6,8 @@ const { api } = routerHandler({
   url: '/documents/dataset-detail',
   method: 'POST',
   permission: adminPermissionKey('pages.documents.dataset'),
-  handler: async ({ body, __token }) => {
-    return await getRagDataset(body.datasetId, __token.user_id);
+  handler: async ({ body }) => {
+    return await getRagDataset(body.datasetId);
   },
 });
 

@@ -1,6 +1,4 @@
-import { getUploadRuntimeConfig } from '@/configs/index.js';
-
-import { createDomainError } from '../errors.js';
+import { createDomainError, getUploadRuntimeConfig } from '@/configs/index.js';
 
 import type { UploadPolicy } from './types.js';
 import type { UploadPolicyKey } from '@repo/types';

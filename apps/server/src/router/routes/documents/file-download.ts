@@ -1,4 +1,9 @@
-import { createFileDownload } from '@/hooks/documents/index.js';
+import { createDomainError } from '@/configs/index.js';
+import {
+  getOwnedFileRow,
+  presignGetObject,
+  sanitizeUploadFilename,
+} from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -7,7 +12,21 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.documents.view'),
   handler: async ({ body, __token }) => {
-    return await createFileDownload(body.fileId, __token.user_id);
+    const file = await getOwnedFileRow(body.fileId, __token.user_id);
+    if (file.status !== 'verified') {
+      throw createDomainError(
+        'UPLOAD_FILE_REJECTED',
+        '文件尚未通过验证',
+        '数据异常',
+      );
+    }
+    return await presignGetObject({
+      bucket: file.bucket,
+      objectKey: file.object_key,
+      contentType: file.content_type ?? 'application/octet-stream',
+      filename: sanitizeUploadFilename(file.filename),
+      disposition: 'attachment',
+    });
   },
 });
 

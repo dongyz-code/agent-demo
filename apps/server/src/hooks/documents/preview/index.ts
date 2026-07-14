@@ -1,2 +1,2 @@
-/** 文件预览 provider 与服务公共出口。 */
-export { getFilePreview } from './preview-service.js';
+/** 文件预览 provider 注册与选择公共出口。 */
+export { getPreviewProvider } from './registry.js';

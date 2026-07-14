@@ -2,43 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { and, desc, eq, ilike, inArray } from 'drizzle-orm';
 
 import { countRows, db, schema } from '@/database/index.js';
-import { createDomainError } from '../../errors.js';
+import { createDomainError } from '@/configs/index.js';
+import { getDocument } from '@/hooks/documents/index.js';
 
 import type {
   RagDatasetInfo,
   RagDatasetStatus,
 } from '@repo/types';
 
-/** 新建当前租户的 RAG 知识库。 */
-export async function createRagDataset(
-  input: { name: string; description?: string },
-  userId: string,
-) {
-  const name = input.name.trim();
-  if (!name) {
-    throw createDomainError('RAG_DATASET_NAME_REQUIRED', '知识库名称不能为空');
-  }
-  const now = new Date();
-  const [created] = await db
-    .insert(schema.rag_datasets)
-    .values({
-      dataset_id: randomUUID(),
-      name,
-      description: input.description?.trim() || null,
-      status: 'active',
-      create_user_id: userId,
-      create_timestamp: now,
-      last_update_user_id: userId,
-      last_update_timestamp: now,
-    })
-    .returning();
-  if (!created) {
-    throw new Error('知识库创建失败');
-  }
-  return toDatasetInfo(created);
-}
-
-/** 查询当前租户知识库列表。 */
+/** 查询知识库列表。 */
 export async function listRagDatasets(
   form: {
     /** 名称搜索。 */
@@ -76,10 +48,9 @@ export async function listRagDatasets(
   return { list: list.map(toDatasetInfo), count };
 }
 
-/** 查询当前租户单个知识库。 */
-export async function getRagDataset(datasetId: string, userId: string) {
-  const row = await getDatasetRow(datasetId);
-  return toDatasetInfo(row);
+/** 查询单个知识库。 */
+export async function getRagDataset(datasetId: string) {
+  return toDatasetInfo(await getDatasetRow(datasetId));
 }
 
 /** 更新知识库基础信息和启停状态。 */
@@ -112,11 +83,6 @@ export async function updateRagDataset(
   return toDatasetInfo(updated);
 }
 
-/** 停用当前租户知识库，保留文档和处理产物供后续审计或恢复。 */
-export async function disableRagDataset(datasetId: string, userId: string) {
-  return await updateRagDataset(datasetId, { status: 'disabled' }, userId);
-}
-
 /** 查询知识库内部行。 */
 export async function getDatasetRow(datasetId: string) {
   const [row] = await db
@@ -125,13 +91,49 @@ export async function getDatasetRow(datasetId: string) {
     .where(eq(schema.rag_datasets.dataset_id, datasetId))
     .limit(1);
   if (!row) {
-    throw createDomainError('RAG_DATASET_NOT_FOUND', '知识库不存在', 'not-found');
+    throw createDomainError('RAG_DATASET_NOT_FOUND', '知识库不存在', '相关文件不存在');
   }
   return row;
 }
 
+/** 将通用文档幂等加入知识库。 */
+export async function addDocumentToDataset(
+  datasetId: string,
+  documentId: string,
+  userId: string,
+) {
+  const dataset = await getDatasetRow(datasetId);
+  if (dataset.status !== 'active') {
+    throw createDomainError(
+      'RAG_DATASET_DISABLED',
+      '停用知识库不能加入文档',
+      '数据异常',
+    );
+  }
+  const document = await getDocument(documentId, userId);
+  const now = new Date();
+  await db
+    .insert(schema.rag_dataset_documents)
+    .values({
+      dataset_document_id: randomUUID(),
+      dataset_id: datasetId,
+      document_id: documentId,
+      create_user_id: userId,
+      create_timestamp: now,
+      last_update_user_id: userId,
+      last_update_timestamp: now,
+    })
+    .onConflictDoNothing({
+      target: [
+        schema.rag_dataset_documents.dataset_id,
+        schema.rag_dataset_documents.document_id,
+      ],
+    });
+  return document;
+}
+
 /** 转换为 API 知识库信息。 */
-function toDatasetInfo(
+export function toDatasetInfo(
   row: typeof schema.rag_datasets.$inferSelect,
 ): RagDatasetInfo {
   return {
