@@ -1,4 +1,4 @@
-import { createDomainError, getUploadRuntimeConfig } from '@/configs/index.js';
+import { getUploadRuntimeConfig, ROOT_ERROR } from '@/configs/index.js';
 
 import type { UploadPolicy } from './types.js';
 import type { UploadPolicyKey } from '@repo/types';
@@ -76,7 +76,7 @@ export function listUploadPolicies(): Record<UploadPolicyKey, UploadPolicy> {
 export function getUploadPolicy(key: UploadPolicyKey): UploadPolicy {
   const policy = listUploadPolicies()[key];
   if (!policy) {
-    throw createDomainError('UPLOAD_INVALID_POLICY', '上传策略不存在');
+    throw new ROOT_ERROR('非法参数', 'UPLOAD_INVALID_POLICY: 上传策略不存在');
   }
   return policy;
 }

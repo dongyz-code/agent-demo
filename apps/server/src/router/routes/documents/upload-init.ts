@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 
 import {
-  createDomainError,
   getFileProcessingRuntimeConfig,
   getUploadRuntimeConfig,
+  ROOT_ERROR,
 } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import {
@@ -40,19 +40,17 @@ const { api } = routerHandler({
         : false;
     const enterRag = body.enterRag ?? defaultEnterRag;
     if (enterRag && !body.datasetId) {
-      throw createDomainError(
-        'FILE_PROCESSING_DATASET_REQUIRED',
-        '选择进入 RAG 时必须指定目标知识库',
+      throw new ROOT_ERROR(
         '非法参数',
+        'FILE_PROCESSING_DATASET_REQUIRED: 选择进入 RAG 时必须指定目标知识库',
       );
     }
     if (enterRag && body.datasetId) {
       const dataset = await getRagDataset(body.datasetId);
       if (dataset.status !== 'active') {
-        throw createDomainError(
-          'FILE_PROCESSING_DATASET_DISABLED',
-          '目标知识库已停用',
+        throw new ROOT_ERROR(
           '数据异常',
+          'FILE_PROCESSING_DATASET_DISABLED: 目标知识库已停用',
         );
       }
     }
@@ -69,18 +67,18 @@ async function initUpload(input: UploadInitBody, userId: string) {
   const filename = sanitizeUploadFilename(input.filename);
   const extension = normalizeExtension(filename);
   if (!Number.isSafeInteger(input.size) || input.size <= 0) {
-    throw createDomainError('UPLOAD_OBJECT_MISMATCH', '文件大小必须为正整数');
+    throw new ROOT_ERROR('非法参数', 'UPLOAD_OBJECT_MISMATCH: 文件大小必须为正整数');
   }
   if (input.size > policy.maxFileSizeBytes) {
-    throw createDomainError('UPLOAD_FILE_TOO_LARGE', '文件超过策略大小上限');
+    throw new ROOT_ERROR('非法参数', 'UPLOAD_FILE_TOO_LARGE: 文件超过策略大小上限');
   }
   if (
     !policy.allowedContentTypes.includes(input.contentType) ||
     !policy.allowedExtensions.includes(extension)
   ) {
-    throw createDomainError(
-      'UPLOAD_FILE_TYPE_NOT_ALLOWED',
-      '声明文件类型不在策略允许范围内',
+    throw new ROOT_ERROR(
+      '非法参数',
+      'UPLOAD_FILE_TYPE_NOT_ALLOWED: 声明文件类型不在策略允许范围内',
     );
   }
 

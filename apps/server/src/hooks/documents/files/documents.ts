@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { createDomainError } from '@/configs/index.js';
 import {
   NORMALIZER_VERSION,
   getDefaultSegmentProfile,
@@ -138,11 +138,7 @@ export async function getDocument(documentId: string, userId: string) {
     ),
   ).limit(1);
   if (!row) {
-    throw createDomainError(
-      'DOCUMENT_NOT_FOUND',
-      '文档不存在',
-      '相关文件不存在',
-    );
+    throw new ROOT_ERROR('相关文件不存在', 'DOCUMENT_NOT_FOUND: 文档不存在');
   }
   return toDocumentInfo(row);
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createDomainError } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import { toDatasetInfo } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
@@ -13,7 +13,7 @@ const { api } = routerHandler({
   handler: async ({ body, __token }) => {
     const name = body.name.trim();
     if (!name) {
-      throw createDomainError('RAG_DATASET_NAME_REQUIRED', '知识库名称不能为空');
+      throw new ROOT_ERROR('非法参数', 'RAG_DATASET_NAME_REQUIRED: 知识库名称不能为空');
     }
     const now = new Date();
     const [created] = await db

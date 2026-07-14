@@ -1,6 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
-import { createDomainError } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import { getFileProcessingTask } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
@@ -27,10 +27,9 @@ const { api } = routerHandler({
       )
       .returning({ taskId: schema.tasks.task_id });
     if (!updated) {
-      throw createDomainError(
-        'FILE_PROCESSING_TASK_STATE_CONFLICT',
-        '只有等待或执行中的任务可以取消',
+      throw new ROOT_ERROR(
         '数据异常',
+        'FILE_PROCESSING_TASK_STATE_CONFLICT: 只有等待或执行中的任务可以取消',
       );
     }
     return 'ok' as const;

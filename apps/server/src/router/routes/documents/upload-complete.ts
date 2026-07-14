@@ -1,8 +1,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
 import {
-  createDomainError,
   getFileProcessingRuntimeConfig,
+  ROOT_ERROR,
 } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import {
@@ -83,10 +83,9 @@ async function finishUpload(
     )
     .returning();
   if (!claimed) {
-    throw createDomainError(
-      'UPLOAD_SESSION_STATE_CONFLICT',
-      '上传正在由其他请求完成',
+    throw new ROOT_ERROR(
       '数据异常',
+      'UPLOAD_SESSION_STATE_CONFLICT: 上传正在由其他请求完成',
     );
   }
 
@@ -94,7 +93,10 @@ async function finishUpload(
   try {
     if (session.mode === 'multipart') {
       if (!session.upload_id || !session.part_count || !submittedParts) {
-        throw createDomainError('UPLOAD_PART_INVALID', '缺少 Multipart 分片信息');
+        throw new ROOT_ERROR(
+          '非法参数',
+          'UPLOAD_PART_INVALID: 缺少 Multipart 分片信息',
+        );
       }
       const actualParts = await listMultipartParts({
         bucket: file.bucket,
@@ -152,10 +154,9 @@ async function validateStoredFile(fileId: string, userId: string) {
     .where(eq(schema.file_upload_sessions.file_id, fileId))
     .limit(1);
   if (!session) {
-    throw createDomainError(
-      'UPLOAD_SESSION_NOT_FOUND',
-      '上传会话不存在',
+    throw new ROOT_ERROR(
       '相关文件不存在',
+      'UPLOAD_SESSION_NOT_FOUND: 上传会话不存在',
     );
   }
 
@@ -175,9 +176,9 @@ async function validateStoredFile(fileId: string, userId: string) {
       objectKey: file.object_key,
     });
     if (head.ContentLength !== file.size) {
-      throw createDomainError(
-        'UPLOAD_OBJECT_MISMATCH',
-        '对象大小与初始化声明不一致',
+      throw new ROOT_ERROR(
+        '非法参数',
+        'UPLOAD_OBJECT_MISMATCH: 对象大小与初始化声明不一致',
       );
     }
 
@@ -195,9 +196,9 @@ async function validateStoredFile(fileId: string, userId: string) {
       !trustedContentType ||
       !policy.allowedContentTypes.includes(trustedContentType)
     ) {
-      throw createDomainError(
-        'UPLOAD_FILE_TYPE_NOT_ALLOWED',
-        '实际文件类型不在上传策略允许范围内',
+      throw new ROOT_ERROR(
+        '非法参数',
+        'UPLOAD_FILE_TYPE_NOT_ALLOWED: 实际文件类型不在上传策略允许范围内',
       );
     }
 
@@ -276,7 +277,7 @@ function validateCompletionParts(
   partCount: number,
 ) {
   if (actualParts.length !== partCount || submittedParts.length !== partCount) {
-    throw createDomainError('UPLOAD_PART_INVALID', '分片数量不完整');
+    throw new ROOT_ERROR('非法参数', 'UPLOAD_PART_INVALID: 分片数量不完整');
   }
   const submitted = new Map(
     submittedParts.map((part) => [part.partNumber, normalizeEtag(part.etag)]),
@@ -287,7 +288,10 @@ function validateCompletionParts(
       actual?.partNumber !== partNumber ||
       normalizeEtag(actual.etag) !== submitted.get(partNumber)
     ) {
-      throw createDomainError('UPLOAD_PART_INVALID', `分片 ${partNumber} 不匹配`);
+      throw new ROOT_ERROR(
+        '非法参数',
+        `UPLOAD_PART_INVALID: 分片 ${partNumber} 不匹配`,
+      );
     }
   }
 }

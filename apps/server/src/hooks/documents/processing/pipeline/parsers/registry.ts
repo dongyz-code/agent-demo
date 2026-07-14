@@ -1,4 +1,4 @@
-import { createDomainError } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import { localTextParser } from './local-text.js';
 import { remoteDocumentParser } from './remote-document.js';
 
@@ -10,9 +10,9 @@ const parsers: DocumentParser[] = [localTextParser, remoteDocumentParser];
 export function getDocumentParser(contentType: string) {
   const parser = parsers.find((item) => item.contentTypes.includes(contentType));
   if (!parser) {
-    throw createDomainError(
-      'DOCUMENT_PARSER_NOT_SUPPORTED',
-      `不支持解析文件类型：${contentType}`,
+    throw new ROOT_ERROR(
+      '非法参数',
+      `DOCUMENT_PARSER_NOT_SUPPORTED: 不支持解析文件类型：${contentType}`,
     );
   }
   return parser;

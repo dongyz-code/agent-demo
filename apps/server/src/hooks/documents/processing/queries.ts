@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
 
-import { createDomainError, getFileProcessingRuntimeConfig } from '@/configs/index.js';
+import { getFileProcessingRuntimeConfig, ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import { getReadableFile } from '../files/index.js';
 import { ensureDocumentForFile } from '@/hooks/documents/index.js';
@@ -27,19 +27,17 @@ export async function createFileProcessingTask(
   userId: string,
 ): Promise<FileProcessingTaskInfo> {
   if (!getFileProcessingRuntimeConfig().enabled) {
-    throw createDomainError(
-      'FILE_PROCESSING_DISABLED',
-      '新文件处理流程当前已关闭',
+    throw new ROOT_ERROR(
       '服务异常',
+      'FILE_PROCESSING_DISABLED: 新文件处理流程当前已关闭',
     );
   }
   const file = await getReadableFile(input.fileId);
   const dataset = await getRagDataset(input.datasetId);
   if (dataset.status !== 'active') {
-    throw createDomainError(
-      'FILE_PROCESSING_DATASET_DISABLED',
-      '目标知识库已停用',
+    throw new ROOT_ERROR(
       '数据异常',
+      'FILE_PROCESSING_DATASET_DISABLED: 目标知识库已停用',
     );
   }
   const processingConfigVersion =
@@ -142,10 +140,9 @@ export async function getFileProcessingTask(
     and(eq(schema.tasks.task_id, taskId)),
   ).limit(1);
   if (!row) {
-    throw createDomainError(
-      'FILE_PROCESSING_TASK_NOT_FOUND',
-      '文件处理任务不存在',
+    throw new ROOT_ERROR(
       '相关文件不存在',
+      'FILE_PROCESSING_TASK_NOT_FOUND: 文件处理任务不存在',
     );
   }
   const stageRuns = await db

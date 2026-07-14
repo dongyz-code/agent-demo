@@ -25,7 +25,7 @@
 
 ## 错误处理
 
-所有 documents 域业务错误通过 `createDomainError(code, message, kind)` 创建，返回统一 `ROOT_ERROR`，携带正确 HTTP 状态码（`not-found`→404、`bad-request`→400、`forbidden`→403、`conflict`→409、`internal`/`unavailable`→500）。错误 `kind` 与错误码集中定义在 `@repo/types`。原 `createUploadError`/`createDocumentError`/`createRagError`/`FileProcessingError` 已全部收敛为该单一工厂。
+所有 documents 域业务错误直接抛出统一 `ROOT_ERROR`，通过已注册的错误键携带正确 HTTP 状态码（`相关文件不存在`→404、`非法参数`→400、`认证: 权限不足`→403、`数据异常`→409、`服务异常`→500）。业务错误码保留在错误详情前缀中，便于日志和管理端排查。原 `createUploadError`/`createDocumentError`/`createRagError`/`FileProcessingError` 已删除，不再额外封装领域错误工厂。
 
 ## 路由约定
 

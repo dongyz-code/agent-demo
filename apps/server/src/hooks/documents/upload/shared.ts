@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { createDomainError } from '@/configs/index.js';
 import { canTransferUploadSession } from './state.js';
 
 import type { UploadSessionInfo } from '@repo/types';
@@ -22,10 +22,9 @@ export async function getOwnedSession(
     )
     .limit(1);
   if (!session) {
-    throw createDomainError(
-      'UPLOAD_SESSION_NOT_FOUND',
-      '上传会话不存在',
+    throw new ROOT_ERROR(
       '相关文件不存在',
+      'UPLOAD_SESSION_NOT_FOUND: 上传会话不存在',
     );
   }
   return session;
@@ -68,13 +67,12 @@ export function assertActiveSession(
   session: typeof schema.file_upload_sessions.$inferSelect,
 ) {
   if (session.expire_timestamp.getTime() <= Date.now()) {
-    throw createDomainError('UPLOAD_SESSION_EXPIRED', '上传会话已过期');
+    throw new ROOT_ERROR('非法参数', 'UPLOAD_SESSION_EXPIRED: 上传会话已过期');
   }
   if (!canTransferUploadSession(session.status)) {
-    throw createDomainError(
-      'UPLOAD_SESSION_STATE_CONFLICT',
-      `当前状态不允许上传：${session.status}`,
+    throw new ROOT_ERROR(
       '数据异常',
+      `UPLOAD_SESSION_STATE_CONFLICT: 当前状态不允许上传：${session.status}`,
     );
   }
 }

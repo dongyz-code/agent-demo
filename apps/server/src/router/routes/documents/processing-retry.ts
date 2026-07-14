@@ -1,4 +1,4 @@
-import { createDomainError } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import {
   createFileProcessingTask,
   getFileProcessingTask,
@@ -13,17 +13,15 @@ const { api } = routerHandler({
   handler: async ({ body, __token }) => {
     const source = await getFileProcessingTask(body.taskId);
     if (!['failed', 'completed'].includes(source.status)) {
-      throw createDomainError(
-        'FILE_PROCESSING_TASK_STATE_CONFLICT',
-        '只有失败或成功任务可以重新执行',
+      throw new ROOT_ERROR(
         '数据异常',
+        'FILE_PROCESSING_TASK_STATE_CONFLICT: 只有失败或成功任务可以重新执行',
       );
     }
     if (!source.datasetId) {
-      throw createDomainError(
-        'FILE_PROCESSING_DATASET_REQUIRED',
-        '原任务缺少目标知识库',
+      throw new ROOT_ERROR(
         '数据异常',
+        'FILE_PROCESSING_DATASET_REQUIRED: 原任务缺少目标知识库',
       );
     }
     return await createFileProcessingTask(

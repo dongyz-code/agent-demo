@@ -7,7 +7,7 @@
 - **BREAKING** 把 `hooks/upload`、`hooks/document`、`hooks/rag` 三目录的实现物理迁移到单一 `hooks/documents` 域，按子模块（storage/upload/files/preview/content/processing/knowledge）归位，删除三个旧目录与所有 `re-export` 兼容出口。
 - **BREAKING** 把散落在 `router/routes` 顶层的 `file.*`、`document.*`、`upload.*`、`file-processing.*` 路由全部收敛到 `router/routes/documents/` 下，路由名统一以 `/documents/` 为前缀且最多两层，route 文件名采用连字符 `<resource>-<action>.ts`（如 `file-detail.ts` → `/documents/file-detail`、`task-create.ts` → `/documents/task-create`）；前端与管理端一次性切换，不保留兼容代理层。
 - 取消 route→service 薄封装：route handler 直接编写业务逻辑（DB/存储/编排内联），不再为每个接口维护一个仅被单处引用的 service 方法；有状态的处理流水线 runner/worker 作为 runtime 保留，不视为 service 层。
-- 统一错误处理：删除 `FileProcessingError`，所有 documents 域错误走统一 `ROOT_ERROR` 与单一 `createDomainError` 工厂；`kind` 枚举收口到 `@repo/types`；修复 file 侧 `not-found`/`bad-request`/`conflict` 错误从 500 塌缩为正确 HTTP 状态码。
+- 统一错误处理：删除 `FileProcessingError`，所有 documents 域错误直接使用统一 `ROOT_ERROR`；不再维护额外领域错误工厂；修复 file 侧业务错误从 500 塌缩为正确 HTTP 状态码。
 - 退役旧 `document/processing` 流水线编排层（runner/service），统一走 file worker；抽取 `stableParsedBlockId`、`getErrorCode`、`runStage` 等重复函数为公共 helper。
 - 把 rag（知识库 dataset + 文档关联）并入 documents 域作为 `knowledge` 子模块，消除跨域转发。
 - 彻底删除 `hooks/task` 的 `InitTaskRun` 子进程执行框架（`scripts` 为空的死基建），查询层剥离 `file_processing_tasks` 领域字段后保留为领域无关的 `tasks` 主表查询。
@@ -19,7 +19,7 @@
 
 - `documents-domain`: documents 单一边界——upload/document/rag 实现归入单一域、子模块划分、旧三目录下线、rag 并入、route 内联业务无 service 中间层、处理流水线 runner 作为 runtime 保留。
 - `documents-routing`: documents 域路由组织——所有文件/文档/上传/任务/知识库路由收敛到 `routes/documents/` 下、路由名以 `/documents/` 为前缀且最多两层、命名约定、前端 BREAKING 迁移。
-- `unified-domain-errors`: documents 域统一错误——单一 `createDomainError` 工厂接入 `ROOT_ERROR`、删除 `FileProcessingError`、`kind` 枚举集中、HTTP 状态码语义正确传递、错误码集中枚举。
+- `unified-domain-errors`: documents 域统一错误——直接使用 `ROOT_ERROR`、删除 `FileProcessingError` 与额外工厂层、HTTP 状态码语义正确传递。
 
 ### Modified Capabilities
 

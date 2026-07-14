@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
-import { createDomainError, logger } from '@/configs/index.js';
+import { logger, ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import { deleteStoredObject } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
@@ -30,11 +30,7 @@ const { api } = routerHandler({
       .where(eq(schema.file_references.file_id, body.fileId))
       .limit(1);
     if (reference) {
-      throw createDomainError(
-        'UPLOAD_FILE_IN_USE',
-        '文件仍被业务引用',
-        '数据异常',
-      );
+      throw new ROOT_ERROR('数据异常', 'UPLOAD_FILE_IN_USE: 文件仍被业务引用');
     }
 
     await db

@@ -1,4 +1,4 @@
-import { createDomainError } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import {
   getOwnedFileRow,
   presignGetObject,
@@ -14,10 +14,9 @@ const { api } = routerHandler({
   handler: async ({ body, __token }) => {
     const file = await getOwnedFileRow(body.fileId, __token.user_id);
     if (file.status !== 'verified') {
-      throw createDomainError(
-        'UPLOAD_FILE_REJECTED',
-        '文件尚未通过验证',
+      throw new ROOT_ERROR(
         '数据异常',
+        'UPLOAD_FILE_REJECTED: 文件尚未通过验证',
       );
     }
     return await presignGetObject({

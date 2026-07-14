@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 
-import { createDomainError } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import {
   abortMultipartUpload,
@@ -21,10 +21,9 @@ const { api } = routerHandler({
       return 'ok';
     }
     if (!canCancelUploadSession(session.status)) {
-      throw createDomainError(
-        'UPLOAD_SESSION_STATE_CONFLICT',
-        '已完成上传不能取消',
+      throw new ROOT_ERROR(
         '数据异常',
+        'UPLOAD_SESSION_STATE_CONFLICT: 已完成上传不能取消',
       );
     }
     const file = await getFileRow(session.file_id);

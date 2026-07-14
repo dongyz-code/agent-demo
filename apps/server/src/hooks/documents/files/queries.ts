@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { createDomainError } from '@/configs/index.js';
 import { openStoredObject } from '../storage/index.js';
 
 import type { StoredFileInfo } from '@repo/types';
@@ -24,11 +24,7 @@ export async function getOwnedFileRow(fileId: string, userId: string) {
     )
     .limit(1);
   if (!file || file.status === 'deleted') {
-    throw createDomainError(
-      'UPLOAD_SESSION_NOT_FOUND',
-      '文件不存在',
-      '相关文件不存在',
-    );
+    throw new ROOT_ERROR('相关文件不存在', 'UPLOAD_SESSION_NOT_FOUND: 文件不存在');
   }
   return file;
 }
@@ -41,11 +37,7 @@ export async function getFileRow(fileId: string) {
     .where(eq(schema.files.file_id, fileId))
     .limit(1);
   if (!file || file.status === 'deleted') {
-    throw createDomainError(
-      'UPLOAD_SESSION_NOT_FOUND',
-      '文件不存在',
-      '相关文件不存在',
-    );
+    throw new ROOT_ERROR('相关文件不存在', 'UPLOAD_SESSION_NOT_FOUND: 文件不存在');
   }
   return file;
 }
@@ -75,10 +67,9 @@ export async function getReadableFile(
 ): Promise<ReadableStoredFile> {
   const file = await getFileRow(fileId);
   if (file.status !== 'verified') {
-    throw createDomainError(
-      'UPLOAD_FILE_REJECTED',
-      '只有验证成功的文件可以被业务读取',
+    throw new ROOT_ERROR(
       '数据异常',
+      'UPLOAD_FILE_REJECTED: 只有验证成功的文件可以被业务读取',
     );
   }
   return {

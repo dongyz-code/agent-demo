@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-import { createDomainError, getDocumentRuntimeConfig } from '@/configs/index.js';
+import { getDocumentRuntimeConfig, ROOT_ERROR } from '@/configs/index.js';
 
 import type { DocumentParsedBlock } from '@repo/types';
 import type { DocumentParser } from '../types.js';
@@ -29,10 +29,9 @@ export const remoteDocumentParser: DocumentParser = {
   async parse({ file }) {
     const config = getDocumentRuntimeConfig();
     if (!config.parserEndpoint) {
-      throw createDomainError(
-        'DOCUMENT_PARSER_UNAVAILABLE',
-        '未配置 PDF/Office 解析服务',
+      throw new ROOT_ERROR(
         '数据异常',
+        'DOCUMENT_PARSER_UNAVAILABLE: 未配置 PDF/Office 解析服务',
       );
     }
     const response = await axios.post<DocumentParsedBlock[]>(
@@ -56,10 +55,9 @@ export const remoteDocumentParser: DocumentParser = {
 /** 校验远程解析结果，禁止库专属结构越过适配器。 */
 function validateRemoteBlocks(value: unknown): DocumentParsedBlock[] {
   if (!Array.isArray(value)) {
-    throw createDomainError(
-      'DOCUMENT_PARSER_INVALID_RESPONSE',
-      '解析服务返回格式错误',
+    throw new ROOT_ERROR(
       '服务异常',
+      'DOCUMENT_PARSER_INVALID_RESPONSE: 解析服务返回格式错误',
     );
   }
   return value.map((item, position) => {
@@ -70,18 +68,16 @@ function validateRemoteBlocks(value: unknown): DocumentParsedBlock[] {
       !('type' in item) ||
       !('text' in item)
     ) {
-      throw createDomainError(
-        'DOCUMENT_PARSER_INVALID_RESPONSE',
-        `解析服务第 ${position + 1} 个块格式错误`,
+      throw new ROOT_ERROR(
         '服务异常',
+        `DOCUMENT_PARSER_INVALID_RESPONSE: 解析服务第 ${position + 1} 个块格式错误`,
       );
     }
     const block = item as DocumentParsedBlock;
     if (!BLOCK_TYPES.has(block.type)) {
-      throw createDomainError(
-        'DOCUMENT_PARSER_INVALID_RESPONSE',
-        `解析服务第 ${position + 1} 个块类型不受支持`,
+      throw new ROOT_ERROR(
         '服务异常',
+        `DOCUMENT_PARSER_INVALID_RESPONSE: 解析服务第 ${position + 1} 个块类型不受支持`,
       );
     }
     return {

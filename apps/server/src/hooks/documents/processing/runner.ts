@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 
-import { createDomainError, getFileProcessingRuntimeConfig, logger } from '@/configs/index.js';
+import {
+  getFileProcessingRuntimeConfig,
+  logger,
+  ROOT_ERROR,
+} from '@/configs/index.js';
 import { countRows, db, schema } from '@/database/index.js';
 import { getErrorCode, stableParsedBlockId } from './ids.js';
 import { createDocumentSegments } from './pipeline/segment.js';
@@ -495,10 +499,9 @@ async function failTask(taskId: string, errorCode: string, message: string) {
 /** 在阶段边界阻止已取消任务继续执行。 */
 async function assertTaskNotCanceled(taskId: string) {
   if (await isTaskCanceled(taskId)) {
-    throw createDomainError(
-      'FILE_PROCESSING_TASK_CANCELED',
-      '文件处理任务已取消',
+    throw new ROOT_ERROR(
       '数据异常',
+      'FILE_PROCESSING_TASK_CANCELED: 文件处理任务已取消',
     );
   }
 }

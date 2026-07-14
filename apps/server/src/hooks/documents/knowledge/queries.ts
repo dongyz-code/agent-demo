@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, ilike, inArray } from 'drizzle-orm';
 
+import { ROOT_ERROR } from '@/configs/index.js';
 import { countRows, db, schema } from '@/database/index.js';
-import { createDomainError } from '@/configs/index.js';
 import { getDocument } from '@/hooks/documents/index.js';
 
 import type {
@@ -62,7 +62,7 @@ export async function updateRagDataset(
   await getDatasetRow(datasetId);
   const nextName = update.name?.trim();
   if (update.name !== undefined && !nextName) {
-    throw createDomainError('RAG_DATASET_NAME_REQUIRED', '知识库名称不能为空');
+    throw new ROOT_ERROR('非法参数', 'RAG_DATASET_NAME_REQUIRED: 知识库名称不能为空');
   }
   const [updated] = await db
     .update(schema.rag_datasets)
@@ -91,7 +91,7 @@ export async function getDatasetRow(datasetId: string) {
     .where(eq(schema.rag_datasets.dataset_id, datasetId))
     .limit(1);
   if (!row) {
-    throw createDomainError('RAG_DATASET_NOT_FOUND', '知识库不存在', '相关文件不存在');
+    throw new ROOT_ERROR('相关文件不存在', 'RAG_DATASET_NOT_FOUND: 知识库不存在');
   }
   return row;
 }
@@ -104,10 +104,9 @@ export async function addDocumentToDataset(
 ) {
   const dataset = await getDatasetRow(datasetId);
   if (dataset.status !== 'active') {
-    throw createDomainError(
-      'RAG_DATASET_DISABLED',
-      '停用知识库不能加入文档',
+    throw new ROOT_ERROR(
       '数据异常',
+      'RAG_DATASET_DISABLED: 停用知识库不能加入文档',
     );
   }
   const document = await getDocument(documentId, userId);
