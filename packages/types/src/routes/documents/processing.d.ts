@@ -83,7 +83,7 @@ export interface FileProcessingTaskDetail extends FileProcessingTaskInfo {
   stageRuns: FileProcessingStageRunInfo[];
 }
 
-/** 文件处理任务接口集合。 */
+/** documents 域的文件处理任务接口集合。 */
 export type FileProcessingAction = ApiMultAction<{
   create: {
     body: {
@@ -109,4 +109,3 @@ export type FileProcessingAction = ApiMultAction<{
     resp: FileProcessingTaskInfo;
   };
 }>;
-

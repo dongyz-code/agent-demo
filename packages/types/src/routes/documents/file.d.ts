@@ -3,7 +3,7 @@ import type {
   FileVariantStatus,
   FileVariantType,
   StoredFileInfo,
-} from '../upload/index.js';
+} from './upload.js';
 import type {
   FileProcessingStage,
   FileProcessingTriggerSource,

@@ -1,5 +1,5 @@
 import type { ApiMultAction } from '../../common/index.js';
-import type { DocumentInfo, DocumentStatus } from '../document/index.js';
+import type { DocumentInfo, DocumentStatus } from './document.js';
 
 /** RAG 知识库状态。 */
 export type RagDatasetStatus = 'active' | 'disabled';

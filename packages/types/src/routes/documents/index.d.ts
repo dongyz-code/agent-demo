@@ -1,14 +1,14 @@
 import type { ApiMultAction } from '../../common/index.js';
-import type { FileAction } from '../file/index.js';
-import type { Upload } from '../upload/index.js';
-import type { FileProcessingAction } from '../file-processing/index.js';
-import type { Rag } from '../rag/index.js';
+import type { Rag } from './dataset.js';
+import type { FileAction } from './file.js';
+import type { FileProcessingAction } from './processing.js';
+import type { Upload } from './upload.js';
 
 /**
  * documents 域统一接口集合。
  *
- * 原 `/file/*`、`/upload/*`、`/file-processing/*` 路由收敛到 `/documents/<resource>-<action>`，
- * 实体与辅助类型沿用各子模块定义，统一从本出口对外暴露。
+ * 接口键与 `apps/server/src/router/routes/documents` 下的处理文件一一对应，
+ * 实体和辅助类型也统一从本目录出口对外暴露。
  */
 export type DocumentsAction = ApiMultAction<{
   /** 文件上传与处理选项。 */
@@ -63,7 +63,7 @@ export type DocumentsAction = ApiMultAction<{
   'dataset-document-remove': Rag['dataset-document/remove'];
 }>;
 
-// 文档实体与内容类型(原 routes/document,仅保留实体类型,旧 DocumentAction 路由已下线)
+/** 文档实体与内容类型；旧 `DocumentAction` 路由已下线。 */
 export type {
   DocumentStatus,
   DocumentProcessingStage,
@@ -72,10 +72,13 @@ export type {
   DocumentInfo,
   DocumentParsedBlock,
   DocumentSegment,
-} from '../document/index.js';
+} from './document.js';
 
-// 文件、上传、文件处理任务的实体与辅助类型统一从 documents 出口复用
-export type * from '../file/index.js';
-export type * from '../upload/index.js';
-export type * from '../file-processing/index.js';
-export type * from '../rag/index.js';
+/** 知识库实体与接口类型。 */
+export type * from './dataset.js';
+/** 文件实体与接口类型。 */
+export type * from './file.js';
+/** 文件处理任务实体与接口类型。 */
+export type * from './processing.js';
+/** 上传实体与接口类型。 */
+export type * from './upload.js';

@@ -121,7 +121,7 @@ export interface UploadSessionInfo {
   errorMessage: string | null;
 }
 
-/** 上传接口集合。 */
+/** documents 域的上传接口集合。 */
 export type Upload = ApiMultAction<{
   init: {
     body: {
