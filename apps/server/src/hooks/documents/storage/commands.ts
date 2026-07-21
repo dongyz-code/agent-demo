@@ -7,7 +7,6 @@ import {
   HeadBucketCommand,
   HeadObjectCommand,
   ListPartsCommand,
-  ListObjectsV2Command,
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 
@@ -167,28 +166,7 @@ export async function deleteStoredObject(body: {
 /** 检查配置 Bucket 是否可访问。 */
 export async function checkUploadBucket(): Promise<void> {
   const config = ROOT.upload;
-  await getInternalS3Client().send(new HeadBucketCommand({ Bucket: config.bucket }));
-}
-
-/** 分页列出 Bucket 对象键，供只读孤儿对象巡检使用。 */
-export async function listStoredObjectKeys(bucket: string): Promise<string[]> {
-  const keys: string[] = [];
-  let continuationToken: string | undefined;
-  do {
-    const result = await getInternalS3Client().send(
-      new ListObjectsV2Command({
-        Bucket: bucket,
-        ContinuationToken: continuationToken,
-      }),
-    );
-    for (const item of result.Contents ?? []) {
-      if (item.Key) {
-        keys.push(item.Key);
-      }
-    }
-    continuationToken = result.IsTruncated
-      ? result.NextContinuationToken
-      : undefined;
-  } while (continuationToken);
-  return keys;
+  await getInternalS3Client().send(
+    new HeadBucketCommand({ Bucket: config.bucket }),
+  );
 }

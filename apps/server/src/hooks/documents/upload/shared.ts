@@ -2,15 +2,37 @@ import { and, eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { canTransferUploadSession } from './state.js';
 
-import type { UploadSessionInfo } from '@repo/types';
+import type { UploadSessionInfo, UploadSessionStatus } from '@repo/types';
+
+/** 允许继续签名、恢复或完成对象上传的会话状态。 */
+const transferableStatuses = new Set<UploadSessionStatus>([
+  'initialized',
+  'uploading',
+]);
+
+/**
+ * 判断会话是否允许继续对象传输。
+ *
+ * @param status 当前上传会话状态。
+ * @returns 初始化或上传中返回 true。
+ */
+export function canTransferUploadSession(status: UploadSessionStatus): boolean {
+  return transferableStatuses.has(status);
+}
+
+/**
+ * 判断会话是否允许主动取消。
+ *
+ * @param status 当前上传会话状态。
+ * @returns 非终态会话返回 true。
+ */
+export function canCancelUploadSession(status: UploadSessionStatus): boolean {
+  return !['completed', 'canceled', 'expired'].includes(status);
+}
 
 /** 查询调用者拥有的上传会话，不存在则抛 not-found。 */
-export async function getOwnedSession(
-  sessionId: string,
-  userId: string,
-) {
+export async function getOwnedSession(sessionId: string, userId: string) {
   const [session] = await db
     .select()
     .from(schema.file_upload_sessions)
@@ -55,10 +77,7 @@ export function toUploadSessionInfo(
 }
 
 /** 查询单个上传会话状态。 */
-export async function getUploadSessionInfo(
-  sessionId: string,
-  userId: string,
-) {
+export async function getUploadSessionInfo(sessionId: string, userId: string) {
   return toUploadSessionInfo(await getOwnedSession(sessionId, userId));
 }
 

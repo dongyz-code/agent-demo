@@ -1,4 +1,4 @@
-import { presignGetObject } from '../storage/index.js';
+import { presignGetObject } from '../storage/presign.js';
 
 import type { PreviewProvider } from './types.js';
 

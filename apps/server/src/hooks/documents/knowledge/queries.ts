@@ -3,12 +3,9 @@ import { and, desc, eq, ilike, inArray } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { countRows, db, schema } from '@/database/index.js';
-import { getDocument } from '@/hooks/documents/index.js';
+import { getDocument } from '../files/documents.js';
 
-import type {
-  RagDatasetInfo,
-  RagDatasetStatus,
-} from '@repo/types';
+import type { RagDatasetInfo, RagDatasetStatus } from '@repo/types';
 
 /** 查询知识库列表。 */
 export async function listRagDatasets(
@@ -41,9 +38,7 @@ export async function listRagDatasets(
       .orderBy(desc(schema.rag_datasets.create_timestamp))
       .offset(start)
       .limit(Math.max(0, end - start)),
-    form.withCount
-      ? countRows(schema.rag_datasets, where)
-      : Promise.resolve(0),
+    form.withCount ? countRows(schema.rag_datasets, where) : Promise.resolve(0),
   ]);
   return { list: list.map(toDatasetInfo), count };
 }
@@ -62,7 +57,10 @@ export async function updateRagDataset(
   await getDatasetRow(datasetId);
   const nextName = update.name?.trim();
   if (update.name !== undefined && !nextName) {
-    throw new ROOT_ERROR('非法参数', 'RAG_DATASET_NAME_REQUIRED: 知识库名称不能为空');
+    throw new ROOT_ERROR(
+      '非法参数',
+      'RAG_DATASET_NAME_REQUIRED: 知识库名称不能为空',
+    );
   }
   const [updated] = await db
     .update(schema.rag_datasets)
@@ -91,7 +89,10 @@ export async function getDatasetRow(datasetId: string) {
     .where(eq(schema.rag_datasets.dataset_id, datasetId))
     .limit(1);
   if (!row) {
-    throw new ROOT_ERROR('相关文件不存在', 'RAG_DATASET_NOT_FOUND: 知识库不存在');
+    throw new ROOT_ERROR(
+      '相关文件不存在',
+      'RAG_DATASET_NOT_FOUND: 知识库不存在',
+    );
   }
   return row;
 }

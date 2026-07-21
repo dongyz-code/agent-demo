@@ -8,7 +8,9 @@ const parsers: DocumentParser[] = [localTextParser, remoteDocumentParser];
 
 /** 按可信 MIME 选择唯一 文档解析器。 */
 export function getDocumentParser(contentType: string) {
-  const parser = parsers.find((item) => item.contentTypes.includes(contentType));
+  const parser = parsers.find((item) =>
+    item.contentTypes.includes(contentType),
+  );
   if (!parser) {
     throw new ROOT_ERROR(
       '非法参数',
@@ -16,9 +18,4 @@ export function getDocumentParser(contentType: string) {
     );
   }
   return parser;
-}
-
-/** 返回解析器只读副本，供诊断和测试使用。 */
-export function listDocumentParsers() {
-  return [...parsers];
 }

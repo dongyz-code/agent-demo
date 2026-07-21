@@ -22,7 +22,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 
 import type { StoredFileInfo, Upload, UploadedPartInfo } from '@repo/types';
 
-const { api } = routerHandler({
+const { api, handler } = routerHandler({
   url: '/documents/upload-complete',
   method: 'POST',
   permission: adminPermissionKey('actions.documents.upload'),
@@ -33,17 +33,12 @@ const { api } = routerHandler({
       __token.user_id,
     );
     const session = await getUploadSessionInfo(body.sessionId, __token.user_id);
-    if (
-      ROOT.fileProcessing.enabled &&
-      session.enterRag &&
-      session.datasetId
-    ) {
+    if (ROOT.fileProcessing.enabled && session.enterRag && session.datasetId) {
       await createFileProcessingTask(
         {
           fileId: file.fileId,
           datasetId: session.datasetId,
-          processingConfigVersion:
-            session.processingConfigVersion ?? undefined,
+          processingConfigVersion: session.processingConfigVersion ?? undefined,
           triggerSource: 'upload',
         },
         __token.user_id,
@@ -52,6 +47,9 @@ const { api } = routerHandler({
     return file;
   },
 });
+
+/** 上传完成原始 handler，仅供同进程集成测试绕过 HTTP 适配层调用。 */
+export const uploadCompleteHandler = handler;
 
 /** 幂等完成上传、验证对象并返回通用文件。 */
 async function finishUpload(
@@ -75,7 +73,10 @@ async function finishUpload(
     .where(
       and(
         eq(schema.file_upload_sessions.session_id, sessionId),
-        inArray(schema.file_upload_sessions.status, ['initialized', 'uploading']),
+        inArray(schema.file_upload_sessions.status, [
+          'initialized',
+          'uploading',
+        ]),
       ),
     )
     .returning();

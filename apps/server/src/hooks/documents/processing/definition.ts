@@ -24,15 +24,6 @@ export const FILE_PROCESSING_STAGE_PROGRESS: Record<
   completed: 100,
 };
 
-/** 文件处理 runner 按该顺序执行阶段。 */
-export const FILE_PROCESSING_STAGES: readonly FileProcessingStage[] = [
-  'reading',
-  'parsing',
-  'normalizing',
-  'segmenting',
-  'rag-ingestion',
-];
-
 /** 返回默认结构化 Segment 配置。 */
 export function getDefaultSegmentProfile(): DocumentSegmentProfile {
   const config = ROOT.document;

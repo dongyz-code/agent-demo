@@ -2,10 +2,16 @@ import { and, eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { openStoredObject } from '../storage/index.js';
+import { openStoredObject } from '../storage/commands.js';
 
+import type { Readable } from 'node:stream';
 import type { StoredFileInfo } from '@repo/types';
-import type { ReadableStoredFile } from './types.js';
+
+/** RAG 等业务模块读取文件时使用的稳定描述。 */
+export interface ReadableStoredFile extends StoredFileInfo {
+  /** 每次调用均重新打开对象流，避免重试复用已消费流。 */
+  openStream: () => Promise<Readable>;
+}
 
 /**
  * 查询调用者可访问的通用文件数据库行。
@@ -24,7 +30,10 @@ export async function getOwnedFileRow(fileId: string, userId: string) {
     )
     .limit(1);
   if (!file || file.status === 'deleted') {
-    throw new ROOT_ERROR('相关文件不存在', 'UPLOAD_SESSION_NOT_FOUND: 文件不存在');
+    throw new ROOT_ERROR(
+      '相关文件不存在',
+      'UPLOAD_SESSION_NOT_FOUND: 文件不存在',
+    );
   }
   return file;
 }
@@ -37,7 +46,10 @@ export async function getFileRow(fileId: string) {
     .where(eq(schema.files.file_id, fileId))
     .limit(1);
   if (!file || file.status === 'deleted') {
-    throw new ROOT_ERROR('相关文件不存在', 'UPLOAD_SESSION_NOT_FOUND: 文件不存在');
+    throw new ROOT_ERROR(
+      '相关文件不存在',
+      'UPLOAD_SESSION_NOT_FOUND: 文件不存在',
+    );
   }
   return file;
 }

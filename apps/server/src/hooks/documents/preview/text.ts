@@ -2,7 +2,7 @@ import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 
 import { ROOT } from '@/configs/index.js';
-import { openStoredObject } from '../storage/index.js';
+import { openStoredObject } from '../storage/commands.js';
 
 import type { PreviewProvider } from './types.js';
 
@@ -51,7 +51,10 @@ export const textPreviewProvider: PreviewProvider = {
 };
 
 /** 将纯文本或 Markdown 转换为管理端可安全渲染的 HTML。 */
-export async function renderSafeTextPreview(source: string, contentType: string) {
+export async function renderSafeTextPreview(
+  source: string,
+  contentType: string,
+) {
   return contentType === 'text/markdown'
     ? sanitizeHtml(await marked.parse(source), {
         allowedTags: sanitizeHtml.defaults.allowedTags.filter(

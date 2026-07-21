@@ -3,22 +3,34 @@ import { and, eq, inArray, ne } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import {
-  NORMALIZER_VERSION,
-  getDefaultSegmentProfile,
-} from '../processing/definition.js';
 import { getReadableFile } from './queries.js';
 
 import type { DocumentInfo } from '@repo/types';
+
+/** 创建文档首版本时由处理模块提供的版本信息。 */
+interface EnsureDocumentForFileInput {
+  /** 已验证的源文件标识。 */
+  fileId: string;
+  /** 文档显示名称；为空时使用文件名。 */
+  name?: string;
+  /** 当前标准化规则版本。 */
+  normalizerVersion: string;
+  /** 当前 Segment 配置版本。 */
+  segmentProfileVersion: string;
+}
 
 /**
  * 为文件幂等创建文档与首个版本，但不创建任何处理任务。
  *
  * 文件处理统一由 `processing` worker 承载，本函数仅负责文档实体与首版本落库，
  * 并把源文件以 document.version 引用绑定（文件已由 getReadableFile 校验为 verified）。
+ *
+ * @param input 源文件、显示名称及调用方使用的处理版本。
+ * @param userId 当前操作用户。
+ * @returns 已存在或新建的文档、版本标识及创建标记。
  */
 export async function ensureDocumentForFile(
-  input: { fileId: string; name?: string },
+  input: EnsureDocumentForFileInput,
   userId: string,
 ) {
   const file = await getReadableFile(input.fileId);
@@ -38,7 +50,6 @@ export async function ensureDocumentForFile(
   const now = new Date();
   const documentId = randomUUID();
   const versionId = randomUUID();
-  const profile = getDefaultSegmentProfile();
 
   await db.transaction(async (tx) => {
     await tx.insert(schema.documents).values({
@@ -58,8 +69,8 @@ export async function ensureDocumentForFile(
       source_file_id: input.fileId,
       status: 'queued',
       parser_version: 'pending',
-      normalizer_version: NORMALIZER_VERSION,
-      segment_profile_version: profile.version,
+      normalizer_version: input.normalizerVersion,
+      segment_profile_version: input.segmentProfileVersion,
       create_user_id: userId,
       create_timestamp: now,
       last_update_user_id: userId,

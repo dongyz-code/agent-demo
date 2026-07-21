@@ -3,8 +3,8 @@ import { and, eq } from 'drizzle-orm';
 import sharp from 'sharp';
 
 import { db, schema } from '@/database/index.js';
-import { openStoredObject, putStoredObject } from '../storage/index.js';
-import { presignGetObject } from '../storage/index.js';
+import { openStoredObject, putStoredObject } from '../storage/commands.js';
+import { presignGetObject } from '../storage/presign.js';
 
 import type { PreviewProvider } from './types.js';
 
@@ -115,7 +115,12 @@ async function createThumbnail(
     );
     const content = await sharp(source)
       .rotate()
-      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .resize({
+        width: 1600,
+        height: 1600,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
       .webp({ quality: 82 })
       .toBuffer();
     await putStoredObject({
@@ -146,7 +151,8 @@ async function createThumbnail(
       .update(schema.file_variants)
       .set({
         status: 'failed',
-        error_message: error instanceof Error ? error.message : '缩略图生成失败',
+        error_message:
+          error instanceof Error ? error.message : '缩略图生成失败',
         last_update_user_id: operator,
         last_update_timestamp: new Date(),
       })

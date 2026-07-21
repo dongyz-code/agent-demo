@@ -4,8 +4,8 @@ import axios from 'axios';
 
 import { ROOT } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { putStoredObject } from '../storage/index.js';
-import { presignGetObject } from '../storage/index.js';
+import { putStoredObject } from '../storage/commands.js';
+import { presignGetObject } from '../storage/presign.js';
 
 import type { PreviewProvider } from './types.js';
 
@@ -40,7 +40,8 @@ export const officePreviewProvider: PreviewProvider = {
     }
     const existing = await findReadyVariant(file.fileId, file.sha256);
     const variant =
-      existing ?? (await convertOffice(file, userId, config.officePreviewEndpoint));
+      existing ??
+      (await convertOffice(file, userId, config.officePreviewEndpoint));
     const signed = await presignGetObject({
       bucket: variant.bucket!,
       objectKey: variant.object_key!,
@@ -168,7 +169,8 @@ async function convertOffice(
       .update(schema.file_variants)
       .set({
         status: 'failed',
-        error_message: error instanceof Error ? error.message : 'Office 预览失败',
+        error_message:
+          error instanceof Error ? error.message : 'Office 预览失败',
         last_update_user_id: operator,
         last_update_timestamp: new Date(),
       })

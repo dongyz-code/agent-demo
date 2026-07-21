@@ -1,8 +1,5 @@
-import type {
-  DocumentSegment,
-  DocumentParsedBlock,
-} from '@repo/types';
-import type { ReadableStoredFile } from '../../files/types.js';
+import type { DocumentParsedBlock } from '@repo/types';
+import type { ReadableStoredFile } from '../../files/queries.js';
 
 /** 文档解析器输入。 */
 export interface DocumentParserInput {
@@ -30,14 +27,4 @@ export interface DocumentSegmentProfile {
   segmentSizeTokens: number;
   /** 相邻 Segment 重叠 token 数。 */
   overlapTokens: number;
-}
-
-/** 文档处理完成后向 Embedding/索引层交付的数据。 */
-export interface ReadyDocument {
-  /** 文档版本标识。 */
-  documentVersionId: string;
-  /** 本次处理配置版本。 */
-  configVersion: string;
-  /** 已完成切分的 Segment。 */
-  segments: DocumentSegment[];
 }

@@ -1,17 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, eq, inArray, lt } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
-import { logger, ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { countRows, db, schema } from '@/database/index.js';
 import { getErrorCode, stableParsedBlockId } from './ids.js';
 import { createDocumentSegments } from './pipeline/segment.js';
 import { getDocumentParser } from './pipeline/parsers/registry.js';
 import { normalizeDocumentBlocks } from './pipeline/normalize.js';
-import { getReadableFile } from '../files/index.js';
-import { addDocumentToDataset } from '../knowledge/index.js';
+import { getReadableFile } from '../files/queries.js';
+import { addDocumentToDataset } from '../knowledge/queries.js';
 import {
   FILE_PROCESSING_STAGE_PROGRESS,
-  FILE_PROCESSING_TASK_KEY,
   getDefaultSegmentProfile,
   NORMALIZER_VERSION,
 } from './definition.js';
@@ -21,207 +19,85 @@ import type {
   DocumentSegment,
   FileProcessingStage,
 } from '@repo/types';
-import type { FileProcessingTaskContext } from './types.js';
 
-/** 当前进程正在执行的文件任务，防止同一实例重复领取。 */
-const activeTaskIds = new Set<string>();
-let workerTimer: ReturnType<typeof setInterval> | undefined;
-let draining = false;
-
-/** 启动持久化文件任务 worker，并恢复失去心跳的历史任务。 */
-export async function startFileProcessingWorker() {
-  if (workerTimer) return;
-  const config = ROOT.fileProcessing;
-  if (!config.enabled) return;
-  await recoverStaleFileProcessingTasks();
-  workerTimer = setInterval(notifyFileProcessingWorker, 2_000);
-  workerTimer.unref();
-  notifyFileProcessingWorker();
+/** worker 领取后交给 runner 的完整任务上下文。 */
+export interface FileProcessingTaskContext {
+  /** 通用任务标识。 */
+  taskId: string;
+  /** 被处理文件。 */
+  fileId: string;
+  /** 逻辑文档标识。 */
+  documentId: string;
+  /** 当前文档版本标识。 */
+  documentVersionId: string;
+  /** 目标知识库标识。 */
+  datasetId: string;
+  /** 创建任务的操作用户。 */
+  userId: string;
 }
 
-/** 将失去心跳的执行中任务重置为可重新领取状态。 */
-export async function recoverStaleFileProcessingTasks() {
-  const config = ROOT.fileProcessing;
-  const staleBefore = new Date(Date.now() - config.staleTaskSeconds * 1000);
-  await db
-    .update(schema.tasks)
-    .set({
-      status: 'to-be-started',
-      current_stage: 'queued',
-      error_code: null,
-      error_message: null,
-      end_timestamp: null,
-      last_update_timestamp: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.tasks.task_key, FILE_PROCESSING_TASK_KEY),
-        eq(schema.tasks.status, 'pending'),
-        lt(schema.tasks.last_update_timestamp, staleBefore),
-      ),
-    );
+/** runner 用于确认当前进程仍持有任务的最小 lease。 */
+export interface FileProcessingTaskLease {
+  /** 当前领取生成的唯一 token。 */
+  leaseId: string;
+  /** 续租并确认任务仍属于当前执行器，失效时抛出错误。 */
+  assertActive: () => Promise<void>;
 }
 
-/** 通知 worker 尽快领取等待任务。 */
-export function notifyFileProcessingWorker() {
-  queueMicrotask(() => {
-    drainFileProcessingTasks().catch((error) => {
-      logger.error(
-        { event: 'file.processing.worker_drain_failed', err: error },
-        '文件处理任务领取失败',
-      );
-    });
-  });
-}
-
-/** 执行单个文件处理任务。 */
-export async function runFileProcessingTask(taskId: string) {
-  if (activeTaskIds.has(taskId)) return;
-  activeTaskIds.add(taskId);
-  try {
-    const context = await claimTask(taskId);
-    if (!context) return;
-    await executeTask(context);
-  } finally {
-    activeTaskIds.delete(taskId);
-    notifyFileProcessingWorker();
+/** 当前执行器不再拥有任务时使用的内部错误。 */
+export class FileProcessingLeaseLostError extends Error {
+  /** 构造稳定且不包含业务内容的 lease 失效错误。 */
+  constructor() {
+    super('FILE_PROCESSING_LEASE_LOST: 文件处理任务 lease 已失效');
+    this.name = 'FileProcessingLeaseLostError';
   }
 }
 
-/** 在并发上限内领取等待任务。 */
-async function drainFileProcessingTasks() {
-  if (draining) return;
-  draining = true;
+/**
+ * 执行已领取文件任务的全部业务阶段。
+ *
+ * @param context worker 已校验的任务上下文。
+ * @param lease 当前领取对应的 lease 校验器。
+ * @returns 任务成功、失败、取消或失去 lease 后结束。
+ */
+export async function runFileProcessingTask(
+  context: FileProcessingTaskContext,
+  lease: FileProcessingTaskLease,
+) {
   try {
-    const available =
-      ROOT.fileProcessing.workerConcurrency - activeTaskIds.size;
-    if (available <= 0) return;
-    const tasks = await db
-      .select({ taskId: schema.tasks.task_id })
-      .from(schema.tasks)
-      .where(
-        and(
-          eq(schema.tasks.task_key, FILE_PROCESSING_TASK_KEY),
-          eq(schema.tasks.status, 'to-be-started'),
-        ),
-      )
-      .orderBy(asc(schema.tasks.create_timestamp))
-      .limit(available);
-    for (const task of tasks) {
-      void runFileProcessingTask(task.taskId).catch((error) => {
-        logger.error(
-          {
-            event: 'file.processing.unhandled',
-            taskId: task.taskId,
-            err: error,
-          },
-          '文件处理任务执行失败',
-        );
-      });
-    }
-  } finally {
-    draining = false;
-  }
-}
-
-/** 条件领取任务并构造完整执行上下文。 */
-async function claimTask(
-  taskId: string,
-): Promise<FileProcessingTaskContext | undefined> {
-  const now = new Date();
-  const [claimed] = await db
-    .update(schema.tasks)
-    .set({
-      status: 'pending',
-      current_stage: 'reading',
-      progress: FILE_PROCESSING_STAGE_PROGRESS.reading,
-      start_timestamp: now,
-      end_timestamp: null,
-      error_code: null,
-      error_message: null,
-      last_update_timestamp: now,
-    })
-    .where(
-      and(
-        eq(schema.tasks.task_id, taskId),
-        eq(schema.tasks.status, 'to-be-started'),
-      ),
-    )
-    .returning({ taskId: schema.tasks.task_id });
-  if (!claimed) return;
-
-  const [row] = await db
-    .select({
-      task: schema.tasks,
-      fileTask: schema.file_processing_tasks,
-    })
-    .from(schema.tasks)
-    .innerJoin(
-      schema.file_processing_tasks,
-      eq(schema.file_processing_tasks.task_id, schema.tasks.task_id),
-    )
-    .where(eq(schema.tasks.task_id, taskId))
-    .limit(1);
-  if (
-    !row ||
-    !row.fileTask.document_id ||
-    !row.fileTask.document_version_id ||
-    !row.fileTask.dataset_id
-  ) {
-    await failTask(
-      taskId,
-      'FILE_PROCESSING_CONTEXT_INVALID',
-      '文件处理任务上下文不完整',
-    );
-    return;
-  }
-  return {
-    taskId,
-    fileId: row.fileTask.file_id,
-    documentId: row.fileTask.document_id,
-    documentVersionId: row.fileTask.document_version_id,
-    datasetId: row.fileTask.dataset_id,
-    userId: row.fileTask.create_user_id,
-  };
-}
-
-/** 执行文件处理各阶段并提交最终结果。 */
-async function executeTask(context: FileProcessingTaskContext) {
-  try {
-    const file = await runTaskStage(context.taskId, 'reading', async () =>
+    const file = await runTaskStage(context, lease, 'reading', async () =>
       getReadableFile(context.fileId),
     );
     const parser = getDocumentParser(file.contentType);
-    const parsed = await runTaskStage(context.taskId, 'parsing', async () =>
+    const parsed = await runTaskStage(context, lease, 'parsing', async () =>
       parser.parse({ file }),
     );
-    const normalized = await runTaskStage(
-      context.taskId,
-      'normalizing',
-      () => normalizeDocumentBlocks(parsed),
+    const normalized = await runTaskStage(context, lease, 'normalizing', () =>
+      normalizeDocumentBlocks(parsed),
     );
     const profile = getDefaultSegmentProfile();
-    const segments = await runTaskStage(
-      context.taskId,
-      'segmenting',
-      () =>
-        createDocumentSegments({
-          documentVersionId: context.documentVersionId,
-          blocks: normalized,
-          profile,
-        }),
+    const segments = await runTaskStage(context, lease, 'segmenting', () =>
+      createDocumentSegments({
+        documentVersionId: context.documentVersionId,
+        blocks: normalized,
+        profile,
+      }),
     );
-    await persistContentResult(context, {
+    await persistContentResult(context, lease, {
       blocks: normalized,
       segments,
       parserVersion: parser.version,
       normalizerVersion: NORMALIZER_VERSION,
       segmentProfileVersion: profile.version,
     });
-    await runTaskStage(context.taskId, 'rag-ingestion', async () =>
-      addDocumentToDataset(context.datasetId, context.documentId, context.userId),
+    await runTaskStage(context, lease, 'rag-ingestion', async () =>
+      addDocumentToDataset(
+        context.datasetId,
+        context.documentId,
+        context.userId,
+      ),
     );
-    await completeTask(context, segments.length, {
+    await completeTask(context, lease, segments.length, {
       documentId: context.documentId,
       documentVersionId: context.documentVersionId,
       datasetId: context.datasetId,
@@ -229,9 +105,20 @@ async function executeTask(context: FileProcessingTaskContext) {
       capability: 'rag-ingestion',
     });
   } catch (error) {
-    if (await isTaskCanceled(context.taskId)) return;
+    if (
+      error instanceof FileProcessingLeaseLostError ||
+      (await isTaskCanceled(context.taskId))
+    ) {
+      return;
+    }
     const message = error instanceof Error ? error.message : '文件处理失败';
-    await failTask(context.taskId, getErrorCode(message, 'FILE_PROCESSING_FAILED'), message);
+    const failed = await failTask(
+      context.taskId,
+      lease.leaseId,
+      getErrorCode(message, 'FILE_PROCESSING_FAILED'),
+      message,
+    );
+    if (!failed) return;
     await db.transaction(async (tx) => {
       await tx
         .update(schema.document_versions)
@@ -267,63 +154,92 @@ async function executeTask(context: FileProcessingTaskContext) {
   }
 }
 
-/** 执行阶段并记录进度、尝试次数和错误。 */
-async function runTaskStage<T>(
-  taskId: string,
+/**
+ * 执行单个阶段并记录进度、尝试次数和错误。
+ *
+ * @param context worker 已领取的任务上下文。
+ * @param lease 当前领取对应的 lease 校验器。
+ * @param stage 本次执行的文件处理阶段。
+ * @param action 阶段业务动作，可能包含外部请求。
+ * @returns 阶段动作完成且 lease 仍有效时返回动作结果。
+ */
+export async function runTaskStage<T>(
+  context: FileProcessingTaskContext,
+  lease: FileProcessingTaskLease,
   stage: FileProcessingStage,
   action: () => Promise<T> | T,
 ) {
-  await assertTaskNotCanceled(taskId);
+  await lease.assertActive();
   const attempt =
     (await countRows(
       schema.file_processing_task_stage_runs,
       and(
-        eq(schema.file_processing_task_stage_runs.task_id, taskId),
+        eq(schema.file_processing_task_stage_runs.task_id, context.taskId),
         eq(schema.file_processing_task_stage_runs.stage, stage),
       ),
     )) + 1;
   const stageRunId = randomUUID();
   const start = new Date();
-  await db.insert(schema.file_processing_task_stage_runs).values({
-    stage_run_id: stageRunId,
-    task_id: taskId,
-    stage,
-    attempt,
-    status: 'pending',
-    processed_items: 0,
-    total_items: 0,
-    checkpoint: null,
-    error_code: null,
-    error_message: null,
-    start_timestamp: start,
-    end_timestamp: null,
+  await db.transaction(async (tx) => {
+    const [owned] = await tx
+      .update(schema.tasks)
+      .set({
+        current_stage: stage,
+        progress: FILE_PROCESSING_STAGE_PROGRESS[stage],
+        last_update_timestamp: start,
+      })
+      .where(
+        and(
+          eq(schema.tasks.task_id, context.taskId),
+          eq(schema.tasks.status, 'pending'),
+          eq(schema.tasks.pending_uuid, lease.leaseId),
+        ),
+      )
+      .returning({ taskId: schema.tasks.task_id });
+    if (!owned) throw new FileProcessingLeaseLostError();
+    await tx.insert(schema.file_processing_task_stage_runs).values({
+      stage_run_id: stageRunId,
+      task_id: context.taskId,
+      stage,
+      attempt,
+      status: 'pending',
+      processed_items: 0,
+      total_items: 0,
+      checkpoint: null,
+      error_code: null,
+      error_message: null,
+      start_timestamp: start,
+      end_timestamp: null,
+    });
   });
-  await db
-    .update(schema.tasks)
-    .set({
-      current_stage: stage,
-      progress: FILE_PROCESSING_STAGE_PROGRESS[stage],
-      last_update_timestamp: start,
-    })
-    .where(eq(schema.tasks.task_id, taskId));
   try {
     const result = await action();
+    await lease.assertActive();
     const processedItems = getProcessedItems(result);
     await db.transaction(async (tx) => {
+      const [owned] = await tx
+        .update(schema.tasks)
+        .set({ last_update_timestamp: new Date() })
+        .where(
+          and(
+            eq(schema.tasks.task_id, context.taskId),
+            eq(schema.tasks.status, 'pending'),
+            eq(schema.tasks.pending_uuid, lease.leaseId),
+          ),
+        )
+        .returning({ taskId: schema.tasks.task_id });
+      if (!owned) throw new FileProcessingLeaseLostError();
       await tx
         .update(schema.file_processing_task_stage_runs)
         .set({
           status: 'completed',
           processed_items: processedItems,
           total_items: processedItems,
-          checkpoint: JSON.stringify({ processedItems }),
+          checkpoint: null,
           end_timestamp: new Date(),
         })
         .where(
-          eq(
-            schema.file_processing_task_stage_runs.stage_run_id,
-            stageRunId,
-          ),
+          eq(schema.file_processing_task_stage_runs.stage_run_id, stageRunId),
         );
       await tx
         .update(schema.tasks)
@@ -332,15 +248,29 @@ async function runTaskStage<T>(
           total_items: processedItems,
           last_update_timestamp: new Date(),
         })
-        .where(eq(schema.tasks.task_id, taskId));
+        .where(
+          and(
+            eq(schema.tasks.task_id, context.taskId),
+            eq(schema.tasks.status, 'pending'),
+            eq(schema.tasks.pending_uuid, lease.leaseId),
+          ),
+        );
     });
     return result;
   } catch (error) {
+    try {
+      await lease.assertActive();
+    } catch (leaseError) {
+      if (await isTaskCanceled(context.taskId)) {
+        await finishCanceledStageRun(stageRunId);
+      }
+      throw leaseError;
+    }
     const message = error instanceof Error ? error.message : '阶段执行失败';
     await db
       .update(schema.file_processing_task_stage_runs)
       .set({
-        status: (await isTaskCanceled(taskId)) ? 'killed' : 'failed',
+        status: (await isTaskCanceled(context.taskId)) ? 'killed' : 'failed',
         error_code: getErrorCode(message, 'FILE_PROCESSING_FAILED'),
         error_message: message,
         end_timestamp: new Date(),
@@ -355,6 +285,7 @@ async function runTaskStage<T>(
 /** 幂等保存解析块、Segment 和文档 ready 状态。 */
 async function persistContentResult(
   context: FileProcessingTaskContext,
+  lease: FileProcessingTaskLease,
   result: {
     blocks: DocumentParsedBlock[];
     segments: DocumentSegment[];
@@ -363,8 +294,20 @@ async function persistContentResult(
     segmentProfileVersion: string;
   },
 ) {
-  await assertTaskNotCanceled(context.taskId);
+  await lease.assertActive();
   await db.transaction(async (tx) => {
+    const [owned] = await tx
+      .update(schema.tasks)
+      .set({ last_update_timestamp: new Date() })
+      .where(
+        and(
+          eq(schema.tasks.task_id, context.taskId),
+          eq(schema.tasks.status, 'pending'),
+          eq(schema.tasks.pending_uuid, lease.leaseId),
+        ),
+      )
+      .returning({ taskId: schema.tasks.task_id });
+    if (!owned) throw new FileProcessingLeaseLostError();
     await tx
       .delete(schema.document_parsed_blocks)
       .where(
@@ -448,12 +391,14 @@ async function persistContentResult(
 /** 将任务标记为成功并写入安全结果摘要。 */
 async function completeTask(
   context: FileProcessingTaskContext,
+  lease: FileProcessingTaskLease,
   segmentCount: number,
   resultSummary: Record<string, unknown>,
 ) {
+  await lease.assertActive();
   const now = new Date();
   await db.transaction(async (tx) => {
-    await tx
+    const [completed] = await tx
       .update(schema.tasks)
       .set({
         status: 'completed',
@@ -466,7 +411,15 @@ async function completeTask(
         error_message: null,
         last_update_timestamp: now,
       })
-      .where(eq(schema.tasks.task_id, context.taskId));
+      .where(
+        and(
+          eq(schema.tasks.task_id, context.taskId),
+          eq(schema.tasks.status, 'pending'),
+          eq(schema.tasks.pending_uuid, lease.leaseId),
+        ),
+      )
+      .returning({ taskId: schema.tasks.task_id });
+    if (!completed) throw new FileProcessingLeaseLostError();
     await tx
       .update(schema.file_processing_tasks)
       .set({
@@ -478,9 +431,14 @@ async function completeTask(
   });
 }
 
-/** 将任务标记为失败并保留当前阶段。 */
-async function failTask(taskId: string, errorCode: string, message: string) {
-  await db
+/** 将仍由当前 lease 持有的任务标记为失败并保留当前阶段。 */
+async function failTask(
+  taskId: string,
+  leaseId: string,
+  errorCode: string,
+  message: string,
+) {
+  const [failed] = await db
     .update(schema.tasks)
     .set({
       status: 'failed',
@@ -489,17 +447,33 @@ async function failTask(taskId: string, errorCode: string, message: string) {
       end_timestamp: new Date(),
       last_update_timestamp: new Date(),
     })
-    .where(eq(schema.tasks.task_id, taskId));
+    .where(
+      and(
+        eq(schema.tasks.task_id, taskId),
+        eq(schema.tasks.status, 'pending'),
+        eq(schema.tasks.pending_uuid, leaseId),
+      ),
+    )
+    .returning({ taskId: schema.tasks.task_id });
+  return Boolean(failed);
 }
 
-/** 在阶段边界阻止已取消任务继续执行。 */
-async function assertTaskNotCanceled(taskId: string) {
-  if (await isTaskCanceled(taskId)) {
-    throw new ROOT_ERROR(
-      '数据异常',
-      'FILE_PROCESSING_TASK_CANCELED: 文件处理任务已取消',
+/** 将取消期间仍为 pending 的当前阶段记录终结为 killed。 */
+async function finishCanceledStageRun(stageRunId: string) {
+  await db
+    .update(schema.file_processing_task_stage_runs)
+    .set({
+      status: 'killed',
+      error_code: 'FILE_PROCESSING_TASK_CANCELED',
+      error_message: '文件处理任务已取消',
+      end_timestamp: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.file_processing_task_stage_runs.stage_run_id, stageRunId),
+        eq(schema.file_processing_task_stage_runs.status, 'pending'),
+      ),
     );
-  }
 }
 
 /** 查询任务是否已被取消。 */

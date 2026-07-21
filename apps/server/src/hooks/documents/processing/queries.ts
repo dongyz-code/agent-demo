@@ -3,20 +3,34 @@ import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
 
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { getReadableFile } from '../files/index.js';
-import { ensureDocumentForFile } from '@/hooks/documents/index.js';
-import { getRagDataset } from '../knowledge/index.js';
+import { ensureDocumentForFile } from '../files/documents.js';
+import { getReadableFile } from '../files/queries.js';
+import { getRagDataset } from '../knowledge/queries.js';
 import {
   DEFAULT_FILE_PROCESSING_CONFIG_VERSION,
   FILE_PROCESSING_TASK_KEY,
+  NORMALIZER_VERSION,
+  getDefaultSegmentProfile,
 } from './definition.js';
-import { notifyFileProcessingWorker } from './runner.js';
+import { notifyFileProcessingWorker } from './worker.js';
 
 import type {
   FileProcessingTaskDetail,
   FileProcessingTaskInfo,
+  FileProcessingTriggerSource,
 } from '@repo/types';
-import type { CreateFileProcessingTaskInput } from './types.js';
+
+/** 创建文件处理任务的输入。 */
+export interface CreateFileProcessingTaskInput {
+  /** 被处理文件。 */
+  fileId: string;
+  /** RAG 接入目标知识库。 */
+  datasetId: string;
+  /** 处理配置组合版本。 */
+  processingConfigVersion?: string;
+  /** 任务创建来源。 */
+  triggerSource?: FileProcessingTriggerSource;
+}
 
 /** 文件任务处于等待或执行中时视为活动任务。 */
 const ACTIVE_TASK_STATUSES = ['to-be-started', 'pending'] as const;
@@ -42,20 +56,22 @@ export async function createFileProcessingTask(
   }
   const processingConfigVersion =
     input.processingConfigVersion ?? DEFAULT_FILE_PROCESSING_CONFIG_VERSION;
+  const segmentProfile = getDefaultSegmentProfile();
   const document = await ensureDocumentForFile(
-    { fileId: input.fileId, name: file.filename },
+    {
+      fileId: input.fileId,
+      name: file.filename,
+      normalizerVersion: NORMALIZER_VERSION,
+      segmentProfileVersion: segmentProfile.version,
+    },
     userId,
   );
-  const lockKey = [
-    input.fileId,
-    input.datasetId,
-    processingConfigVersion,
-  ].join(':');
+  const lockKey = [input.fileId, input.datasetId, processingConfigVersion].join(
+    ':',
+  );
 
   const taskId = await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`,
-    );
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
     const [active] = await tx
       .select({ taskId: schema.tasks.task_id })
       .from(schema.file_processing_tasks)
@@ -193,14 +209,19 @@ function selectTaskRows(where: ReturnType<typeof and>) {
     )
     .leftJoin(
       schema.rag_datasets,
-      eq(schema.rag_datasets.dataset_id, schema.file_processing_tasks.dataset_id),
+      eq(
+        schema.rag_datasets.dataset_id,
+        schema.file_processing_tasks.dataset_id,
+      ),
     )
     .where(where)
     .orderBy(desc(schema.tasks.create_timestamp));
 }
 
 /** 将数据库联合行转换为任务中心公共摘要。 */
-function toTaskInfo(row: Awaited<ReturnType<typeof selectTaskRows>>[number]): FileProcessingTaskInfo {
+function toTaskInfo(
+  row: Awaited<ReturnType<typeof selectTaskRows>>[number],
+): FileProcessingTaskInfo {
   return {
     taskId: row.task.task_id,
     fileId: row.fileTask.file_id,
@@ -210,7 +231,8 @@ function toTaskInfo(row: Awaited<ReturnType<typeof selectTaskRows>>[number]): Fi
     executionNo: row.fileTask.execution_no,
     triggerSource: row.fileTask.trigger_source,
     status: row.task.status as FileProcessingTaskInfo['status'],
-    stage: (row.task.current_stage ?? 'queued') as FileProcessingTaskInfo['stage'],
+    stage: (row.task.current_stage ??
+      'queued') as FileProcessingTaskInfo['stage'],
     progress: row.task.progress,
     processedItems: row.task.processed_items,
     totalItems: row.task.total_items,
