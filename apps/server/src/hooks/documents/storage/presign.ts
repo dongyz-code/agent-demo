@@ -5,7 +5,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import { getUploadRuntimeConfig } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
 import { getPublicSigningS3Client } from './client.js';
 
 /** 签发普通单对象上传 URL。 */
@@ -14,7 +14,7 @@ export async function presignPutObject(body: {
   objectKey: string;
   contentType: string;
 }): Promise<{ url: string; expiresAt: Date }> {
-  const config = getUploadRuntimeConfig();
+  const config = ROOT.upload;
   const url = await getSignedUrl(
     getPublicSigningS3Client(),
     new PutObjectCommand({
@@ -37,7 +37,7 @@ export async function presignUploadPart(body: {
   uploadId: string;
   partNumber: number;
 }): Promise<{ url: string; expiresAt: Date }> {
-  const config = getUploadRuntimeConfig();
+  const config = ROOT.upload;
   const url = await getSignedUrl(
     getPublicSigningS3Client(),
     new UploadPartCommand({
@@ -62,7 +62,7 @@ export async function presignGetObject(body: {
   filename: string;
   disposition: 'inline' | 'attachment';
 }): Promise<{ url: string; expiresAt: Date }> {
-  const config = getUploadRuntimeConfig();
+  const config = ROOT.upload;
   const fallbackName = encodeURIComponent(body.filename);
   const contentDisposition = `${body.disposition}; filename*=UTF-8''${fallbackName}`;
   const url = await getSignedUrl(

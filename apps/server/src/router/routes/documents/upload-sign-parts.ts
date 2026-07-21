@@ -1,4 +1,4 @@
-import { getUploadRuntimeConfig, ROOT_ERROR } from '@/configs/index.js';
+import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import {
   assertActiveSession,
   getFileRow,
@@ -6,7 +6,7 @@ import {
   presignUploadPart,
 } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
-import { adminPermissionKey } from '@repo/shared/permission';
+import { adminPermissionKey } from '@repo/shared';
 
 const { api } = routerHandler({
   url: '/documents/upload-sign-parts',
@@ -14,7 +14,7 @@ const { api } = routerHandler({
   permission: adminPermissionKey('actions.documents.upload'),
   handler: async ({ body, __token }) => {
     const session = await getOwnedSession(body.sessionId, __token.user_id);
-    const config = getUploadRuntimeConfig();
+    const config = ROOT.upload;
     assertActiveSession(session);
     if (session.mode !== 'multipart' || !session.upload_id || !session.part_count) {
       throw new ROOT_ERROR('非法参数', 'UPLOAD_PART_INVALID: 当前会话不是 Multipart');

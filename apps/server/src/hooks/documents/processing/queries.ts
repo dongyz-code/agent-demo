@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
 
-import { getFileProcessingRuntimeConfig, ROOT_ERROR } from '@/configs/index.js';
+import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import { getReadableFile } from '../files/index.js';
 import { ensureDocumentForFile } from '@/hooks/documents/index.js';
@@ -26,7 +26,7 @@ export async function createFileProcessingTask(
   input: CreateFileProcessingTaskInput,
   userId: string,
 ): Promise<FileProcessingTaskInfo> {
-  if (!getFileProcessingRuntimeConfig().enabled) {
+  if (!ROOT.fileProcessing.enabled) {
     throw new ROOT_ERROR(
       '服务异常',
       'FILE_PROCESSING_DISABLED: 新文件处理流程当前已关闭',

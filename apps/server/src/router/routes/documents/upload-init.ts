@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 
-import {
-  getFileProcessingRuntimeConfig,
-  getUploadRuntimeConfig,
-  ROOT_ERROR,
-} from '@/configs/index.js';
+import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import {
   abortMultipartUpload,
@@ -35,8 +31,8 @@ const { api } = routerHandler({
   handler: async ({ body, __token }) => {
     const defaultEnterRag =
       body.policyKey === 'rag-document' &&
-      getFileProcessingRuntimeConfig().enabled
-        ? getFileProcessingRuntimeConfig().defaultEnterRag
+      ROOT.fileProcessing.enabled
+        ? ROOT.fileProcessing.defaultEnterRag
         : false;
     const enterRag = body.enterRag ?? defaultEnterRag;
     if (enterRag && !body.datasetId) {
@@ -104,7 +100,7 @@ async function initUpload(input: UploadInitBody, userId: string) {
     return await buildInitResponse(existing);
   }
 
-  const config = getUploadRuntimeConfig();
+  const config = ROOT.upload;
   const now = new Date();
   const fileId = randomUUID();
   const sessionId = randomUUID();

@@ -5,8 +5,6 @@ import {
   ROOT_SCHEDULE,
   ROOT,
   PORT,
-  validateFileProcessingRuntimeConfig,
-  validateUploadRuntimeConfig,
 } from '@/configs/index.js';
 import { startupTableStructureSync } from '@/database/structure/index.js';
 import { getRoutes, callback } from '@/router/index.js';
@@ -24,8 +22,6 @@ logger.info(
 );
 
 async function createServer() {
-  validateUploadRuntimeConfig();
-  validateFileProcessingRuntimeConfig();
   await checkUploadBucket();
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
   await startupTableStructureSync();
@@ -78,7 +74,10 @@ async function createServer() {
 createServer();
 
 process.on('uncaughtException', (error) => {
-  logger.error({ event: 'process.uncaught_exception', err: error }, 'uncaught exception');
+  logger.error(
+    { event: 'process.uncaught_exception', err: error },
+    'uncaught exception',
+  );
 });
 process.on('unhandledRejection', (error) => {
   logger.error(

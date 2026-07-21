@@ -1,7 +1,7 @@
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 
-import { getUploadRuntimeConfig } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
 import { openStoredObject } from '../storage/index.js';
 
 import type { PreviewProvider } from './types.js';
@@ -16,7 +16,7 @@ export const textPreviewProvider: PreviewProvider = {
     return TEXT_TYPES.includes(contentType);
   },
   async getPreview(file) {
-    const config = getUploadRuntimeConfig();
+    const config = ROOT.upload;
     if (file.size > config.maxTextPreviewBytes) {
       return unsupportedText('文本超过在线预览大小上限');
     }

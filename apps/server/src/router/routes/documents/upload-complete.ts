@@ -1,9 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
-import {
-  getFileProcessingRuntimeConfig,
-  ROOT_ERROR,
-} from '@/configs/index.js';
+import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import {
   assertActiveSession,
@@ -37,7 +34,7 @@ const { api } = routerHandler({
     );
     const session = await getUploadSessionInfo(body.sessionId, __token.user_id);
     if (
-      getFileProcessingRuntimeConfig().enabled &&
+      ROOT.fileProcessing.enabled &&
       session.enterRag &&
       session.datasetId
     ) {

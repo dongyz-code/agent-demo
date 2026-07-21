@@ -11,7 +11,7 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 
-import { getUploadRuntimeConfig } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
 import { getInternalS3Client } from './client.js';
 
 import type { Readable } from 'node:stream';
@@ -166,7 +166,7 @@ export async function deleteStoredObject(body: {
 
 /** 检查配置 Bucket 是否可访问。 */
 export async function checkUploadBucket(): Promise<void> {
-  const config = getUploadRuntimeConfig();
+  const config = ROOT.upload;
   await getInternalS3Client().send(new HeadBucketCommand({ Bucket: config.bucket }));
 }
 

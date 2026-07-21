@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import axios from 'axios';
 
-import { getUploadRuntimeConfig } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
 import { putStoredObject } from '../storage/index.js';
 import { presignGetObject } from '../storage/index.js';
@@ -25,7 +25,7 @@ export const officePreviewProvider: PreviewProvider = {
     return OFFICE_TYPES.includes(contentType);
   },
   async getPreview(file, userId) {
-    const config = getUploadRuntimeConfig();
+    const config = ROOT.upload;
     if (!config.officePreviewEndpoint) {
       return {
         mode: 'unsupported',

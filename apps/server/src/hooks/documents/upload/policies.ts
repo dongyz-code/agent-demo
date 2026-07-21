@@ -1,4 +1,4 @@
-import { getUploadRuntimeConfig, ROOT_ERROR } from '@/configs/index.js';
+import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 
 import type { UploadPolicy } from './types.js';
 import type { UploadPolicyKey } from '@repo/types';
@@ -20,7 +20,7 @@ const RAG_DOCUMENT_TYPES = [
  * 策略只表达文件传输与存储限制，不包含知识库权限或解析流程。
  */
 export function listUploadPolicies(): Record<UploadPolicyKey, UploadPolicy> {
-  const config = getUploadRuntimeConfig();
+  const config = ROOT.upload;
   return {
     'default-attachment': {
       key: 'default-attachment',

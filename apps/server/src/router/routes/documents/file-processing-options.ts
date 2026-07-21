@@ -1,4 +1,4 @@
-import { getFileProcessingRuntimeConfig } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
 import { listRagDatasets } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
@@ -13,7 +13,7 @@ const { api } = routerHandler({
       __token.user_id,
     );
     return {
-      defaultEnterRag: getFileProcessingRuntimeConfig().defaultEnterRag,
+      defaultEnterRag: ROOT.fileProcessing.defaultEnterRag,
       datasets: result.list.map((dataset) => ({
         datasetId: dataset.datasetId,
         name: dataset.name,

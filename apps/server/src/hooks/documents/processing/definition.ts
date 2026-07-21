@@ -1,4 +1,4 @@
-import { getDocumentRuntimeConfig } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
 
 import type { FileProcessingStage } from '@repo/types';
 import type { DocumentSegmentProfile } from './pipeline/types.js';
@@ -35,7 +35,7 @@ export const FILE_PROCESSING_STAGES: readonly FileProcessingStage[] = [
 
 /** 返回默认结构化 Segment 配置。 */
 export function getDefaultSegmentProfile(): DocumentSegmentProfile {
-  const config = getDocumentRuntimeConfig();
+  const config = ROOT.document;
   return {
     version: `structure-v1-${config.segmentSizeTokens}-${config.segmentOverlapTokens}`,
     segmentSizeTokens: config.segmentSizeTokens,

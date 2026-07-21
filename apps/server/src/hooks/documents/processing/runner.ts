@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 
-import {
-  getFileProcessingRuntimeConfig,
-  logger,
-  ROOT_ERROR,
-} from '@/configs/index.js';
+import { logger, ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { countRows, db, schema } from '@/database/index.js';
 import { getErrorCode, stableParsedBlockId } from './ids.js';
 import { createDocumentSegments } from './pipeline/segment.js';
@@ -35,7 +31,7 @@ let draining = false;
 /** 启动持久化文件任务 worker，并恢复失去心跳的历史任务。 */
 export async function startFileProcessingWorker() {
   if (workerTimer) return;
-  const config = getFileProcessingRuntimeConfig();
+  const config = ROOT.fileProcessing;
   if (!config.enabled) return;
   await recoverStaleFileProcessingTasks();
   workerTimer = setInterval(notifyFileProcessingWorker, 2_000);
@@ -45,7 +41,7 @@ export async function startFileProcessingWorker() {
 
 /** 将失去心跳的执行中任务重置为可重新领取状态。 */
 export async function recoverStaleFileProcessingTasks() {
-  const config = getFileProcessingRuntimeConfig();
+  const config = ROOT.fileProcessing;
   const staleBefore = new Date(Date.now() - config.staleTaskSeconds * 1000);
   await db
     .update(schema.tasks)
@@ -98,7 +94,7 @@ async function drainFileProcessingTasks() {
   draining = true;
   try {
     const available =
-      getFileProcessingRuntimeConfig().workerConcurrency - activeTaskIds.size;
+      ROOT.fileProcessing.workerConcurrency - activeTaskIds.size;
     if (available <= 0) return;
     const tasks = await db
       .select({ taskId: schema.tasks.task_id })
