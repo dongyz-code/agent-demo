@@ -1,17 +1,17 @@
 ## Why
 
-项目需要完整的 MinIO 上传、文档处理与 RAG 知识库能力，但上传、文件预览、文档解析和知识库关联属于不同生命周期。将通用文件能力抽取到 `hooks/upload`，文档内容能力收口到 `hooks/document`，再由 `hooks/rag` 通过稳定 `documentId` 消费 ready 文档，可以提高复用性、可读性并避免 routes、S3 协议、解析逻辑和知识库语义相互渗透。
+项目需要完整的 MinIO 上传、文档处理与 RAG 知识库能力，但上传、文件预览、文档解析和知识库关联属于不同生命周期。相关复杂流程统一收敛在 `hooks/documents` 内并按功能分目录，普通单表查询和简单更新留在 route 直接使用 ORM，以避免 routes、S3 协议、解析逻辑和知识库语义相互渗透，也避免为普通 CRUD 增加薄封装。
 
 ## What Changes
 
-- 新增 `apps/server/src/hooks/upload` 通用上传模块，统一封装普通上传、S3 Multipart、断点续传、验证、文件引用、下载、删除和清理，不包含 RAG 业务概念。
+- 在 `apps/server/src/hooks/documents/upload` 收敛普通上传、S3 Multipart、断点续传、验证及文档版本绑定等复杂流程；上传会话列表和状态等普通查询直接归 route。
 - 新增通用文件预览和在线查看能力：PDF、图片、音视频、纯文本直接查看；Office 文件通过可插拔转换器生成 PDF；不可信主动内容采用隔离或强制下载。
-- 新增通用 upload/file routes，route handler 只负责 schema、认证、权限上下文和调用 hooks，不直接执行 S3 命令、数据库查询或状态迁移。
+- 新增通用 upload/file routes：会话列表、状态等普通查询直接使用 ORM；初始化、完成、Multipart 和对象验证等复杂状态流程调用 hooks，route 不直接执行 S3 内部命令。
 - 新增管理端可复用上传和文件查看组件，使用 Uppy Core + AWS S3 插件管理上传调度，同时复用项目现有 Vue UI 风格。
-- 新增 `apps/server/src/hooks/document` 文档管理模块，只通过 `hooks/upload` 公开接口消费已验证文件，统一封装文档版本、解析器注册、标准化、Segment 和处理任务。
-- `apps/server/src/hooks/rag` 只管理知识库与文档关联，并通过 `hooks/document/index.ts` 消费 ready 文档，为后续 Embedding、索引、检索和评估保留明确边界。
+- 在 `apps/server/src/hooks/documents/document` 收敛复杂文档读取、版本切换和删除；解析、标准化与 Segment 归 `rag/pipeline`，不建立根公共入口。
+- 在 `apps/server/src/hooks/documents/rag` 收敛知识库文档关系、RAG 任务与 pipeline；知识库基础 CRUD 直接由 route 使用 ORM。
 - 上传完成只返回通用 `fileId`；管理端显式创建文档并加入知识库，上传模块不主动触发文档处理或 RAG。
-- 明确可读性约束：模块单向依赖、公开入口收口、routes 薄层、状态迁移显式、组件按交互单元拆分，并为新增函数和类型补充中文 TSDoc。
+- 明确可读性约束：普通 CRUD 直接 ORM，复杂或复用流程进入功能 hook，调用方精确导入、状态迁移显式、组件按交互单元拆分，并为新增函数和类型补充中文 TSDoc。
 - 完善管理端文件中心与知识库页面：提供通用文件、上传会话、分页文档、处理进度和可恢复上传入口，并让“上传 → 创建文档 → 加入知识库”的业务失败能够回到上传队列展示与重试。
 
 ## Capabilities
@@ -29,7 +29,7 @@
 
 ## Impact
 
-- 服务端形成 `hooks/upload`、`hooks/document`、`hooks/rag` 三层及对应 route 文件。
+- 服务端形成单一 `hooks/documents` 域及 document、upload、preview、rag、tasks、storage 功能目录；route 按复杂度选择直接 ORM 或精确导入业务函数。
 - PostgreSQL 新增通用文件、上传会话、上传分片、文件引用、派生文件、通用文档处理及知识库关联表。
 - `@repo/types` 新增上传、文件、预览、文档处理和知识库共享类型。
 - 管理端新增可复用上传队列、文件预览、在线查看、文件中心、上传会话和 RAG 文档管理组件。

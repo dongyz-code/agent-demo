@@ -564,6 +564,8 @@ function fileStageLabel(stage: string | null) {
     normalizing: '整理内容',
     segmenting: '生成知识片段',
     'rag-ingestion': 'RAG 接入',
+    'preview-converting': '生成预览页面',
+    'preview-publishing': '发布预览页面',
     completed: '已完成',
   };
   return stage ? labels[stage] ?? stage : '-';
@@ -578,8 +580,11 @@ onMounted(async () => {
   if (fileId) {
     taskForm.value = { ...taskForm.value, business_id: fileId };
   }
-  const processingOptions = await api('/documents/file-processing-options', {});
-  datasets.value = processingOptions.datasets;
+  const datasetResult = await api('/documents/dataset-list', {
+    status: ['active'],
+    limit: [0, 1000],
+  });
+  datasets.value = datasetResult.list;
   await Promise.all([
     getList(true),
     httpCache.user.get({ full: true }),

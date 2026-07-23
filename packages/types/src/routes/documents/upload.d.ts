@@ -1,5 +1,8 @@
 import type { ApiMultAction } from '../../common/index.js';
 
+/** 上传完成后创建新文档或向已有文档增加版本。 */
+export type DocumentUploadIntent = 'create-document' | 'create-version';
+
 /** 服务端注册的通用上传策略。 */
 export type UploadPolicyKey =
   | 'default-attachment'
@@ -27,20 +30,6 @@ export type StoredFileStatus =
   | 'rejected'
   | 'deleting'
   | 'deleted';
-
-/** 预览派生物处理状态。 */
-export type FileVariantStatus =
-  | 'pending'
-  | 'processing'
-  | 'ready'
-  | 'failed';
-
-/** 通用文件派生物类型。 */
-export type FileVariantType =
-  | 'thumbnail'
-  | 'preview-pdf'
-  | 'preview-html'
-  | 'extracted-text';
 
 /** 通用文件领域稳定错误码。 */
 export type UploadErrorCode =
@@ -95,8 +84,14 @@ export interface UploadSessionInfo {
   policyKey: UploadPolicyKey;
   /** 文件验证成功后是否自动创建 RAG 接入任务。 */
   enterRag: boolean;
-  /** 自动处理使用的目标知识库。 */
-  datasetId: string | null;
+  /** 上传完成后的文档绑定意图。 */
+  documentIntent: DocumentUploadIntent;
+  /** 新增版本时的目标文档标识。 */
+  documentId: string | null;
+  /** 新建文档时使用的显示名称。 */
+  documentName: string | null;
+  /** 自动处理使用的多个目标知识库。 */
+  datasetIds: string[];
   /** 自动处理使用的配置组合版本。 */
   processingConfigVersion: string | null;
   /** 当前传输模式。 */
@@ -121,6 +116,18 @@ export interface UploadSessionInfo {
   errorMessage: string | null;
 }
 
+/** 文档上传完成后的业务结果。 */
+export interface DocumentUploadResult {
+  /** 新建或新增版本所属的文档。 */
+  documentId: string;
+  /** 新建或复用的文档版本。 */
+  documentVersionId: string;
+  /** 文档内递增版本号。 */
+  version: number;
+  /** 本次请求是否创建了新版本。 */
+  created: boolean;
+}
+
 /** documents 域的上传接口集合。 */
 export type Upload = ApiMultAction<{
   init: {
@@ -137,10 +144,14 @@ export type Upload = ApiMultAction<{
       fingerprint: string;
       /** 客户端请求幂等键。 */
       idempotencyKey: string;
+      /** 已有文档标识；提供时表示上传新版本。 */
+      documentId?: string;
+      /** 新建文档显示名称；为空时使用文件名。 */
+      documentName?: string;
       /** 文件验证成功后是否自动进入 RAG 接入流程。 */
       enterRag?: boolean;
-      /** 自动处理使用的目标知识库。 */
-      datasetId?: string;
+      /** 自动处理使用的多个目标知识库。 */
+      datasetIds?: string[];
       /** 自动处理使用的配置组合版本。 */
       processingConfigVersion?: string;
     };
@@ -189,7 +200,7 @@ export type Upload = ApiMultAction<{
       /** Multipart 模式需要提交的分片清单；普通上传省略。 */
       parts?: Pick<UploadedPartInfo, 'partNumber' | 'etag'>[];
     };
-    resp: StoredFileInfo;
+    resp: DocumentUploadResult;
   };
   abort: {
     body: { sessionId: string };

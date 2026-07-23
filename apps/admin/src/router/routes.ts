@@ -85,7 +85,7 @@ export const routes: RouteItem<RouteName, Meta>[] = [
           {
             path: 'management',
             name: 'file.management',
-            component: () => import('@/pages/file/management/index.vue'),
+            component: () => import('@/pages/document/management/index.vue'),
             meta: {
               permissions: [adminPermissionKey('pages.documents.management')],
             },

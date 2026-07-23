@@ -6,14 +6,14 @@
   "scripts": {
     "build": "rimraf build && tsc && tsc-alias --outDir build",
     "dev": "tsx src/index.ts",
-    "lint": "tsc",
-    "test:documents": "tsx --test src/hooks/documents/tests/*.test.ts"
+    "lint": "tsc"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.2",
     "@ai-sdk/openai-compatible": "^3.0.1",
     "@aws-sdk/client-s3": "^3.1085.0",
     "@aws-sdk/s3-request-presigner": "^3.1085.0",
+    "@napi-rs/canvas": "^0.1.80",
     "@repo/configs": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/types": "workspace:^",
@@ -23,6 +23,7 @@
     "drizzle-orm": "^0.45.2",
     "file-type": "^21.3.4",
     "marked": "^18.0.6",
+    "pdfjs-dist": "5.4.394",
     "pg": "^8.20.0",
     "sanitize-html": "^2.17.6",
     "sharp": "^0.35.3",

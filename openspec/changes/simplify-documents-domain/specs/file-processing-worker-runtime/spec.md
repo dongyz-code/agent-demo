@@ -61,12 +61,12 @@ worker MUST 在任务执行期间按小于 `staleTaskSeconds` 的固定间隔更
 - **THEN** worker MUST NOT 保存解析结果或启动后续阶段
 
 ### Requirement: worker 内部控制面不得公开
-域外调用方 MUST 只能启动 worker 或通过创建任务通知调度，不得从根 documents API 直接调用 stale 恢复、单任务执行、claim、runStage 或持久化函数。
+域外调用方 MUST 只能精确导入 worker 启动函数或通过业务任务创建通知调度，不得调用 stale 恢复、单任务执行、claim、runStage 或持久化函数。
 
 #### Scenario: 检查根出口
-- **WHEN** 开发者查看 `hooks/documents/index.ts`
-- **THEN** 根出口 MAY 暴露 `startFileProcessingWorker` 和任务创建/查询用例
-- **THEN** 根出口 MUST NOT 暴露 `recoverStaleFileProcessingTasks`、`runFileProcessingTask` 或其他内部控制函数
+- **WHEN** 开发者查看 server 与 routes 的 import
+- **THEN** server MAY 从 worker 文件导入 `startFileProcessingWorker`
+- **THEN** routes MUST NOT 导入 `recoverStaleFileProcessingTasks`、`runFileProcessingTask` 或其他内部控制函数
 
 ### Requirement: worker runtime 必须覆盖并发与恢复测试
 服务端测试 MUST 覆盖原子领取、周期 heartbeat、lease 丢失、stale 恢复、pending stage 终结、取消和从头重试。测试 MUST 使用可控时钟或短 heartbeat 配置，不能依赖长时间真实等待。

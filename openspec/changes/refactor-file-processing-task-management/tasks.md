@@ -15,20 +15,20 @@
 - [x] 2.6 更新数据库表注册、共享模型类型和表结构测试
 - [x] 2.7 为历史任务迁移或兼容查询实现可重复执行的数据转换脚本与校验报告
 
-## 3. 文件域目录与公共入口
+## 3. Documents 功能目录与调用边界
 
-- [x] 3.1 创建 `apps/server/src/hooks/file` 目录、公共 `index.ts`、领域类型、错误和 README
-- [x] 3.2 将现有上传、存储、验证、会话和策略能力迁入 `hooks/file/upload`，保持功能与测试行为不变
-- [x] 3.3 将文件查询、引用、下载、删除和清理能力迁入 `hooks/file/files`
-- [x] 3.4 将预览注册表、直接预览、图片、文本和 Office 预览迁入 `hooks/file/preview`
-- [x] 3.5 将文档、版本、解析器、标准化和 Segment 能力迁入 `hooks/file/content`
-- [x] 3.6 将知识库和文件关联能力迁入 `hooks/file/knowledge`
-- [x] 3.7 使用临时兼容出口转发旧 `hooks/upload`、`hooks/document` 和 `hooks/rag` 导入，并阻止新增跨旧目录依赖
-- [x] 3.8 为新文件域公共出口补齐中文 TSDoc、依赖边界测试和 README 调用示例
+- [x] 3.1 创建 `apps/server/src/hooks/documents` 功能目录和 README，不建立根公共入口
+- [x] 3.2 将上传、验证、会话和策略能力归入 `hooks/documents/upload`，对象存储原语归入内部 `storage`
+- [x] 3.3 将复杂文档查询、版本、删除和清理能力归入 `hooks/documents/document`
+- [x] 3.4 将页面查询、预览任务、转换器和 runner 归入 `hooks/documents/preview`
+- [x] 3.5 将解析器、标准化和 Segment 归入 `hooks/documents/rag/pipeline`
+- [x] 3.6 将知识库文档关系与 RAG 任务归入 `hooks/documents/rag`，知识库基础 CRUD 直接归 route
+- [x] 3.7 删除旧 `hooks/file`、`hooks/upload`、`hooks/document`、`hooks/rag` 兼容出口和根 barrel
+- [x] 3.8 更新中文 TSDoc、README 和边界审计，确认调用方精确导入且 routes 不访问内部原语
 
 ## 4. 文件处理任务定义
 
-- [x] 4.1 创建 `hooks/file/tasks/file-processing` 独立任务目录及 definition、service、runner、types 和 stages 结构
+- [x] 4.1 将领取、lease、阶段记录和 worker 公共运行时归入 `hooks/documents/tasks`，任务业务 runner 留在 preview 或 rag 功能目录
 - [x] 4.2 实现文件处理任务创建，写入通用任务主记录和文件任务扩展记录
 - [x] 4.3 实现活动任务幂等查询，重复请求返回已有任务而不是创建重复记录
 - [x] 4.4 实现文件任务持久化领取、状态条件更新和并发 worker 限制
@@ -63,8 +63,8 @@
 
 - [x] 7.1 扩展文件列表查询，聚合当前任务、执行次数、最后成功任务和知识库摘要
 - [x] 7.2 为文件聚合查询增加文件名、文件状态、处理状态、知识库和时间筛选
-- [x] 7.3 新增文件处理任务创建、详情、取消和重试 routes，handler 只调用文件域公共入口
-- [x] 7.4 调整上传和文件 routes 使用 `hooks/file/index.ts`，不得直接访问存储、数据表或任务内部实现
+- [x] 7.3 新增文件处理任务创建、详情、取消和重试 routes；普通状态操作直接 ORM，复杂创建与重试调用业务函数
+- [x] 7.4 上传和文件 routes 对普通查询直接使用 ORM，复杂流程精确导入业务函数，且不得访问存储或任务内部原语
 - [x] 7.5 为旧 document 与 dataset-document routes 增加兼容转发和弃用日志
 - [x] 7.6 更新 `@repo/types` 的文件列表、上传意图、文件任务、阶段和操作接口类型
 - [x] 7.7 增加 routes schema、权限和错误响应测试
@@ -110,7 +110,7 @@
 - [x] 11.3 增加功能开关，在新旧文件处理入口之间支持可回滚切换
 - [x] 11.4 停止管理端调用旧 document 和 dataset-document 处理流程并观察弃用日志
 - [x] 11.5 稳定后移除旧顶层 hook 实现和不再使用的页面组件、routes 与共享类型
-- [x] 11.6 运行依赖边界检查，确认新 routes 只导入 `hooks/file/index.ts` 或 `hooks/task/index.ts`
+- [x] 11.6 运行依赖边界检查，确认 routes 只直接 ORM 或精确导入稳定业务文件，不导入内部原语
 
 ## 12. 验证与文档
 

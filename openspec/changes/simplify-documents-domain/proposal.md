@@ -6,7 +6,7 @@
 
 - 保留单一 `hooks/documents` 域，不重新拆回 `hooks/upload`、`hooks/document`、`hooks/rag`，继续按 storage/upload/files/preview/processing/knowledge 职责组织。
 - 把域内依赖收敛为单向 DAG：子模块不得导入根 `documents/index.ts`，`files` 不再反向依赖 `processing`，消除 `files ↔ processing` 和根 barrel 循环。
-- 根 `index.ts` 改为显式公共 API，只导出 routes、server 和跨域任务中心实际使用的用例；S3 client、worker 内部控制函数、provider/parser 实现和纯内部 helper 不再通过根出口暴露。
+- 删除根 `index.ts` service locator；routes、server 和跨域任务中心精确导入所需业务文件，S3 client、worker 内部控制函数、provider/parser 实现和纯内部 helper 不对 route 暴露。
 - 删除确认无消费者的常量、类型和函数，合并仅承载少量类型、状态判断或转发导出的小文件；目标是减少无业务边界的文件，而不是机械追求最少文件数。
 - 保留有多个真实实现的 parser/preview provider 注册机制，以及 S3 internal/public signing client、commands、presign 的基础设施边界。
 - 将文件处理 runtime 明确为“数据库领取 + lease heartbeat + 进程失效后从头重试”，不再把仅含统计数量的 JSON 描述为可恢复 checkpoint。

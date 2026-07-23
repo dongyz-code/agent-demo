@@ -11,10 +11,10 @@
 - [x] 2.1 扩展 `ensureDocumentForFile` 输入，由 processing 显式传入 normalizer 与 segment profile 版本，移除 files 对 `processing/definition` 的依赖
 - [x] 2.2 将 knowledge 对根 `documents/index.ts` 的反向导入替换为允许方向上的文件/文档实现导入
 - [x] 2.3 将 processing 对根 `documents/index.ts` 的反向导入替换为 files 和 knowledge 的稳定实现导入
-- [x] 2.4 将根 `documents/index.ts` 改为按职责分组的显式命名导出，并保留所有现有域外消费者所需符号
-- [x] 2.5 从根出口移除 S3 client getter、具体 provider/parser、stale 恢复、单任务执行和其他内部控制函数
-- [x] 2.6 更新 documents routes、`server.ts` 和 sys task routes 的导入，确认域外代码仍只使用根入口且不存在深层导入
-- [x] 2.7 实现依赖边界测试，覆盖域内禁止导入根入口、files 禁止依赖 processing、允许依赖 DAG 和域外禁止深层导入
+- [x] 2.4 删除根 `documents/index.ts`，让域外消费者精确导入功能明确的业务文件
+- [x] 2.5 确认 routes 不导入 S3 client、File 行、具体 provider/parser、stale 恢复和单任务执行等内部原语
+- [x] 2.6 更新 documents routes、`server.ts` 和 sys task routes：普通查询直接 ORM，复杂流程精确导入业务文件
+- [x] 2.7 校验域内不依赖根 barrel、File 不反向依赖任务运行时、routes 不导入内部原语
 - [x] 2.8 运行服务端类型检查和依赖边界测试，确认循环边全部消失且服务启动导入正常
 
 ## 3. Worker 与 Runner 职责拆分
@@ -26,7 +26,7 @@
 - [x] 3.5 heartbeat 更新失败或条件不匹配时标记 lease 丢失，并在每个外部动作返回后、结果持久化前再次校验
 - [x] 3.6 在 stale 恢复事务中终结遗留 pending stage run，写入稳定 worker 失效错误码和结束时间后重置任务
 - [x] 3.7 停止把 `{ processedItems }` 写成可恢复 checkpoint，明确新 attempt 始终从 reading 阶段开始
-- [x] 3.8 收窄根出口，只公开 `startFileProcessingWorker` 与任务创建/查询用例，不公开 recover、claim、runStage 和单任务执行
+- [x] 3.8 server 精确导入 worker 启动函数，routes 只导入任务创建/查询用例，不公开 recover、claim、runStage 和单任务执行
 
 ## 4. Worker 行为测试
 
@@ -50,7 +50,7 @@
 
 ## 6. 文档与规格实态
 
-- [x] 6.1 重写 documents README 的实际目录、依赖 DAG、根公共 API、worker 从头重试和测试命令说明
+- [x] 6.1 重写 documents README 的实际目录、依赖 DAG、精确导入边界、worker 从头重试和验证命令说明
 - [x] 6.2 删除或重写过期 knowledge README，移除旧 `hooks/upload`/`hooks/document`/`hooks/rag` 与不存在的 `getReadyDocument`
 - [x] 6.3 移除 README 中不存在的 `content/`、`documents/`、`task-runtime/` 和 legacy/service 描述
 - [x] 6.4 重新核对 `consolidate-documents-domain` 已勾选任务与仓库实态，只有测试文件存在且命令实际通过的项目才能保持完成状态
@@ -61,6 +61,6 @@
 - [x] 7.1 运行 documents 依赖边界、纯函数、上传完成和 worker 全部聚焦测试
 - [x] 7.2 在具备 MinIO/数据库配置的测试环境运行完整上传、恢复、预览、处理、知识库关联和任务中心集成测试
 - [x] 7.3 运行 `pnpm --filter @repo/deploy-server lint` 与 `pnpm turbo lint`
-- [x] 7.4 静态确认域内不导入根入口、域外不深层导入、根出口无 `export *` 且六个死定义不存在
+- [x] 7.4 静态确认根出口已删除、调用方精确导入、routes 不导入内部原语且死定义不存在
 - [x] 7.5 核对 `/documents/*` 路径、DTO、权限键、错误码和对象 key 未发生变更，并完成管理端关键流程回归
 - [x] 7.6 运行 OpenSpec strict 校验，确认 proposal、specs、design、tasks 与实际交付结构一致

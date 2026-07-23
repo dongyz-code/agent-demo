@@ -14,9 +14,9 @@
 - 一个文件的一次预处理与 RAG 接入对应一个任务记录，任务拥有明确阶段、进度、结果、错误和执行序号。
 - 多文件上传按文件创建独立任务，允许并行执行且互不影响。
 - 复用并增强现有系统任务中心，统一展示文件任务和原有系统任务。
-- 将服务端职责收敛为文件域公共入口，每种任务按独立目录组织，避免顶层 hook 职责交叉。
+- 将服务端复杂流程收敛到单一 `hooks/documents` 域并按功能组织，普通查询和简单更新直接留在 route。
 - 保留现有文件、文档版本、解析块、Segment、知识库和历史任务数据，并提供渐进迁移方案。
-- 保持 routes 薄层、公开入口收口、状态迁移集中和完整中文 TSDoc。
+- 保持 route 与 hooks 按复杂度分工、调用方精确导入、状态迁移集中和完整中文 TSDoc。
 
 **Non-Goals:**
 
@@ -28,63 +28,49 @@
 
 ## Decisions
 
-### 1. 使用 `hooks/file` 作为统一文件域，而不是把所有逻辑继续塞入 `hooks/upload`
+### 1. 使用 `hooks/documents` 作为统一文档域，并按复杂度划分 route
 
 新的服务端边界：
 
 ```text
-routes/upload ───────────────▶ hooks/file/index.ts
-routes/file ─────────────────▶ hooks/file/index.ts
-routes/file-processing ──────▶ hooks/file/index.ts
-routes/rag-dataset ──────────▶ hooks/file/index.ts
+普通 CRUD route ─────────────▶ Drizzle ORM
+复杂文档 route ──────────────▶ hooks/documents/document
+上传 route ──────────────────▶ hooks/documents/upload
+预览 route ──────────────────▶ hooks/documents/preview
+RAG 文档 route ──────────────▶ hooks/documents/rag
+server ──────────────────────▶ hooks/documents/tasks/worker
 
-hooks/file ──────────────────▶ hooks/task/index.ts
-hooks/task ─X hooks/file internals
+routes ─X storage / File 行 / parser / worker 控制面
 ```
 
 建议目录：
 
 ```text
-apps/server/src/hooks/file/
-├── index.ts
-├── types.ts
-├── errors.ts
-├── files/
-│   ├── service.ts
-│   └── references.ts
+apps/server/src/hooks/documents/
+├── document/
+│   ├── read.ts
+│   ├── version.ts
+│   └── remove.ts
 ├── upload/
-│   ├── service.ts
-│   ├── sessions.ts
+│   ├── init.ts
+│   ├── complete.ts
+│   ├── multipart.ts
+│   ├── session.ts
 │   ├── policies.ts
-│   ├── validation/
-│   └── storage/
+│   └── validators.ts
 ├── preview/
-├── content/
-│   ├── documents.ts
-│   ├── parsers/
-│   ├── normalization/
-│   └── segmentation/
-├── knowledge/
-│   ├── datasets.ts
-│   └── associations.ts
-└── tasks/
-    └── file-processing/
-        ├── index.ts
-        ├── definition.ts
-        ├── service.ts
-        ├── runner.ts
-        ├── types.ts
-        └── stages/
-            ├── read.ts
-            ├── parse.ts
-            ├── normalize.ts
-            ├── segment.ts
-            └── rag-ingestion.ts
+├── rag/
+│   ├── relations.ts
+│   ├── task.ts
+│   ├── runner.ts
+│   └── pipeline/
+├── tasks/
+└── storage/
 ```
 
-`upload` 仍然只处理传输、对象存储、验证、预览和清理，但它成为文件域内部子模块。原 `document` 的内容处理移动到 `content`，原 `rag` 的知识库与关联移动到 `knowledge`。这样满足统一入口，同时避免名为 `upload` 的目录承担与上传无关的全部业务。
+`document` 承载文档复杂读取、版本和删除，`upload` 承载上传状态与对象编排，`preview` 和 `rag` 承载各自任务及执行器，`tasks` 只提供共享运行时，`storage` 只提供域内对象能力。目录不提供根 barrel，route 精确导入业务文件。
 
-备选方案是保留三个顶层 hook，仅新增编排层。该方案改动较小，但会继续存在多个公共入口和状态来源，无法解决当前“代码追踪混乱”的主要问题，因此不采用。
+普通单表查询、分页和简单条件更新不建立同名 hook。复用业务、多表事务、状态迁移、对象存储、复杂聚合和后台执行才进入 `hooks/documents`；引用次数不是唯一条件，单入口复杂流程仍可保留业务函数。
 
 ### 2. 一个文件的一次完整处理只创建一个任务
 
@@ -294,4 +280,3 @@ apps/admin/src/pages/system/task/
 - “上传后进入 RAG”的默认值应放在全局配置、租户配置还是用户偏好；建议首期使用服务端全局配置并允许单次覆盖。
 - 知识库创建和配置入口是否继续保留独立轻量页面；本 change 只移除独立的 RAG 文档操作流程，不删除知识库实体管理能力。
 - 历史 `document_processing_jobs` 是一次性迁移为通用任务，还是只读兼容展示；建议数据量确认后优先一次性迁移。
-

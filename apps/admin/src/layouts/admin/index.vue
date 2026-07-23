@@ -38,7 +38,7 @@ const _menuItems: MenuItem<RouteName>[] = [
     ],
   },
   {
-    label: '文件中心',
+    label: '文档中心',
     icon: LucideFolderOpen,
     children: [helperRouterName('file.management')],
   },

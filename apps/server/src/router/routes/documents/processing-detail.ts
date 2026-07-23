@@ -1,4 +1,4 @@
-import { getFileProcessingTask } from '@/hooks/documents/index.js';
+import { getFileProcessingTask } from '@/hooks/documents/tasks/detail.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 

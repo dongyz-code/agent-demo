@@ -55,10 +55,10 @@ export function useUploader(options: UploaderOptions) {
   /** 重试单个失败文件。 */
   async function retry(fileId: string) {
     const file = uppy.getFile(fileId);
-    const storedFile = file?.meta.storedFile;
-    if (file && storedFile) {
+    const documentResult = file?.meta.storedFile;
+    if (file && documentResult) {
       try {
-        await options.onUploaded?.(storedFile);
+        await options.onUploaded?.(documentResult);
         uppy.setFileState(fileId, {
           error: null,
           progress:
@@ -80,7 +80,7 @@ export function useUploader(options: UploaderOptions) {
                 },
           response: {
             status: 200,
-            body: { file: storedFile },
+            body: { file: documentResult },
           },
         });
       } catch (error) {

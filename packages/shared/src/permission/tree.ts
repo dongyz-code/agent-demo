@@ -248,26 +248,26 @@ export const adminPermissionTree = [
       },
       {
         key: 'pages.documents',
-        label: '文件中心',
+        label: '文档中心',
         type: 'group',
         icon: 'folder',
         children: [
           {
             key: 'pages.documents.management',
-            label: '文件管理',
+            label: '文档管理',
             type: 'page',
             icon: 'files',
             route: 'file.management',
             children: [
               {
                 key: 'actions.documents.upload',
-                label: '上传文件',
+                label: '上传文档',
                 type: 'button',
                 icon: 'upload',
               },
               {
                 key: 'actions.documents.view',
-                label: '查看文件',
+                label: '查看文档',
                 type: 'button',
                 icon: 'eye',
               },

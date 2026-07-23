@@ -13,7 +13,7 @@
 **Goals:**
 
 - 保留 documents 单域，同时让域内依赖成为可测试的单向图。
-- 把根公共 API 从 wildcard service locator 收敛为显式 use-case 列表。
+- 删除根 service locator，让调用方精确导入功能明确的业务文件。
 - 删除无消费者和单实现提前抽象，合并没有独立职责的小文件。
 - 保留 S3、preview provider、parser 与纯处理算法的真实边界。
 - 让 worker 的 claim、heartbeat、取消和进程失效重试语义与实现一致。
@@ -22,7 +22,7 @@
 **Non-Goals:**
 
 - 不恢复旧 upload/document/rag 顶层 hooks，也不建立新的跨域 service 层。
-- 不把每个 route 的单次业务流程搬成同名 service；route 直接业务逻辑约定保持不变。
+- 普通单表查询和更新直接使用 ORM；单入口复杂流程仍可保留为业务函数。
 - 不实现阶段级业务 checkpoint、外部队列、分布式调度器或 exactly-once 执行。
 - 不修改 `/documents/*` API、DTO、权限键、错误码和管理端页面。
 - 不在本变更删除数据库表、增加外键或修改列；这些由 `simplify-database-schema` 负责。
@@ -40,20 +40,20 @@ storage ─────▶ files ─────▶ knowledge ─────▶
    └────────▶ preview             └───────────────┘
 
 upload 仅包含策略、会话判断、对象 key 和验证纯逻辑
-routes/server ─▶ documents/index.ts（唯一域外入口）
+routes/server ─▶ 精确业务文件或局部 ORM
 ```
 
 箭头表示“被右侧依赖”。processing 可以使用 files 和 knowledge；knowledge 可以使用文件/文档查询；files 只能依赖 storage，不能读取 processing 配置。当前 `ensureDocumentForFile` 需要 normalizer 和 segment profile 的问题通过显式输入版本信息解决，由 processing 构造输入，files 不再反向读取 processing definition。
 
-域内允许直接导入稳定实现文件，不再强制每个子目录都建一个 `index.ts`。边界由允许方向和根入口测试保证，而不是靠多层 barrel 表达。
+域内允许直接导入稳定实现文件，不再强制每个子目录都建一个 `index.ts`。边界由功能依赖方向、精确 import 和静态审计保证，而不是靠多层 barrel 表达。
 
 备选方案是重新拆回三个顶层 hooks。否决原因是上传、文档和知识库仍属于同一用户流程，重新拆域不能解决循环和公共 API 过宽，只会恢复历史转发层。
 
-### 决策 2：根出口使用显式白名单
+### 决策 2：删除根出口并精确导入
 
-根 `index.ts` 按 storage/upload/files/preview/knowledge/processing 分组显式导出域外实际消费者需要的符号。S3 client getter、具体 provider/parser、`recoverStaleFileProcessingTasks`、`runFileProcessingTask`、纯内部转换与测试 helper 不进入白名单。
+根 `index.ts` 会模糊能力归属并容易再次暴露内部原语，因此删除。routes、server 和 sys task routes 从 `document`、`upload`、`preview`、`rag` 或 `tasks` 的稳定业务文件精确导入。
 
-所有 documents routes、`server.ts` 和 sys task routes 仍从根入口导入，域外不得深层导入。域内不得导入根入口，防止 root cycle。
+普通 route 直接 ORM；复杂流程调用功能文件。任何 route 不得导入 storage source、worker claim、阶段持久化或 parser 实现。
 
 备选方案是保留 `export *` 并依赖 TypeScript tree shaking。否决原因是服务端 ESM 不需要 bundle tree shaking来隐藏 API，wildcard 会让内部符号成为事实公共契约并掩盖循环。
 
@@ -63,7 +63,7 @@ routes/server ─▶ documents/index.ts（唯一域外入口）
 
 文件收敛方向：
 
-- 删除只做转发的六个子模块 `index.ts`，根出口直接显式引用实现。
+- 删除只做转发的六个子模块 `index.ts` 和根出口，调用方直接引用功能明确的业务实现。
 - `upload/state.ts` 合入会话 helper，`upload/types.ts` 的策略类型合入 policies，删除未使用预览别名。
 - validators 删除单实现 registry，保留 SHA-256 与可信 MIME 两个直接函数。
 - `files/types.ts` 合入查询文件；`processing/types.ts` 的输入和上下文分别归入 queries 与 runner。
@@ -94,7 +94,7 @@ preview 和 parser registry 保留，因为已经有多个真实实现；storage
 
 先建立服务端 documents 测试命令和以下覆盖，再调整 import 与文件：
 
-- 依赖边界：域外只导入根入口、域内不导入根入口、依赖方向不反转。
+- 依赖边界：调用方精确导入业务文件、域内不依赖根 barrel、routes 不导入内部原语且功能依赖方向不反转。
 - 上传完成：普通/Multipart、幂等、对象校验失败和自动创建任务。
 - worker：双实例 claim、heartbeat、lease 丢失、stale 恢复、stage 终结、取消。
 - 纯函数：对象 key、Multipart 计划、MIME 回退、normalize、segment。
@@ -103,7 +103,7 @@ MinIO 真实集成测试需要可选环境变量并在缺少环境时明确 skip
 
 ## Risks / Trade-offs
 
-- [显式根出口遗漏 route 依赖] → 先生成当前域外 import 清单，逐项迁移并由 TypeScript 检查兜底。
+- [精确导入遗漏依赖] → 逐项迁移并由 TypeScript 检查兜底。
 - [消除循环时改变初始化顺序] → 先增加边界和服务启动测试，再逐条替换 import，不在同一步重写业务逻辑。
 - [heartbeat 增加数据库写入] → 每个活跃任务只按安全间隔更新一行，间隔设置下限与上限，不跟随 2 秒 drain 频率。
 - [lease 丢失时外部请求仍继续] → 外部调用保持超时，返回后禁止提交；后续 parser 支持 AbortSignal 时再增加主动取消。
@@ -114,7 +114,7 @@ MinIO 真实集成测试需要可选环境变量并在缺少环境时明确 skip
 ## Migration Plan
 
 1. 增加 documents 测试入口、依赖边界测试和核心纯函数测试，记录当前行为基线。
-2. 将根 `index.ts` 改为显式导出，替换 knowledge/processing 对根出口的反向 import，并通过显式版本输入移除 files 对 processing 的依赖。
+2. 删除根 `index.ts`，让调用方精确导入业务文件，并移除 File 与任务运行时的反向依赖。
 3. 实现 worker/runner 两职责拆分、lease heartbeat、stale stage 终结和从头重试测试；保持 API 状态枚举不变。
 4. 删除无消费者定义，合并 upload/files/processing 小文件，删除六个子 barrel，逐批运行类型检查与测试。
 5. 更新 documents README，删除过期 knowledge README，核对所有目录/API/测试引用存在。

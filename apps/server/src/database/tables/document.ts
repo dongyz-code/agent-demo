@@ -1,18 +1,19 @@
 import {
+  bigint,
+  boolean,
   index,
   integer,
+  primaryKey,
   text,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
-import { baseCols, timestamptz, varchar255 } from './common-columns.js';
+import { baseCols, varchar255 } from './common-columns.js';
 import { pgTable, timestampsTrigger } from '../structure/index.js';
 
 import type {
-  DocumentBlockType,
-  DocumentProcessingStage,
-  DocumentProcessingStatus,
+  DocumentPreviewStatus,
   DocumentStatus,
 } from '@repo/types';
 
@@ -25,8 +26,13 @@ export const documents = pgTable(
     name: text('name').notNull(),
     /** 当前生效文档版本。 */
     active_version_id: uuid('active_version_id'),
-    /** 逻辑文档状态。 */
-    status: varchar255('status').$type<DocumentStatus>().notNull(),
+    /** 后续版本默认是否进入已关联知识库。 */
+    rag_enabled: boolean('rag_enabled').notNull().default(true),
+    /** 文档生命周期状态，不表达预览或 RAG 结果。 */
+    status: varchar255('status')
+      .$type<DocumentStatus>()
+      .notNull()
+      .default('active'),
     ...baseCols(),
   },
   (table) => [
@@ -49,14 +55,17 @@ export const document_versions = pgTable(
     version: integer('version').notNull(),
     /** 通用上传模块中的源文件标识。 */
     source_file_id: uuid('source_file_id').notNull(),
-    /** 当前处理状态。 */
-    status: varchar255('status').$type<DocumentStatus>().notNull(),
-    /** 解析器版本。 */
-    parser_version: varchar255('parser_version').notNull(),
-    /** 标准化器版本。 */
-    normalizer_version: varchar255('normalizer_version').notNull(),
-    /** Segment 配置版本。 */
-    segment_profile_version: varchar255('segment_profile_version').notNull(),
+    /** 页面预览处理状态。 */
+    preview_status: varchar255('preview_status')
+      .$type<DocumentPreviewStatus>()
+      .notNull()
+      .default('pending'),
+    /** 当前完整预览页面数量。 */
+    preview_page_count: integer('preview_page_count').notNull().default(0),
+    /** 最近一次预览失败的安全错误摘要。 */
+    preview_error: text('preview_error'),
+    /** 当前页面集合使用的转换器组合版本。 */
+    preview_converter_version: varchar255('preview_converter_version'),
     ...baseCols(),
   },
   (table) => [
@@ -64,8 +73,10 @@ export const document_versions = pgTable(
       table.document_id,
       table.version,
     ),
-    index('document_versions_source_file_idx').on(table.source_file_id),
-    index('document_versions_status_idx').on(table.status),
+    uniqueIndex('document_versions_source_file_unique').on(
+      table.source_file_id,
+    ),
+    index('document_versions_preview_status_idx').on(table.preview_status),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
       updateColumn: 'last_update_timestamp',
@@ -73,114 +84,32 @@ export const document_versions = pgTable(
   ],
 );
 
-export const document_processing_jobs = pgTable(
-  'document_processing_jobs',
+export const document_preview_pages = pgTable(
+  'document_preview_pages',
   {
-    /** 文档处理任务标识。 */
-    job_id: uuid('job_id').primaryKey(),
-    /** 所属文档版本。 */
+    /** 页面所属的不可变文档版本。 */
     document_version_id: uuid('document_version_id').notNull(),
-    /** 当前执行阶段。 */
-    stage: varchar255('stage').$type<DocumentProcessingStage>().notNull(),
-    /** 任务状态。 */
-    status: varchar255('status').$type<DocumentProcessingStatus>().notNull(),
-    /** 处理配置组合版本，用于任务幂等。 */
-    config_version: varchar255('config_version').notNull(),
-    /** 已处理项目数量。 */
-    processed_items: integer('processed_items').notNull().default(0),
-    /** 当前阶段总项目数量。 */
-    total_items: integer('total_items').notNull().default(0),
-    /** JSON checkpoint；只保存可恢复的轻量状态。 */
-    checkpoint: text('checkpoint'),
-    /** 稳定错误码。 */
-    error_code: varchar255('error_code'),
-    /** 错误摘要。 */
-    error_message: text('error_message'),
-    /** 开始执行时间。 */
-    start_timestamp: timestamptz('start_timestamp'),
-    /** 结束执行时间。 */
-    end_timestamp: timestamptz('end_timestamp'),
-    ...baseCols(),
+    /** 从 1 开始且在版本内连续的页码。 */
+    page_number: integer('page_number').notNull(),
+    /** 页面图片像素宽度。 */
+    width: integer('width').notNull(),
+    /** 页面图片像素高度。 */
+    height: integer('height').notNull(),
+    /** 服务端确认的页面图片 MIME。 */
+    content_type: varchar255('content_type').notNull(),
+    /** 页面图片字节数。 */
+    size: bigint('size', { mode: 'number' }).notNull(),
+    /** 私有页面对象所在 Bucket，仅供服务端使用。 */
+    bucket: varchar255('bucket').notNull(),
+    /** 私有页面对象路径，不得返回普通客户端。 */
+    object_key: text('object_key').notNull(),
   },
   (table) => [
-    uniqueIndex('document_processing_jobs_version_config_unique').on(
-      table.document_version_id,
-      table.config_version,
+    primaryKey({ columns: [table.document_version_id, table.page_number] }),
+    uniqueIndex('document_preview_pages_object_unique').on(
+      table.bucket,
+      table.object_key,
     ),
-    index('document_processing_jobs_status_stage_idx').on(
-      table.status,
-      table.stage,
-    ),
-    ...timestampsTrigger({
-      createColumn: 'create_timestamp',
-      updateColumn: 'last_update_timestamp',
-    }),
-  ],
-);
-
-export const document_processing_stage_runs = pgTable(
-  'document_processing_stage_runs',
-  {
-    /** 阶段执行记录标识。 */
-    stage_run_id: uuid('stage_run_id').primaryKey(),
-    /** 所属文档处理任务。 */
-    job_id: uuid('job_id').notNull(),
-    /** 执行阶段。 */
-    stage: varchar255('stage').$type<DocumentProcessingStage>().notNull(),
-    /** 同一阶段的执行次数。 */
-    attempt: integer('attempt').notNull(),
-    /** 阶段状态。 */
-    status: varchar255('status').$type<DocumentProcessingStatus>().notNull(),
-    /** 阶段处理数量。 */
-    processed_items: integer('processed_items').notNull().default(0),
-    /** 稳定错误码。 */
-    error_code: varchar255('error_code'),
-    /** 阶段错误摘要。 */
-    error_message: text('error_message'),
-    /** 阶段开始时间。 */
-    start_timestamp: timestamptz('start_timestamp').notNull(),
-    /** 阶段结束时间。 */
-    end_timestamp: timestamptz('end_timestamp'),
-  },
-  (table) => [
-    uniqueIndex('document_processing_stage_runs_attempt_unique').on(
-      table.job_id,
-      table.stage,
-      table.attempt,
-    ),
-    index('document_processing_stage_runs_job_idx').on(table.job_id),
-  ],
-);
-
-export const document_parsed_blocks = pgTable(
-  'document_parsed_blocks',
-  {
-    /** 稳定解析块标识。 */
-    block_id: uuid('block_id').primaryKey(),
-    /** 所属文档版本。 */
-    document_version_id: uuid('document_version_id').notNull(),
-    /** 块内容类型。 */
-    type: varchar255('type').$type<DocumentBlockType>().notNull(),
-    /** 解析文本。 */
-    content: text('content').notNull(),
-    /** JSON 标题路径。 */
-    heading_path: text('heading_path').notNull(),
-    /** 来源页码。 */
-    page: integer('page'),
-    /** 文档内顺序。 */
-    position: integer('position').notNull(),
-    /** JSON 类型专属元数据。 */
-    metadata: text('metadata').notNull(),
-    /** 解析器版本。 */
-    parser_version: varchar255('parser_version').notNull(),
-  },
-  (table) => [
-    uniqueIndex('document_parsed_blocks_version_position_unique').on(
-      table.document_version_id,
-      table.parser_version,
-      table.position,
-    ),
-    index('document_parsed_blocks_version_idx').on(table.document_version_id),
   ],
 );
 

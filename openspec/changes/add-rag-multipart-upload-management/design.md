@@ -2,44 +2,43 @@
 
 项目是 TypeScript ESM 的 pnpm/Turbo monorepo，服务端使用 Fastify route、Drizzle/PostgreSQL 和 `hooks` 业务模块，管理端使用 Vue/Vite。完整上传需要覆盖 MinIO 普通上传、Multipart、续传、文件验证、预览和清理；文档层需要完成解析、标准化和 Segment，RAG 再消费 ready 文档。
 
-上传与预览是通用基础设施。如果直接建在 `hooks/rag` 中，其他附件、头像、导入文件无法复用，RAG 也会被迫理解 uploadId、Bucket、签名和预览转换。设计最终采用三个清晰模块：`hooks/upload` 管理文件生命周期，`hooks/document` 管理文档内容生命周期，`hooks/rag` 管理知识库与后续检索语义。三者通过稳定 `fileId`、`documentId` 和公开 ready 文档接口连接。
+上传、预览、文档版本和 RAG 属于同一文档业务域中的不同功能边界。复杂或复用流程统一放在 `hooks/documents` 下的功能目录，普通单表查询和简单更新由 route 直接使用 ORM；File、S3、parser 和 worker 控制面只作为域内实现存在。
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- 在 `hooks/upload` 建立与业务无关的上传、验证、引用、预览、查看和清理能力。
+- 在 `hooks/documents/upload` 建立上传初始化、完成、Multipart、验证和文档版本绑定能力。
 - 支持 Uppy + AWS S3 Multipart 浏览器直传、断点恢复、取消和幂等完成。
 - 对 PDF、图片、音视频、文本和 Office 文件提供安全在线查看路径。
-- 在 `hooks/document` 建立统一解析器、标准化、Segment 和处理状态边界。
-- 在 `hooks/rag` 管理知识库及其文档关联，并为后续索引、检索和评估消费 ready 文档提供边界。
-- 保持 routes 薄层、模块单向依赖、组件职责清晰和完整中文 TSDoc。
+- 在 `hooks/documents/document` 管理复杂文档读取、版本和删除，在 `rag/pipeline` 管理解析、标准化与 Segment。
+- 在 `hooks/documents/rag` 管理知识库文档关系和 RAG 任务；知识库基础 CRUD 直接归 route。
+- 按查询复杂度划分 route 与 hooks，保持调用方精确导入、组件职责清晰和完整中文 TSDoc。
 
 **Non-Goals:**
 
 - 不让上传模块理解知识库、头像或附件等业务规则。
-- 不在 route handler 中实现 S3、预览或 RAG 流程。
+- 不在 route handler 中组合 S3、File 行、预览转换、RAG pipeline 或 worker 控制流程；普通局部 ORM 查询不受此限制。
 - 不允许前端持有 MinIO 长期凭证或拼接对象 URL。
 - 首期不实现 Office 在线编辑、复杂视频转码和跨区域对象存储容灾。
 - 本 change 不实现混合检索、Reranker 和回答评估闭环，只建立其上游文件、文档处理与知识库关联基础。
 
 ## Decisions
 
-### 1. 固定模块单向依赖
+### 1. 固定 route 与 documents 功能边界
 
 ```text
-routes/upload   ─▶ hooks/upload
-routes/file     ─▶ hooks/upload
-routes/document ─▶ hooks/document ─▶ hooks/upload/index.ts
-routes/rag      ─▶ hooks/rag      ─▶ hooks/document/index.ts
+普通 CRUD route ─────────────▶ Drizzle ORM
+复杂文档 route ──────────────▶ hooks/documents/document
+上传 route ──────────────────▶ hooks/documents/upload
+预览 route ──────────────────▶ hooks/documents/preview
+知识库文档 route ────────────▶ hooks/documents/rag
+server ──────────────────────▶ hooks/documents/tasks/worker
 
-hooks/upload   ─X hooks/document / hooks/rag
-hooks/document ─X hooks/rag
-routes         ─X S3 client / Drizzle tables
-hooks/rag      ─X hooks/upload / document internals
+routes ─X storage / File 行 / parser / worker 控制面
 ```
 
-`hooks/upload/index.ts` 只暴露初始化、签名、完成、查询、打开文件流、引用、下载、预览和删除等稳定入口。RAG 只能从该入口导入，不允许跨目录访问 `storage`、`validators` 或上传数据库实现。
+`hooks/documents` 不提供根 barrel。调用方精确导入功能明确的业务文件；出现复用、多表状态迁移、对象存储编排、复杂批量聚合或后台运行时才进入 hooks，不为普通 CRUD 建立同名 service。
 
 ### 2. 通用文件与不透明引用
 
@@ -71,7 +70,7 @@ role      = source
 
 ### 3. 上传策略替代业务条件分支
 
-`hooks/upload/policies.ts` 注册技术策略，例如：
+`hooks/documents/upload/policies.ts` 注册技术策略，例如：
 
 ```text
 default-attachment
@@ -100,38 +99,26 @@ apps/admin/src/components/upload/
 
 Uppy API 只存在于 adapter 和 composable，业务页面传入策略键及完成回调，避免依赖升级扩散。
 
-### 5. `hooks/upload` 按真实职责拆分
+### 5. 上传与存储按真实职责拆分
 
 ```text
-apps/server/src/hooks/upload/
-├── index.ts
-├── types.ts
-├── policies.ts
-├── errors.ts
-├── object-key.ts
-├── upload-service.ts
-├── file-service.ts
-├── reference-service.ts
-├── validation-service.ts
-├── preview-service.ts
-├── cleanup-service.ts
-├── storage/
-│   ├── client.ts
-│   ├── commands.ts
-│   └── presign.ts
-├── validators/
-│   ├── registry.ts
-│   ├── magic-number.ts
-│   └── checksum.ts
-└── preview/
-    ├── registry.ts
-    ├── direct.ts
-    ├── image.ts
-    ├── office.ts
-    └── text.ts
+apps/server/src/hooks/documents/
+├── upload/
+│   ├── init.ts
+│   ├── complete.ts
+│   ├── multipart.ts
+│   ├── session.ts
+│   ├── policies.ts
+│   ├── object-key.ts
+│   └── validators.ts
+└── storage/
+    ├── client.ts
+    ├── objects.ts
+    ├── presign.ts
+    └── source.ts
 ```
 
-纯计算函数独立保存，service 聚焦一个流程，公开入口在 `index.ts` 收口。不会为单行调用过度抽象，也不会把上传全流程放进巨型 `index.ts` 或 route 文件。
+纯计算函数只在确有复用时独立保存。上传业务函数负责完整状态流程，storage 只提供域内对象能力；不建立根或子模块 barrel，也不把 S3 编排散落到 route。
 
 ### 6. S3 Multipart 与双 Endpoint
 
@@ -236,56 +223,42 @@ apps/admin/src/components/file-viewer/
 
 业务页面只传 `fileId` 和关闭事件，不复制预览状态机。
 
-### 10. 文档与 RAG 分两步显式接入
+### 10. 上传完成以文档为中心接入
 
 ```text
-管理端完成通用上传
+管理端初始化文档上传并选择知识库
   ↓
-hooks/upload 返回 verified fileId
+hooks/documents/upload 完成并验证 File
   ↓
-管理端调用 /document/create(fileId)
+事务创建或追加 DocumentVersion
   ↓
-hooks/document 创建 documentVersion
+更新 Document.activeVersionId
   ↓
-hooks/upload.bindFile(document.version, versionId, source, fileId)
+创建预览任务
   ↓
-创建 document_processing_job 并产出 ready Segment
-  ↓
-管理端调用 /rag/dataset-document/add(datasetId, documentId)
-  ↓
-hooks/rag 创建知识库与文档关联
+按本次选择建立知识库关系并创建 RAG 任务
 ```
 
-通用上传成功不会自动创建文档或触发 RAG。若文档创建失败，文件保持未绑定并由保留期清理；若知识库关联失败，文档及处理产物仍可独立存在并重试关联。
+File 只作为 DocumentVersion 的内部源文件。客户端不再用 `fileId` 继续拼接文档流程；完成请求幂等返回 Document 与 Version，预览和 RAG 失败各自重试，不回滚已验证版本。
 
-### 11. `hooks/document` 统一处理流程
+### 11. `hooks/documents/rag` 统一内容处理流程
 
 ```text
-apps/server/src/hooks/document/
-├── index.ts
-├── types.ts
-├── errors.ts
-├── documents/
-├── processing/
-│   ├── service.ts
-│   └── runner.ts
-├── parsers/
-│   ├── registry.ts
-│   ├── types.ts
-│   ├── pdf.ts
-│   ├── office.ts
-│   ├── markdown.ts
-│   └── tabular.ts
-├── normalization/
-│   ├── normalize.ts
-│   └── types.ts
-└── segmentation/
-    ├── chunk.ts
-    ├── profiles.ts
+apps/server/src/hooks/documents/rag/
+├── assignment.ts
+├── relations.ts
+├── task.ts
+├── runner.ts
+├── config.ts
+└── pipeline/
+    ├── parsers/
+    ├── normalize.ts
+    ├── segment.ts
+    ├── ids.ts
     └── types.ts
 ```
 
-解析器接收通用文件描述和可重复读取的流工厂，输出统一 `ParsedBlock[]`。Docling、LibreOffice 或具体库类型不得越过 parser 边界。
+runner 通过 `storage/source` 接收可信文件描述和可读取流，解析器输出统一 `ParsedBlock[]`。Docling、LibreOffice 或具体库类型不得越过 parser 边界。
 
 处理阶段：
 
@@ -293,7 +266,7 @@ apps/server/src/hooks/document/
 queued → reading → parsing → normalizing → segmenting → ready
 ```
 
-每阶段记录配置版本、统计、产物和错误。Segment ID 由文档版本、策略版本、位置和内容 Hash 确定，重试不会重复插入。Embedding 和索引通过文档公共接口消费 ready Segment，不在解析器内部调用。
+每阶段记录配置版本、统计、产物和错误。Segment ID 由文档版本、策略版本、位置和内容 Hash 确定，重试不会重复插入。Embedding 和索引消费关系的 activeVersion 对应 Segment，不通过根公共接口，也不在解析器或 route 内调用。
 
 ### 12. 数据表边界
 
@@ -329,8 +302,8 @@ rag_dataset_documents
 
 ### 13. 可读性作为验收条件
 
-- routes 不出现 S3 命令、Drizzle 查询和跨阶段流程。
-- `hooks/upload` 不导入文档或 RAG；文档只从 `hooks/upload/index.ts` 导入；RAG 只从 `hooks/document/index.ts` 导入。
+- routes 可以直接包含局部 Drizzle 查询，但不出现 S3 命令、File 行映射、parser、worker 控制面或跨阶段流程。
+- `hooks/documents` 不建立根 barrel；routes、server 和域内调用方精确导入 document、upload、preview、rag、tasks 或 storage 中所需实现。
 - 页面负责入口和刷新；上传、预览、文档创建及任务详情拆成独立组件。
 - 共享文案、纯函数和类型放在邻近 `utils.ts`、`types.ts`，不使用通用工具隐藏页面专属流程。
 - 新增函数、方法、类、hook、常量、接口、类型、参数、返回值和字段添加清晰中文 TSDoc 或属性注释。
@@ -338,22 +311,22 @@ rag_dataset_documents
 - 对外错误使用稳定错误码，内部异常保留 cause 和上下文。
 - 文件职责变大时按流程边界拆分，避免巨型 service、index 和 Vue 页面。
 
-### 14. 上传、文档与 RAG 三层边界
+### 14. Documents 单域的功能边界
 
 ```text
-routes/upload   ─▶ hooks/upload
-routes/file     ─▶ hooks/upload
-routes/document ─▶ hooks/document ─▶ hooks/upload/index.ts
-routes/rag      ─▶ hooks/rag      ─▶ hooks/document/index.ts
-
-hooks/upload   ─X hooks/document / hooks/rag
-hooks/document ─X hooks/rag
-hooks/rag      ─X hooks/upload internals / document internals
+hooks/documents/
+├── document/   复杂读取、版本、删除与清理
+├── upload/     上传初始化、完成和 Multipart 编排
+├── preview/    页面查询、转换任务和 runner
+├── rag/        文档关系、任务、runner 和 pipeline
+├── tasks/      任务详情、worker、lease 和阶段运行时
+└── storage/    模块内部对象与源文件能力
 ```
 
-- `upload` 只回答“文件如何安全存储和访问”。
-- `document` 只回答“文件内容是什么、如何形成稳定版本与 Segment”。
-- `rag` 只回答“哪些文档属于知识库，以及如何索引、检索、生成和评估”。
+- `upload` 回答“上传如何安全完成并绑定文档版本”。
+- `document` 回答“文档如何聚合读取、形成版本和完成生命周期操作”。
+- `rag` 回答“文档如何解析为 Segment、属于哪些知识库，以及哪个版本参与检索”。
+- 普通知识库、上传会话和简单状态查询直接留在 route，不为目录对称建立薄函数。
 - 文档可加入多个知识库；知识库删除关联不得删除文档本身。
 - 解析块与 Chunk 从 RAG 命名空间移出，统一命名为文档块与 `DocumentSegment`，供摘要、审核和 RAG 等多个消费者复用。
 - PostgreSQL 文档表使用 `documents`、`document_versions`、`document_processing_jobs`、`document_processing_stage_runs`、`document_parsed_blocks` 和 `document_segments`；RAG 仅保留 `rag_datasets` 与 `rag_dataset_documents` 等知识库表。
@@ -379,11 +352,11 @@ hooks/rag      ─X hooks/upload internals / document internals
 
 ## Migration Plan
 
-1. 增加通用文件表、S3 配置和 `hooks/upload` 公共接口，先通过无业务消费者的上传集成验证。
+1. 增加通用文件表、S3 配置和 `hooks/documents/upload` 业务流程，先通过无业务消费者的上传集成验证。
 2. 完成 upload/file routes、管理端 Uppy 组件、文件列表、下载和直接预览。
 3. 接入缩略图和 Office 预览 Worker，启用派生物状态与清理。
-4. 建立 `hooks/document` 数据表和处理服务，通过 `fileId` 接入已验证文件。
-5. 实现解析器注册、统一块模型、标准化和 Segment，并建立 `hooks/rag` 知识库与文档关联。
+4. 建立 `hooks/documents/document` 的文档版本能力，通过域内源文件边界接入已验证 File。
+5. 在 `hooks/documents/rag` 实现解析器、统一块模型、标准化、Segment 和知识库文档关联。
 6. 启用过期 Multipart、未绑定文件、派生物和失败文档处理产物的定时清理与一致性巡检。
 7. 灰度开放上传与 RAG 入口；出现问题时关闭新 routes，保留已上传对象与任务状态用于恢复。
 

@@ -14,7 +14,10 @@ export type TaskTriggerMethod = 'manual' | 'auto';
 export type TaskCategory = 'system' | 'file-processing';
 
 /** 统一任务关联的业务对象类型。 */
-export type TaskBusinessType = 'file';
+export type TaskBusinessType = 'file' | 'document' | 'document-version';
+
+/** 文档版本任务类型；预览和 RAG 共用同一套任务与租约。 */
+export type DocumentProcessingTaskType = 'preview' | 'rag';
 
 /** 文件处理任务当前阶段。 */
 export type FileProcessingStage =
@@ -24,6 +27,8 @@ export type FileProcessingStage =
   | 'normalizing'
   | 'segmenting'
   | 'rag-ingestion'
+  | 'preview-converting'
+  | 'preview-publishing'
   | 'completed';
 
 /** 文件处理任务的创建来源。 */
@@ -158,7 +163,13 @@ export type TableStructureOpItem = {
   /** 操作类型：schema 重置或索引/触发器同步 */
   type: 'reset' | 'sync';
   /** 操作状态 */
-  status: 'planned' | 'running' | 'completed' | 'failed' | 'expired' | 'blocked';
+  status:
+    | 'planned'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'expired'
+    | 'blocked';
   /** schemaTables 中的表 key */
   table_key: string;
   /** PostgreSQL schema 名称 */

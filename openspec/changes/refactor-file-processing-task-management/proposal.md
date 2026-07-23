@@ -13,7 +13,7 @@
 - 增强现有“系统管理 / 任务管理”为统一任务中心，支持文件任务分类、等待/执行中/成功/失败统计、文件与知识库筛选、阶段进度、取消、重试和历史执行记录。
 - 文件列表展示是否进入 RAG、当前任务状态、当前阶段、累计执行次数、最后成功任务和所属知识库，并可跳转到已筛选的任务中心。
 - **BREAKING** 重构服务端文件业务边界：不再由管理端串联 `/document/create` 与 `/rag/dataset-document/add` 完成接入；改由文件处理任务统一编排，并逐步下线独立的管理端文档处理流程。
-- 重整 hook 目录，使用文件域公共入口承载文件生命周期与任务编排；上传存储能力保持为内部子模块，文档预处理和 RAG 阶段按任务目录组织，避免继续维护职责重叠的顶层 `upload`、`document`、`rag` 业务入口。
+- 重整 hook 目录，将复杂文档生命周期与任务编排收敛到 `hooks/documents` 的功能目录；普通查询和简单更新直接由 route 使用 ORM，不建立文件域公共入口或职责重叠的顶层 hook。
 
 ## Capabilities
 
@@ -30,7 +30,7 @@
 ## Impact
 
 - 管理端将调整 `apps/admin/src/pages/file/management`、上传组件、菜单、路由和现有 `apps/admin/src/pages/system/task`，独立 RAG 文档页面将被收敛或移除。
-- 服务端将重构 `apps/server/src/hooks/upload`、`apps/server/src/hooks/document`、`apps/server/src/hooks/rag` 和 `apps/server/src/hooks/task` 的入口与目录边界，并调整对应 routes。
+- 服务端将相关能力收敛到 `apps/server/src/hooks/documents` 的 document、upload、preview、rag、tasks、storage 功能目录，并让对应 routes 按复杂度直接 ORM 或精确导入业务函数。
 - PostgreSQL 需要统一文件处理任务与阶段记录，补充目标知识库、执行序号、触发方式、当前阶段、进度、错误和最后成功执行等查询能力。
 - `@repo/types` 需要新增文件管理聚合结果、文件处理任务、任务阶段和任务中心查询类型，并迁移现有 document/RAG 管理端接口类型。
 - 现有文件对象、文档版本、Segment、知识库及关联数据必须保留，重构不得要求重新上传文件；已有处理任务需要提供兼容查询或明确迁移策略。

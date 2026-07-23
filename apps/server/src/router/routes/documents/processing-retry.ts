@@ -1,8 +1,6 @@
 import { ROOT_ERROR } from '@/configs/index.js';
-import {
-  createFileProcessingTask,
-  getFileProcessingTask,
-} from '@/hooks/documents/index.js';
+import { createDocumentRagTask } from '@/hooks/documents/rag/task.js';
+import { getFileProcessingTask } from '@/hooks/documents/tasks/detail.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -24,9 +22,10 @@ const { api } = routerHandler({
         'FILE_PROCESSING_DATASET_REQUIRED: 原任务缺少目标知识库',
       );
     }
-    return await createFileProcessingTask(
+    return await createDocumentRagTask(
       {
-        fileId: source.fileId,
+        documentId: source.documentId,
+        documentVersionId: source.documentVersionId,
         datasetId: source.datasetId,
         processingConfigVersion: source.processingConfigVersion,
         triggerSource: source.status === 'failed' ? 'retry' : 'rerun',

@@ -21,8 +21,8 @@ export const routeNameMap = {
 
   /** ============ 文件中心相关 ============ */
 
-  file: '文件中心',
-  'file.management': '文件管理',
+  file: '文档中心',
+  'file.management': '文档管理',
 
   /** ============ RAG 管理相关 ============ */
 

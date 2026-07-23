@@ -8,10 +8,8 @@ import {
 } from '@/configs/index.js';
 import { startupTableStructureSync } from '@/database/structure/index.js';
 import { getRoutes, callback } from '@/router/index.js';
-import {
-  checkUploadBucket,
-  startFileProcessingWorker,
-} from '@/hooks/documents/index.js';
+import { checkUploadBucket } from '@/hooks/documents/storage/objects.js';
+import { startFileProcessingWorker } from '@/hooks/documents/tasks/worker.js';
 
 logger.info(
   {

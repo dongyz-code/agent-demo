@@ -12,8 +12,7 @@ import { baseCols, timestamptz, varchar255 } from './common-columns.js';
 import { pgTable, timestampsTrigger } from '../structure/index.js';
 
 import type {
-  FileVariantStatus,
-  FileVariantType,
+  DocumentUploadIntent,
   StoredFileStatus,
   UploadErrorCode,
   UploadMode,
@@ -77,8 +76,18 @@ export const file_upload_sessions = pgTable(
     policy_key: varchar255('policy_key').$type<UploadPolicyKey>().notNull(),
     /** 文件验证成功后是否自动创建 RAG 接入任务。 */
     enter_rag: boolean('enter_rag').notNull().default(false),
-    /** 自动处理使用的目标知识库。 */
-    dataset_id: uuid('dataset_id'),
+    /** 新建文档或向已有文档新增版本。 */
+    document_intent: varchar255('document_intent')
+      .$type<DocumentUploadIntent>()
+      .notNull(),
+    /** 新增版本时的目标文档；新建文档时为空。 */
+    document_id: uuid('document_id'),
+    /** 新建文档时使用的显示名称；为空时使用文件名。 */
+    document_name: text('document_name'),
+    /** 幂等唯一键使用的文档作用域：new 或目标 documentId。 */
+    document_scope: varchar255('document_scope').notNull(),
+    /** JSON 编码的多个目标知识库标识。 */
+    dataset_ids: text('dataset_ids').notNull().default('[]'),
     /** 自动处理使用的配置组合版本。 */
     processing_config_version: varchar255('processing_config_version'),
     /** 客户端文件指纹，用于刷新后匹配。 */
@@ -119,6 +128,7 @@ export const file_upload_sessions = pgTable(
     uniqueIndex('file_upload_sessions_idempotency_unique').on(
       table.create_user_id,
       table.policy_key,
+      table.document_scope,
       table.fingerprint,
       table.idempotency_key,
     ),
@@ -157,84 +167,5 @@ export const file_upload_parts = pgTable(
       table.part_number,
     ),
     index('file_upload_parts_session_idx').on(table.session_id),
-  ],
-);
-
-export const file_references = pgTable(
-  'file_references',
-  {
-    /** 文件引用记录标识。 */
-    reference_id: uuid('reference_id').primaryKey(),
-    /** 被引用的通用文件。 */
-    file_id: uuid('file_id').notNull(),
-    /** 不透明业务命名空间，例如 document.version。 */
-    namespace: varchar255('namespace').notNull(),
-    /** 业务资源标识，上传模块不解释其语义。 */
-    owner_id: varchar255('owner_id').notNull(),
-    /** 文件在业务资源中的角色，例如 source。 */
-    role: varchar255('role').notNull(),
-    ...baseCols(),
-  },
-  (table) => [
-    uniqueIndex('file_references_owner_role_file_unique').on(
-      table.namespace,
-      table.owner_id,
-      table.role,
-      table.file_id,
-    ),
-    index('file_references_file_id_idx').on(table.file_id),
-    index('file_references_owner_idx').on(table.namespace, table.owner_id),
-    ...timestampsTrigger({
-      createColumn: 'create_timestamp',
-      updateColumn: 'last_update_timestamp',
-    }),
-  ],
-);
-
-export const file_variants = pgTable(
-  'file_variants',
-  {
-    /** 文件派生物标识。 */
-    variant_id: uuid('variant_id').primaryKey(),
-    /** 来源通用文件。 */
-    source_file_id: uuid('source_file_id').notNull(),
-    /** 缩略图、PDF 预览等派生物类型。 */
-    variant_type: varchar255('variant_type').$type<FileVariantType>().notNull(),
-    /** 生成器稳定名称。 */
-    generator: varchar255('generator').notNull(),
-    /** 生成器版本，参与缓存键。 */
-    generator_version: varchar255('generator_version').notNull(),
-    /** 生成时使用的源文件 Hash。 */
-    source_hash: varchar255('source_hash').notNull(),
-    /** 派生物可信 MIME。 */
-    content_type: varchar255('content_type'),
-    /** 派生物字节数。 */
-    size: bigint('size', { mode: 'number' }),
-    /** 派生物所在 Bucket。 */
-    bucket: varchar255('bucket'),
-    /** 派生物对象路径。 */
-    object_key: text('object_key'),
-    /** 派生物处理状态。 */
-    status: varchar255('status').$type<FileVariantStatus>().notNull(),
-    /** 生成失败原因。 */
-    error_message: text('error_message'),
-    ...baseCols(),
-  },
-  (table) => [
-    uniqueIndex('file_variants_cache_unique').on(
-      table.source_file_id,
-      table.variant_type,
-      table.generator,
-      table.generator_version,
-      table.source_hash,
-    ),
-    index('file_variants_source_status_idx').on(
-      table.source_file_id,
-      table.status,
-    ),
-    ...timestampsTrigger({
-      createColumn: 'create_timestamp',
-      updateColumn: 'last_update_timestamp',
-    }),
   ],
 );

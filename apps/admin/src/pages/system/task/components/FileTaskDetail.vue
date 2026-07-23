@@ -105,6 +105,8 @@ const stageLabels: Record<FileProcessingStage, string> = {
   normalizing: '整理内容',
   segmenting: '生成知识片段',
   'rag-ingestion': 'RAG 接入',
+  'preview-converting': '生成预览页面',
+  'preview-publishing': '发布预览页面',
   completed: '已完成',
 };
 

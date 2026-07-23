@@ -1,6 +1,6 @@
 ## 1. 骨架与统一底座
 
-- [x] 1.1 创建 `hooks/documents` 目录、`index.ts`、`types.ts`、`README`，声明子模块边界与公共出口
+- [x] 1.1 创建 `hooks/documents` 目录与 `README`，声明功能边界和精确导入规则
 - [x] 1.2 不维护 documents 专属错误 `kind` 枚举，HTTP 语义直接由 `ROOT_ERROR` 注册键表达
 - [x] 1.3 保留 documents 域现有错误码字符串值兼容日志与管理端排查
 - [x] 1.4 不新增额外错误工厂，documents 域业务错误直接抛 `ROOT_ERROR`
@@ -31,7 +31,7 @@
 
 - [x] 4.1 按 `<resource>-<action>` 连字符规则确定 `file.*`/`document.*`/`upload.*`/`file-processing.*` → `documents/<resource>-<action>` 路由命名映射表（如 `file.detail`→`file-detail`、`file-processing.create`→`task-create`），补充到 design.md
 - [x] 4.2 把上述 route 文件迁入 `router/routes/documents/`
-- [x] 4.3 route handler 内联业务逻辑，删除仅被单处引用的 service 方法薄封装
+- [x] 4.3 普通 route 直接使用 ORM，复杂流程调用功能明确的业务函数，删除无业务价值的薄封装
 - [x] 4.4 route 直接改用 `ROOT_ERROR`，替换所有 `FileProcessingError`/`createDocumentError`/`createUploadError` 调用
 - [x] 4.5 `@repo/types` 路由类型从 `file.*`/`document.*`/`upload.*`/`file-processing.*` 迁移到 `documents.*`
 - [x] 4.6 管理端 API 调用一次性从 `/file/*`、`/document/*`、`/upload/*`、`/file-processing/*` 切换为 `/documents/*`，不保留兼容代理层

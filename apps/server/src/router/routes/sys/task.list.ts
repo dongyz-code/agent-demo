@@ -2,7 +2,7 @@ import { sqlList } from '@/hooks/task/index.js';
 import {
   enrichFileTaskList,
   findFileProcessingTaskIds,
-} from '@/hooks/documents/index.js';
+} from '@/hooks/documents/tasks/task-center.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 

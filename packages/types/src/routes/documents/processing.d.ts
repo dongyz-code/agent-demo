@@ -1,5 +1,6 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type {
+  DocumentProcessingTaskType,
   FileProcessingStage,
   FileProcessingTriggerSource,
   TaskStatus,
@@ -37,8 +38,12 @@ export interface FileProcessingStageRunInfo {
 export interface FileProcessingTaskInfo {
   /** 通用任务标识。 */
   taskId: string;
-  /** 被处理文件标识。 */
-  fileId: string;
+  /** 任务所属文档。 */
+  documentId: string;
+  /** 任务绑定的不可变文档版本。 */
+  documentVersionId: string;
+  /** 当前任务执行预览还是 RAG 处理。 */
+  taskType: DocumentProcessingTaskType;
   /** 文件显示名称。 */
   filename: string;
   /** 目标知识库标识。 */
@@ -85,17 +90,6 @@ export interface FileProcessingTaskDetail extends FileProcessingTaskInfo {
 
 /** documents 域的文件处理任务接口集合。 */
 export type FileProcessingAction = ApiMultAction<{
-  create: {
-    body: {
-      /** 被处理文件。 */
-      fileId: string;
-      /** 目标知识库。 */
-      datasetId: string;
-      /** 处理配置组合版本；未传时使用当前默认版本。 */
-      processingConfigVersion?: string;
-    };
-    resp: FileProcessingTaskInfo;
-  };
   detail: {
     body: { taskId: string };
     resp: FileProcessingTaskDetail;

@@ -1,7 +1,6 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { countRows, db, schema } from '@/database/index.js';
-import { toUploadSessionInfo } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -22,7 +21,28 @@ const { api } = routerHandler({
     );
     const [list, count] = await Promise.all([
       db
-        .select()
+        .select({
+          sessionId: schema.file_upload_sessions.session_id,
+          fileId: schema.file_upload_sessions.file_id,
+          policyKey: schema.file_upload_sessions.policy_key,
+          enterRag: schema.file_upload_sessions.enter_rag,
+          documentIntent: schema.file_upload_sessions.document_intent,
+          documentId: schema.file_upload_sessions.document_id,
+          documentName: schema.file_upload_sessions.document_name,
+          datasetIds: sql<string[]>`${schema.file_upload_sessions.dataset_ids}::jsonb`,
+          processingConfigVersion:
+            schema.file_upload_sessions.processing_config_version,
+          mode: schema.file_upload_sessions.mode,
+          status: schema.file_upload_sessions.status,
+          filename: schema.file_upload_sessions.filename,
+          size: schema.file_upload_sessions.size,
+          partSize: schema.file_upload_sessions.part_size,
+          partCount: schema.file_upload_sessions.part_count,
+          uploadedSize: schema.file_upload_sessions.uploaded_size,
+          expiresAt: schema.file_upload_sessions.expire_timestamp,
+          errorCode: schema.file_upload_sessions.error_code,
+          errorMessage: schema.file_upload_sessions.error_message,
+        })
         .from(schema.file_upload_sessions)
         .where(where)
         .orderBy(desc(schema.file_upload_sessions.create_timestamp))
@@ -32,7 +52,7 @@ const { api } = routerHandler({
         ? countRows(schema.file_upload_sessions, where)
         : Promise.resolve(0),
     ]);
-    return { list: list.map(toUploadSessionInfo), count };
+    return { list, count };
   },
 });
 

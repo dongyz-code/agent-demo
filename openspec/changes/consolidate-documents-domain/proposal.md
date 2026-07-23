@@ -1,12 +1,12 @@
 ## Why
 
-`refactor-file-processing-task-management` 的 tasks 虽已全部标记完成，但实际停在中间态：`hooks/file` 只是 `re-export` 转发壳，实现仍分散在 `hooks/upload`、`hooks/document`、`hooks/rag` 三个旧目录；新旧两套处理流水线都在跑（runner/service 逐字重复）；`file/errors.ts` 的 `FileProcessingError` 绕开统一 `ROOT_ERROR`，导致该域所有 `not-found`/`bad-request`/`conflict` 业务错误在 HTTP 层塌缩成 500；routes 散落在 `router/routes` 顶层且每个 route 只引用一个 service 方法。需要做真物理迁移，把实现真正归入单一 `documents` 域并下线旧目录，routes 收敛到 `documents` 下且最多两层，取消 route→service 薄封装让 route 直接写业务逻辑，并统一错误处理。
+`refactor-file-processing-task-management` 的 tasks 虽已全部标记完成，但实际停在中间态：`hooks/file` 只是 `re-export` 转发壳，实现仍分散在 `hooks/upload`、`hooks/document`、`hooks/rag` 三个旧目录；新旧两套处理流水线都在跑（runner/service 逐字重复）；`file/errors.ts` 的 `FileProcessingError` 绕开统一 `ROOT_ERROR`，导致该域业务错误在 HTTP 层塌缩成 500。需要做真物理迁移，把实现归入单一 `documents` 域并下线旧目录，同时让普通 CRUD 直接使用 ORM、复杂流程进入 hooks，并统一错误处理。
 
 ## What Changes
 
 - **BREAKING** 把 `hooks/upload`、`hooks/document`、`hooks/rag` 三目录的实现物理迁移到单一 `hooks/documents` 域，按子模块（storage/upload/files/preview/content/processing/knowledge）归位，删除三个旧目录与所有 `re-export` 兼容出口。
 - **BREAKING** 把散落在 `router/routes` 顶层的 `file.*`、`document.*`、`upload.*`、`file-processing.*` 路由全部收敛到 `router/routes/documents/` 下，路由名统一以 `/documents/` 为前缀且最多两层，route 文件名采用连字符 `<resource>-<action>.ts`（如 `file-detail.ts` → `/documents/file-detail`、`task-create.ts` → `/documents/task-create`）；前端与管理端一次性切换，不保留兼容代理层。
-- 取消 route→service 薄封装：route handler 直接编写业务逻辑（DB/存储/编排内联），不再为每个接口维护一个仅被单处引用的 service 方法；有状态的处理流水线 runner/worker 作为 runtime 保留，不视为 service 层。
+- 取消 route→service 薄封装：普通单表查询和简单更新由 route 直接使用 ORM；多表状态迁移、对象存储编排、复杂聚合和 runner/worker 作为 hooks 业务能力保留。
 - 统一错误处理：删除 `FileProcessingError`，所有 documents 域错误直接使用统一 `ROOT_ERROR`；不再维护额外领域错误工厂；修复 file 侧业务错误从 500 塌缩为正确 HTTP 状态码。
 - 退役旧 `document/processing` 流水线编排层（runner/service），统一走 file worker；抽取 `stableParsedBlockId`、`getErrorCode`、`runStage` 等重复函数为公共 helper。
 - 把 rag（知识库 dataset + 文档关联）并入 documents 域作为 `knowledge` 子模块，消除跨域转发。
@@ -17,7 +17,7 @@
 
 ### New Capabilities
 
-- `documents-domain`: documents 单一边界——upload/document/rag 实现归入单一域、子模块划分、旧三目录下线、rag 并入、route 内联业务无 service 中间层、处理流水线 runner 作为 runtime 保留。
+- `documents-domain`: documents 单一边界——upload/document/rag 实现归入单一域、旧三目录下线、普通 route 直接 ORM、复杂流程和处理 runtime 保留。
 - `documents-routing`: documents 域路由组织——所有文件/文档/上传/任务/知识库路由收敛到 `routes/documents/` 下、路由名以 `/documents/` 为前缀且最多两层、命名约定、前端 BREAKING 迁移。
 - `unified-domain-errors`: documents 域统一错误——直接使用 `ROOT_ERROR`、删除 `FileProcessingError` 与额外工厂层、HTTP 状态码语义正确传递。
 

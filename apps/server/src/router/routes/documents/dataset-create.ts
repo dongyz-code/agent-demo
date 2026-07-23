@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { toDatasetInfo } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -28,11 +27,17 @@ const { api } = routerHandler({
         last_update_user_id: __token.user_id,
         last_update_timestamp: now,
       })
-      .returning();
+      .returning({
+        datasetId: schema.rag_datasets.dataset_id,
+        name: schema.rag_datasets.name,
+        description: schema.rag_datasets.description,
+        status: schema.rag_datasets.status,
+        createdAt: schema.rag_datasets.create_timestamp,
+      });
     if (!created) {
       throw new Error('知识库创建失败');
     }
-    return toDatasetInfo(created);
+    return created;
   },
 });
 

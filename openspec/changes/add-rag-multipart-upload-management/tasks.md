@@ -2,7 +2,7 @@
 
 - [x] 1.1 在服务端配置类型和读取逻辑中增加 MinIO 内部 Endpoint、浏览器 Endpoint、区域、凭证、Bucket、签名时长、文件限制、Multipart 参数和清理周期，并补齐中文注释与启动校验
 - [x] 1.2 为服务端添加 AWS SDK v3 S3 客户端、预签名、文件类型检测、Hash、图片缩略图及安全文本处理依赖，为管理端添加 Uppy Core 与 AWS S3 插件，并运行 `pnpm pkg:sort`
-- [x] 1.3 创建 `apps/server/src/hooks/upload` 和 `apps/server/src/hooks/rag` 目录骨架、公开 `index.ts` 与模块 README，说明公开 API、调用流程和禁止依赖方向
+- [x] 1.3 在 `apps/server/src/hooks/documents` 下建立 upload、document、preview、rag、tasks、storage 功能目录和 README，不创建根 barrel
 - [x] 1.4 增加 MinIO 部署说明，配置私有 Bucket、受限 CORS、Range 暴露、未完成 Multipart 生命周期和浏览器可达域名
 
 ## 2. 通用文件共享类型与数据模型
@@ -24,7 +24,7 @@
 - [x] 3.4 封装 PutObject、CreateMultipartUpload、UploadPart 签名、ListParts、CompleteMultipartUpload、AbortMultipartUpload、HeadObject、GetObject 和 DeleteObject
 - [x] 3.5 实现 Bucket 健康检查和公共 Endpoint 启动检查，错误信息必须可定位但不得暴露 Secret Key
 
-## 4. `hooks/upload` 上传流程
+## 4. `hooks/documents/upload` 上传流程
 
 - [x] 4.1 实现上传初始化服务，校验策略、权限上下文、文件名称、大小和类型，按阈值返回普通或 Multipart 模式
 - [x] 4.2 实现初始化幂等，同一调用者、策略、文件指纹和幂等键重复请求返回原有效会话
@@ -61,7 +61,7 @@
 
 - [x] 7.1 新增上传初始化、分片签名、ListParts、完成、取消、状态和列表 routes，补齐 schema、共享类型和权限键
 - [x] 7.2 新增文件详情、预览、下载和删除 routes，验证租户、创建人或文件引用权限
-- [x] 7.3 确认所有通用 route handler 只调用 `hooks/upload/index.ts` 公开服务，不包含 S3 命令、Drizzle 查询和状态机分支
+- [x] 7.3 确认上传列表/状态等普通 route 直接 ORM，初始化、完成和 Multipart 流程调用上传业务函数且不组合 S3 内部原语
 - [x] 7.4 将 routes 纳入自动加载与路由类型生成，并验证错误响应不泄露 Object Key、uploadId、内部 Endpoint 和完整签名 URL
 
 ## 8. 管理端通用上传与文件查看组件
@@ -81,14 +81,14 @@
 - [x] 9.4 新增 `rag_parsed_blocks` 与 `rag_chunks`，为确定性标识、内容 Hash、父子关系和来源定位建立唯一约束与索引
 - [x] 9.5 注册 RAG 表并验证数据库结构、关系和类型检查
 
-## 10. `hooks/rag` 文档与摄取流程
+## 10. `hooks/documents/rag` 文档与摄取流程
 
-- [x] 10.1 实现知识库创建、列表、详情、更新和停用服务，知识库逻辑不得进入通用上传模块
-- [x] 10.2 实现使用 verified fileId 创建 RAG 文档版本的事务流程，并通过 `hooks/upload.bindFile` 建立源文件引用
+- [x] 10.1 在 route 使用 ORM 实现知识库创建、列表、详情、更新和停用，知识库普通 CRUD 不建立薄 service
+- [x] 10.2 在上传完成流程中使用 verified File 创建 DocumentVersion，并建立内部源文件引用
 - [x] 10.3 实现创建失败的文件引用补偿和文档删除时的引用释放，避免悬挂引用
 - [x] 10.4 实现摄取状态机、幂等任务创建、阶段 checkpoint 和失败重试入口
 - [x] 10.5 定义统一 RagParser 接口、ParsedBlock 类型与 parser 注册表，解析库专属类型不得越过适配层
-- [x] 10.6 通过 `hooks/upload` 文件描述与流工厂实现 PDF、Markdown/TXT、Office 和表格解析器适配器
+- [x] 10.6 通过 `hooks/documents/storage/source` 的内部文件描述与流实现 PDF、Markdown/TXT、Office 和表格解析器适配器
 - [x] 10.7 实现版本化标准化流程，处理 Unicode、空白、页眉页脚、OCR 噪声和主动内容，同时保留标题、表格及代码语义
 - [x] 10.8 实现版本化 Chunk profile 和结构化切分，支持 token 兜底、overlap、父块和确定性 Chunk ID
 - [x] 10.9 实现解析块与 Chunk 的幂等写入、旧处理版本保留和重建入口
@@ -96,7 +96,7 @@
 
 ## 11. RAG routes 与管理端页面
 
-- [x] 11.1 新增知识库创建、列表、详情、更新和停用 routes，route handler 只调用 `hooks/rag`
+- [x] 11.1 新增知识库创建、列表、详情、更新和停用 routes，普通 CRUD 直接使用 ORM
 - [x] 11.2 新增通过 fileId 创建文档、文档列表、详情、删除和重新摄取 routes
 - [x] 11.3 新增摄取任务列表、详情、阶段日志、重试和取消 routes，并补齐权限与共享路由类型
 - [x] 11.4 新增管理端知识库页面，搜索表单优先使用 `VSchemaForm mode="search"`，页面只管理筛选、列表和跨组件刷新
@@ -106,7 +106,7 @@
 
 ## 12. 可读性、测试与交付验证
 
-- [x] 12.1 增加依赖边界检查或 lint 约束，禁止 `hooks/upload` 导入 RAG、RAG 导入 upload 内部目录以及 routes 导入 S3 基础设施
+- [x] 12.1 增加依赖边界检查或静态审计，确认普通 route 直接 ORM、复杂流程精确导入业务文件，且 routes 不导入 S3、File 行或 worker 内部原语
 - [x] 12.2 为分片计算、Object Key、状态迁移、上传幂等、文件引用、预览选择、Parser 选择和 Chunk 确定性添加聚焦测试
 - [x] 12.3 使用本地 MinIO 验证普通上传、Multipart、签名续期、刷新恢复、取消、重复完成、下载、Range 和删除
 - [x] 12.4 验证 PDF、图片、Markdown、Office、不可信 HTML/SVG 和不支持类型的预览行为及权限撤销
@@ -115,14 +115,14 @@
 - [x] 12.7 运行服务端、管理端及共享包 lint/typecheck、相关测试和 `pnpm turbo lint`，修复本次变更问题
 - [x] 12.8 补充部署和开发文档，说明 MinIO、Uppy、预览 Worker、上传策略、模块公共接口、RAG parser 扩展和故障排查
 
-## 13. 上传、文档与 RAG 三层重构
+## 13. 文档域功能收敛
 
-- [x] 13.1 更新 OpenSpec proposal、design 和 capability，固定 `upload ← document ← rag` 单向依赖与数据所有权
+- [x] 13.1 更新 OpenSpec proposal、design 和 capability，固定 documents 单域的功能边界与数据所有权
 - [x] 13.2 新增 document 共享类型和 routes 类型，将文档、版本、处理阶段、解析块与 Segment 从 RAG 类型中解耦
 - [x] 13.3 将文档数据表重构为通用 `documents`、`document_versions`、`document_processing_*`、`document_parsed_blocks`、`document_segments`，并新增 `rag_dataset_documents` 关联表
-- [x] 13.4 创建 `hooks/document` 公共模块，迁移文档服务、parser、标准化、segmentation 和 processing，且只能依赖 `hooks/upload/index.ts`
-- [x] 13.5 收缩 `hooks/rag` 为知识库和文档关联服务，使其只通过 `hooks/document/index.ts` 消费文档，不直接访问上传和文档内部实现
-- [x] 13.6 新增 document routes，并将 RAG routes 调整为知识库与文档关联接口；所有 route handler 保持薄层
+- [x] 13.4 将复杂文档读取、版本和删除归入 `hooks/documents/document`，不建立根公共入口
+- [x] 13.5 将知识库文档关系、任务和 pipeline 归入 `hooks/documents/rag`，知识库基础 CRUD 由 route 直接使用 ORM
+- [x] 13.6 新增 document routes，并将 RAG routes 调整为知识库与文档关联接口；普通 CRUD 直接 ORM，复杂流程精确导入业务函数
 - [x] 13.7 调整管理端流程为“上传取得 fileId → 创建文档取得 documentId → 加入知识库”，保持弹窗组件职责清晰
 - [x] 13.8 更新依赖边界、确定性处理、文档复用、知识库关联和删除语义测试，并运行全部 lint、构建与 MinIO/PostgreSQL 集成测试
 

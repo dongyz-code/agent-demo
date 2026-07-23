@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 文档层仅消费已验证文件
-文档模块 MUST 通过 `hooks/upload` 公开接口接收和读取文件，不得直接访问 MinIO 客户端、通用上传表或上传内部文件。只有 `verified` 文件才能创建文档版本并启动处理。
+文档版本和 RAG runner MUST 通过 `hooks/documents/storage/source` 的内部能力接收和读取已验证文件，不得直接访问 MinIO 客户端，也不得把 File 行或对象存储原语暴露给 route。只有 `verified` 文件才能创建文档版本并启动处理。
 
 #### Scenario: 创建通用文档
 - **WHEN** 用户使用有效 `fileId` 创建文档版本
@@ -69,16 +69,16 @@
 - **WHEN** 发布新 Segment 配置版本
 - **THEN** 新任务使用新版本，旧结果保持可追溯并可选择重建
 
-### Requirement: 上传、文档与 RAG 路由分离
-文档 routes MUST 调用 `hooks/document` 管理文档和处理任务；RAG routes MUST 调用 `hooks/rag` 管理知识库与文档关联；上传 routes MUST 不得创建文档。管理端取得 `fileId` 后 MUST 显式创建文档，再将 `documentId` 加入知识库。
+### Requirement: 上传完成后以文档为中心编排
+上传初始化、完成与 Multipart 状态迁移 MUST 由 `hooks/documents/upload` 承载；上传完成后服务端 MUST 在同一业务流程中创建或追加 DocumentVersion，并按本次选择建立知识库关系。普通局部查询 MAY 由 route 直接使用 ORM。
 
 #### Scenario: 仅完成上传
-- **WHEN** 上传成功但尚未调用 RAG 接口
-- **THEN** 系统保留未绑定文件且不启动文档处理
+- **WHEN** 上传成功且本次关闭 RAG
+- **THEN** 系统仍创建文档版本，但不创建 RAG 任务
 
 #### Scenario: 显式创建并加入知识库
-- **WHEN** 客户端提交已验证 `fileId` 创建文档并将其加入知识库
-- **THEN** document route 创建文档，RAG route 仅创建知识库关联
+- **WHEN** 客户端完成带知识库选择的上传
+- **THEN** 服务端内部绑定已验证 File、创建文档版本并建立知识库关系
 
 ### Requirement: 进度与错误
 系统 MUST 记录读取、解析、标准化、Segment 和交接阶段的耗时、数量、可重试性和稳定错误码，并向管理端提供进度。日志不得记录完整文件内容。
@@ -88,11 +88,11 @@
 - **THEN** 系统记录阶段、解析器版本和可重试属性并按策略处理
 
 ### Requirement: 可读性和依赖边界
-实现 MUST 保持 `hooks/upload ← hooks/document ← hooks/rag` 单向依赖，公开能力通过各模块 `index.ts` 和明确类型暴露。新增函数、接口、参数、返回值和重要字段 MUST 使用中文 TSDoc，复杂状态和安全规则 MUST 说明原因。
+实现 MUST 集中在 `hooks/documents`，调用方精确导入功能明确的业务文件，不通过根 barrel 暴露 File、S3 或 worker 内部原语。新增函数、接口、参数、返回值和重要字段 MUST 使用中文 TSDoc，复杂状态和安全规则 MUST 说明原因。
 
 #### Scenario: 文档解析器打开文件流
 - **WHEN** 文档解析器需要读取源文件
-- **THEN** 它通过上传模块公开接口获取流而不是导入 S3 或查询通用文件表
+- **THEN** runner 通过 documents 域内部源文件能力构造解析输入，parser 不导入 S3，也不由 route 查询通用文件表
 
 #### Scenario: 新增解析器
 - **WHEN** 开发者新增一种解析器

@@ -1,6 +1,6 @@
 import type { ApiMultAction } from '../../common/index.js';
+import type { DocumentAction } from './document.js';
 import type { Rag } from './dataset.js';
-import type { FileAction } from './file.js';
 import type { FileProcessingAction } from './processing.js';
 import type { Upload } from './upload.js';
 
@@ -11,18 +11,22 @@ import type { Upload } from './upload.js';
  * 实体和辅助类型也统一从本目录出口对外暴露。
  */
 export type DocumentsAction = ApiMultAction<{
-  /** 文件上传与处理选项。 */
-  'file-processing-options': FileAction['processing-options'];
-  /** 文件详情。 */
-  'file-detail': FileAction['detail'];
-  /** 文件管理列表。 */
-  'file-list': FileAction['list'];
-  /** 文件预览。 */
-  'file-preview': FileAction['preview'];
-  /** 文件下载。 */
-  'file-download': FileAction['download'];
-  /** 文件删除。 */
-  'file-remove': FileAction['remove'];
+  /** 文档聚合搜索。 */
+  'document-search': DocumentAction['search'];
+  /** 文档详情与版本历史。 */
+  'document-detail': DocumentAction['detail'];
+  /** 设置当前展示版本。 */
+  'document-version-set-active': DocumentAction['version/set-active'];
+  /** 下载当前或指定文档版本。 */
+  'document-download': DocumentAction['download'];
+  /** 删除整个文档。 */
+  'document-remove': DocumentAction['remove'];
+  /** 更新文档默认 RAG 开关。 */
+  'document-rag-default-update': DocumentAction['rag-default/update'];
+  /** 查询当前或指定版本的页面窗口。 */
+  'document-preview-pages': DocumentAction['preview/pages'];
+  /** 重试当前或指定版本的预览。 */
+  'document-preview-retry': DocumentAction['preview/retry'];
   /** 初始化上传会话。 */
   'upload-init': Upload['init'];
   /** 签名上传分片。 */
@@ -37,8 +41,6 @@ export type DocumentsAction = ApiMultAction<{
   'upload-status': Upload['status'];
   /** 上传会话列表。 */
   'upload-list': Upload['list'];
-  /** 创建文件处理任务。 */
-  'processing-create': FileProcessingAction['create'];
   /** 文件处理任务详情。 */
   'processing-detail': FileProcessingAction['detail'];
   /** 取消文件处理任务。 */
@@ -61,23 +63,27 @@ export type DocumentsAction = ApiMultAction<{
   'dataset-document-list': Rag['dataset-document/list'];
   /** 从知识库移除文档。 */
   'dataset-document-remove': Rag['dataset-document/remove'];
+  /** 替换文档关联的完整知识库集合。 */
+  'dataset-document-update': Rag['dataset-document/update'];
 }>;
 
 /** 文档实体与内容类型；旧 `DocumentAction` 路由已下线。 */
 export type {
   DocumentStatus,
-  DocumentProcessingStage,
-  DocumentProcessingStatus,
+  DocumentPreviewStatus,
   DocumentBlockType,
+  DocumentVersionInfo,
+  DocumentPreviewPageInfo,
   DocumentInfo,
+  DocumentDetail,
+  DocumentPreviewWindow,
   DocumentParsedBlock,
   DocumentSegment,
+  DocumentAction,
 } from './document.js';
 
 /** 知识库实体与接口类型。 */
 export type * from './dataset.js';
-/** 文件实体与接口类型。 */
-export type * from './file.js';
 /** 文件处理任务实体与接口类型。 */
 export type * from './processing.js';
 /** 上传实体与接口类型。 */

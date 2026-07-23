@@ -20,17 +20,13 @@ import { apps, sys_conf } from './system.js';
 import { tasks } from './task.js';
 import {
   files,
-  file_references,
   file_upload_parts,
   file_upload_sessions,
-  file_variants,
 } from './file.js';
 import {
   documents,
+  document_preview_pages,
   document_versions,
-  document_processing_jobs,
-  document_processing_stage_runs,
-  document_parsed_blocks,
   document_segments,
 } from './document.js';
 import {
@@ -63,13 +59,9 @@ export const bootstrappedTableRegistry = [
   table_structure_ops,
   files,
   file_upload_parts,
-  file_references,
-  file_variants,
   documents,
   document_versions,
-  document_processing_jobs,
-  document_processing_stage_runs,
-  document_parsed_blocks,
+  document_preview_pages,
   document_segments,
   rag_datasets,
   rag_dataset_documents,

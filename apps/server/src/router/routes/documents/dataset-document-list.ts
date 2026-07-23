@@ -1,10 +1,8 @@
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import {
-  getDatasetRow,
-  listDocumentsByIds,
-} from '@/hooks/documents/index.js';
+import { searchDocuments } from '@/hooks/documents/document/read.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -13,27 +11,27 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('pages.documents.dataset'),
   handler: async ({ body, __token }) => {
-    await getDatasetRow(body.datasetId);
-    const links = await db
-      .select({ documentId: schema.rag_dataset_documents.document_id })
-      .from(schema.rag_dataset_documents)
-      .where(eq(schema.rag_dataset_documents.dataset_id, body.datasetId))
-      .orderBy(asc(schema.rag_dataset_documents.create_timestamp));
-    const documents = await listDocumentsByIds(
-      links.map((link) => link.documentId),
+    const [dataset] = await db
+      .select({ id: schema.rag_datasets.dataset_id })
+      .from(schema.rag_datasets)
+      .where(eq(schema.rag_datasets.dataset_id, body.datasetId))
+      .limit(1);
+    if (!dataset) {
+      throw new ROOT_ERROR(
+        '相关文件不存在',
+        'RAG_DATASET_NOT_FOUND: 知识库不存在',
+      );
+    }
+    return await searchDocuments(
+      {
+        search: body.search,
+        status: body.status,
+        datasetId: body.datasetId,
+        limit: body.limit,
+        withCount: body.withCount,
+      },
       __token.user_id,
     );
-    const search = body.search?.trim().toLocaleLowerCase();
-    const filtered = documents.filter(
-      (document) =>
-        (!search || document.name.toLocaleLowerCase().includes(search)) &&
-        (!body.status?.length || body.status.includes(document.status)),
-    );
-    const [start = 0, end = 20] = body.limit ?? [];
-    return {
-      list: filtered.slice(start, end),
-      count: body.withCount ? filtered.length : 0,
-    };
   },
 });
 

@@ -1,4 +1,4 @@
-import type { StoredFileInfo, UploadMode, UploadPolicyKey } from '@/types';
+import type { DocumentUploadResult, UploadMode, UploadPolicyKey } from '@/types';
 
 /** Uppy 文件上保存的通用上传会话元数据。 */
 export interface UploadFileMeta extends Record<string, unknown> {
@@ -18,14 +18,14 @@ export interface UploadFileMeta extends Record<string, unknown> {
   uploadHeaders?: Record<string, string>;
   /** 刷新后可复用的稳定文件指纹。 */
   fingerprint?: string;
-  /** 对象已完成服务端验证、但业务回调可能尚未成功时保存的文件。 */
-  storedFile?: StoredFileInfo;
+  /** 对象已完成验证并绑定文档后保存的业务结果。 */
+  storedFile?: DocumentUploadResult;
 }
 
 /** 管理端上传完成响应体。 */
 export interface UploadResponseBody extends Record<string, unknown> {
-  /** 服务端完成验证后的通用文件。 */
-  file?: StoredFileInfo;
+  /** 服务端完成验证和文档绑定后的结果。 */
+  file?: DocumentUploadResult;
   /** Uppy 兼容的可选位置字段，不作为业务访问地址。 */
   location?: string;
 }
@@ -46,8 +46,8 @@ export interface UploadQueueItem {
   complete: boolean;
   /** 上传或验证错误。 */
   error: string | null;
-  /** 完成后的通用文件。 */
-  storedFile?: StoredFileInfo;
+  /** 完成后的文档版本绑定结果。 */
+  storedFile?: DocumentUploadResult;
 }
 
 /** 通用上传器创建参数。 */
@@ -58,11 +58,15 @@ export interface UploaderOptions {
   maxNumberOfFiles?: number;
   /** 每次初始化上传会话时读取最新的文件处理意图。 */
   getProcessingIntent?: () => {
+    /** 已有文档标识；提供时上传新版本。 */
+    documentId?: string;
+    /** 新建文档显示名称。 */
+    documentName?: string;
     /** 文件验证成功后是否自动进入 RAG。 */
     enterRag: boolean;
-    /** 自动处理使用的目标知识库。 */
-    datasetId?: string;
+    /** 自动处理使用的多个目标知识库。 */
+    datasetIds?: string[];
   };
-  /** 文件完成验证后的业务回调；Promise 完成前队列项不会标记成功。 */
-  onUploaded?: (file: StoredFileInfo) => void | Promise<void>;
+  /** 文档版本创建后的业务回调；Promise 完成前队列项不会标记成功。 */
+  onUploaded?: (result: DocumentUploadResult) => void | Promise<void>;
 }

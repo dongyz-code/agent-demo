@@ -1,66 +1,52 @@
-# documents 域
+# documents 模块
 
-`hooks/documents` 是文件上传、文件管理、预览、文档处理、知识库和文件处理任务的单一业务域。域外代码统一从 `hooks/documents/index.ts` 使用公共用例；具体 HTTP 流程由 `router/routes/documents/` 直接编排。
+`hooks/documents` 只承载文档中心的复用业务、复杂查询、多表状态迁移、对象存储编排和后台任务。普通单表查询、分页和简单条件更新由 `router/routes/documents` 直接使用 ORM，不为它们建立 Repository 或薄 service。
 
-## 当前目录
+Document 是公共业务主体，DocumentVersion 表示不可变内容，File 只作为版本内部源对象存在。管理端文档业务使用 `documentId` 与可选 `documentVersionId`，不依赖 `fileId`。
 
-- `storage/`：S3 client、对象命令和预签名 URL，隔离内部连接与公共签名连接。
-- `upload/`：上传策略、会话查询、对象 key 和内容校验纯逻辑。上传流程不使用独立状态机，由 upload routes 按数据库会话状态直接处理。
-- `files/`：文件查询、文件信息转换，以及逻辑文档和 Segment 持久化。
-- `preview/`：direct、image、text、office 多实现预览 provider 及选择 registry。
-- `knowledge/`：知识库查询、更新和文档关联。
-- `processing/`：处理定义、任务查询、worker 调度、单任务 runner、任务中心富化和处理算法。
-- `tests/`：依赖边界、纯函数、上传完成、worker 和可选基础设施集成测试。
+## 目录职责
 
-## 依赖边界
+- `document/`：复杂文档搜索与详情、版本创建和切换、逻辑删除与异步清理。
+- `upload/`：上传初始化、完成、Multipart 操作、会话状态规则、策略和内容验证。
+- `preview/`：页面窗口、预览任务、页面转换器和 worker 执行体。
+- `rag/`：文档知识库关系、RAG 任务、版本发布和解析切分 pipeline。
+- `tasks/`：文档任务详情、任务中心补充查询、worker、lease 和阶段运行时。
+- `storage/`：模块内部 S3 client、对象命令、签名和文档源文件读取。
 
-域内依赖遵循以下方向：
+模块不维护根 `index.ts`。routes、server 和任务中心精确导入功能明确的业务文件，避免根 barrel 重新暴露 File 行、S3、parser 或 worker 内部控制函数。
+
+## 边界规则
+
+以下逻辑直接留在 route：
+
+- 知识库基础创建、列表、详情、更新和停用。
+- 上传会话列表与单会话状态。
+- 文档默认 RAG 开关等简单条件更新。
+- 任务取消等单表状态更新。
+
+以下逻辑进入 hooks：
+
+- 被多个入口复用的业务能力。
+- 多表事务、并发锁或状态机。
+- 数据库与对象存储、worker 的一致性编排。
+- 文档聚合、页面签名窗口和任务时间线等复杂查询。
+- 预览转换、RAG pipeline、lease 与后台执行。
+
+`searchDocuments` 是文档列表和知识库文档列表共用的复杂聚合查询。它在固定批量查询中返回当前版本源文件摘要、版本数量、封面和知识库状态；不得拆成 File ID 列表后逐条查询。
+
+## 依赖方向
 
 ```text
-storage ─────▶ files ─────▶ knowledge ─────▶ processing
-   │                              ▲               │
-   └────────▶ preview             └───────────────┘
-
-upload 独立提供策略、会话判断、对象 key 和验证逻辑
-routes/server ─▶ documents/index.ts
+routes ──普通查询/更新────────────▶ database
+routes ──复杂业务────────────────▶ document / upload / preview / rag / tasks
+upload ──────────────────────────▶ document + preview + rag + storage
+preview ─────────────────────────▶ document + storage + tasks
+rag ─────────────────────────────▶ document + storage + tasks
+tasks/worker ────────────────────▶ document cleanup + preview runner + rag runner
 ```
 
-箭头表示右侧模块可以依赖左侧模块。子模块不得反向导入根 `index.ts`，`files` 不得依赖 `processing`。域内按明确实现文件导入，不为每个子目录维护纯转发 barrel。
+routes 不得直接导入 `storage/source.ts`、S3 对象命令、parser、worker claim、lease 续租或阶段持久化函数。
 
-根 `index.ts` 使用显式白名单，仅公开以下域外用例：
+## 验证
 
-- 对象命令与预签名 URL。
-- 上传策略、会话、对象 key 和内容校验。
-- 文件/文档查询转换与预览 provider 选择。
-- 知识库查询、更新与文档关联。
-- 文件处理任务创建/查询、worker 启动和任务中心富化。
-
-S3 client、具体 preview/parser 实现、任务 claim、stale 恢复、单任务 runner 和阶段持久化均为内部实现，不通过根出口公开。
-
-## Worker 语义
-
-`processing/worker.ts` 负责定时 drain、并发容量、原子 claim、lease heartbeat、stale 恢复和调度；`processing/runner.ts` 负责单任务阶段顺序、取消检查与结果持久化。两者是不同运行时职责，不抽取通用 task runtime。
-
-任务执行期间通过 `task_id + pending + lease token` 条件续租。续租失败或状态不匹配后，当前执行器不得提交后续阶段或业务结果。stale 恢复会终结遗留 pending stage，并创建递增 attempt，从 reading 阶段重新执行；阶段统计不作为 checkpoint，也不会跳过处理阶段。
-
-`stableParsedBlockId` 仍用于 `document_parsed_blocks` 的确定性持久化。该表及其写入由独立的 `simplify-database-schema` 变更移除后，才可一并删除该函数。
-
-## 权限与兼容性
-
-本次收敛不改变 `/documents/*` 路径、请求响应 DTO、权限键、业务错误码和对象存储 key。`listDocumentsByIds`、`getDocument`、`listRagDatasets` 等既有查询中的 `userId` 参数暂不改变；补充数据范围过滤属于权限行为变更，需要单独设计和验证。
-
-## 测试
-
-运行全部 documents 聚焦测试：
-
-```bash
-pnpm --filter @repo/deploy-server test:documents
-```
-
-默认运行依赖边界、纯函数和 worker 单元测试；需要 PostgreSQL、MinIO 的用例在环境不完整时会明确跳过。配置集成环境后运行完整流程：
-
-```bash
-DOCUMENTS_INTEGRATION_TEST=1 pnpm --filter @repo/deploy-server test:documents
-```
-
-服务端类型检查使用 `pnpm --filter @repo/deploy-server lint`，全仓验收使用 `pnpm turbo lint`。
+服务端类型检查使用 `pnpm --filter @repo/deploy-server lint`，OpenSpec 使用 strict 校验，交付前同时运行 `git diff --check`。

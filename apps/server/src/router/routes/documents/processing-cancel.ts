@@ -2,7 +2,6 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schema } from '@/database/index.js';
-import { getFileProcessingTask } from '@/hooks/documents/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -11,7 +10,17 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.task.kill'),
   handler: async ({ body }) => {
-    await getFileProcessingTask(body.taskId);
+    const [task] = await db
+      .select({ id: schema.file_processing_tasks.task_id })
+      .from(schema.file_processing_tasks)
+      .where(eq(schema.file_processing_tasks.task_id, body.taskId))
+      .limit(1);
+    if (!task) {
+      throw new ROOT_ERROR(
+        '相关文件不存在',
+        'FILE_PROCESSING_TASK_NOT_FOUND: 文件处理任务不存在',
+      );
+    }
     const [updated] = await db
       .update(schema.tasks)
       .set({

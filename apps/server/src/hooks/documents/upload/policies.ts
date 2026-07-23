@@ -38,7 +38,7 @@ const RAG_DOCUMENT_TYPES = [
  *
  * 策略只表达文件传输与存储限制，不包含知识库权限或解析流程。
  */
-export function listUploadPolicies(): Record<UploadPolicyKey, UploadPolicy> {
+function listUploadPolicies(): Record<UploadPolicyKey, UploadPolicy> {
   const config = ROOT.upload;
   return {
     'default-attachment': {

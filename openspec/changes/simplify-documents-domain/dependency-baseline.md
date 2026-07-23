@@ -38,5 +38,6 @@ storage -> files -> knowledge -> processing
 
 upload: 只依赖配置、数据库和外部类型，不依赖其他 documents 子模块
 域内:   不得导入 documents/index.ts
-域外:   只能导入 documents/index.ts
+域外:   普通 route 直接使用 ORM，复杂流程精确导入功能明确的业务文件
+routes: 不得导入 storage、File 行、parser 或 worker 内部控制面
 ```

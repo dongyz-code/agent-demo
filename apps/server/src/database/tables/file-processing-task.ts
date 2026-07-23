@@ -11,6 +11,7 @@ import { baseCols, timestamptz, varchar255 } from './common-columns.js';
 import { pgTable, timestampsTrigger } from '../structure/index.js';
 
 import type {
+  DocumentProcessingTaskType,
   FileProcessingStage,
   FileProcessingTriggerSource,
   TaskStatus,
@@ -28,6 +29,11 @@ export const file_processing_tasks = pgTable(
     document_id: uuid('document_id'),
     /** 本次任务处理的文档版本。 */
     document_version_id: uuid('document_version_id'),
+    /** 同一扩展表承载的文档处理能力。 */
+    task_type: varchar255('task_type')
+      .$type<DocumentProcessingTaskType>()
+      .notNull()
+      .default('rag'),
     /** RAG 接入的目标知识库。 */
     dataset_id: uuid('dataset_id'),
     /** 同一文件从 1 开始递增的执行序号。 */
@@ -52,6 +58,10 @@ export const file_processing_tasks = pgTable(
       table.dataset_id,
     ),
     index('file_processing_tasks_document_idx').on(table.document_id),
+    index('file_processing_tasks_version_type_idx').on(
+      table.document_version_id,
+      table.task_type,
+    ),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
       updateColumn: 'last_update_timestamp',
@@ -99,4 +109,3 @@ export const file_processing_task_stage_runs = pgTable(
     index('file_processing_stage_status_idx').on(table.status),
   ],
 );
-

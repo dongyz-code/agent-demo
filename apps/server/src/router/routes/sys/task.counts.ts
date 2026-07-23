@@ -1,5 +1,5 @@
 import { sqlCounts } from '@/hooks/task/index.js';
-import { findFileProcessingTaskIds } from '@/hooks/documents/index.js';
+import { findFileProcessingTaskIds } from '@/hooks/documents/tasks/task-center.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
