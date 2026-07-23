@@ -8,7 +8,7 @@ export type { AiProvider };
  * 新增供应商时漏配模型，`ModelConfig` 的映射类型会直接编译报错。
  */
 interface AiProviderModels {
-  bailian: 'qwen3-max' | 'qwen3.5-flash' | 'qwen3.6-flash' | 'glm-5';
+  bailian: 'qwen3-max' | 'qwen3.5-flash' | 'qwen3.7-max' | 'glm-5.2';
 
   volcengine:
     | 'doubao-seed-1-8-251228'
