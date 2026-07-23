@@ -1,4 +1,4 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
@@ -14,20 +14,20 @@ const { api } = routerHandler({
 
     const list = await db
       .select({
-        id: schema.apps.id,
-        client_id: schema.apps.client_id,
-        client_secret: schema.apps.client_secret,
-        name: schema.apps.name,
-        desc: schema.apps.desc,
-        available: schema.apps.available,
-        create_timestamp: schema.apps.create_timestamp,
-        last_update_timestamp: schema.apps.last_update_timestamp,
-        last_login_timestamp: schema.apps.last_login_timestamp,
-        create_user_id: schema.apps.create_user_id,
-        last_update_user_id: schema.apps.last_update_user_id,
+        id: schemas.apps.id,
+        client_id: schemas.apps.client_id,
+        client_secret: schemas.apps.client_secret,
+        name: schemas.apps.name,
+        desc: schemas.apps.desc,
+        available: schemas.apps.available,
+        create_timestamp: schemas.apps.create_timestamp,
+        last_update_timestamp: schemas.apps.last_update_timestamp,
+        last_login_timestamp: schemas.apps.last_login_timestamp,
+        create_user_id: schemas.apps.create_user_id,
+        last_update_user_id: schemas.apps.last_update_user_id,
       })
-      .from(schema.apps)
-      .where(inArray(schema.apps.id, ids));
+      .from(schemas.apps)
+      .where(inArray(schemas.apps.id, ids));
 
     return list;
   },

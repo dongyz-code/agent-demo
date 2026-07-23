@@ -1,5 +1,5 @@
 import { ROOT } from '@/configs/env.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
@@ -17,15 +17,15 @@ const { api } = routerHandler({
 
     const query = db
       .select({
-        user_id: schema.user.user_id,
-        nickname: schema.user.nickname,
-        email: schema.user.email,
+        user_id: schemas.user.user_id,
+        nickname: schemas.user.nickname,
+        email: schemas.user.email,
       })
-      .from(schema.user);
+      .from(schemas.user);
 
     const list = full
       ? await query
-      : await query.where(inArray(schema.user.user_id, ids));
+      : await query.where(inArray(schemas.user.user_id, ids));
 
     return list;
   },

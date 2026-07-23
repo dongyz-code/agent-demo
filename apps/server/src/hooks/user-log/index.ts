@@ -1,8 +1,7 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { randomUUID } from 'node:crypto';
 import { ROOT } from '@/configs/env.js';
 
-import type { SqlInsertData } from '@/database/index.js';
 import type { LogConf, LogType } from './static.js';
 
 export * from './static.js';
@@ -30,7 +29,7 @@ export async function addUserLog<T extends LogType>({
   search_key,
   ...rest
 }: Opt<T>) {
-  const item: SqlInsertData['user_logs'] = {
+  const item: typeof schemas.user_logs.$inferInsert = {
     id: randomUUID(),
     user_id: user_id === ROOT.SYS_ADMIN_USER_ID ? null : user_id,
     key,
@@ -39,5 +38,5 @@ export async function addUserLog<T extends LogType>({
     search_key: search_key ?? null,
     timestamp: new Date(),
   };
-  await db.insert(schema.user_logs).values(item);
+  await db.insert(schemas.user_logs).values(item);
 }

@@ -1,4 +1,4 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
 import { parseStoredAdminPermissions } from '@/router/permission.js';
@@ -15,18 +15,18 @@ const { api } = routerHandler({
 
     const list = await db
       .select({
-        role_id: schema.role.role_id,
-        name: schema.role.name,
-        desc: schema.role.desc,
-        permission: schema.role.permission,
-        available: schema.role.available,
-        create_timestamp: schema.role.create_timestamp,
-        last_update_timestamp: schema.role.last_update_timestamp,
-        create_user_id: schema.role.create_user_id,
-        last_update_user_id: schema.role.last_update_user_id,
+        role_id: schemas.role.role_id,
+        name: schemas.role.name,
+        desc: schemas.role.desc,
+        permission: schemas.role.permission,
+        available: schemas.role.available,
+        create_timestamp: schemas.role.create_timestamp,
+        last_update_timestamp: schemas.role.last_update_timestamp,
+        create_user_id: schemas.role.create_user_id,
+        last_update_user_id: schemas.role.last_update_user_id,
       })
-      .from(schema.role)
-      .where(inArray(schema.role.role_id, ids));
+      .from(schemas.role)
+      .where(inArray(schemas.role.role_id, ids));
 
     return list.map(({ permission, ...rest }) => {
       const parsedPermission = parseStoredAdminPermissions(permission);

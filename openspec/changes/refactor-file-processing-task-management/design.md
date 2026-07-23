@@ -2,7 +2,7 @@
 
 当前实现已经具备 MinIO/S3 上传、文件验证与预览、文档解析与 Segment、知识库与文档关联，以及通用系统任务中心。但同一条业务流程分散在 `hooks/upload`、`hooks/document`、`hooks/rag` 和管理端多个页面中：上传成功后由前端依次创建文档、等待处理并建立知识库关联；文档处理任务又独立于系统任务中心保存和展示。结果是用户需要理解“通用文件、上传会话、文档、知识库关联”等技术对象，维护者也需要在多个顶层 hook 间追踪一条文件流程。
 
-本次重构以文件为业务中心。用户上传时只决定“是否进入 RAG”以及目标知识库；系统在文件验证成功后创建一个完整文件处理任务。一次任务内部包含预处理和 RAG 接入阶段，阶段用于进度和错误定位，但不会成为任务中心中的多条一级任务。每次重新执行创建一条新任务记录，以便统计执行次数和追溯历史。
+本次重构以文件上传形成的文档版本为处理主体。用户上传时只决定“是否进入 RAG”以及目标知识库；系统在文件验证成功后创建或追加 DocumentVersion，并为该版本创建一个内容任务。一次任务内部包含读取、解析、标准化、切分和关系发布阶段，阶段用于进度和错误定位，但不会成为任务中心中的多条一级任务。每次重新执行创建一条新任务记录，以便统计执行次数和追溯历史。
 
 现有高级 RAG 尚未实现 Embedding、Elasticsearch 混合索引、Reranker 和评估闭环。本次重构需要为这些阶段保留清晰扩展点，但不得伪造已经完成的索引能力。
 
@@ -50,7 +50,8 @@ apps/server/src/hooks/documents/
 ├── document/
 │   ├── read.ts
 │   ├── version.ts
-│   └── remove.ts
+│   ├── remove.ts
+│   └── content/
 ├── upload/
 │   ├── init.ts
 │   ├── complete.ts
@@ -60,33 +61,31 @@ apps/server/src/hooks/documents/
 │   └── validators.ts
 ├── preview/
 ├── rag/
-│   ├── relations.ts
-│   ├── task.ts
-│   ├── runner.ts
-│   └── pipeline/
+│   ├── assignment.ts
+│   └── relations.ts
 ├── tasks/
 └── storage/
 ```
 
-`document` 承载文档复杂读取、版本和删除，`upload` 承载上传状态与对象编排，`preview` 和 `rag` 承载各自任务及执行器，`tasks` 只提供共享运行时，`storage` 只提供域内对象能力。目录不提供根 barrel，route 精确导入业务文件。
+`document` 承载文档复杂读取、版本、删除和版本内容处理，`upload` 承载上传状态与对象编排，`preview` 承载页面任务，`rag` 只承载知识库关系与版本发布，`tasks` 只提供共享运行时，`storage` 只提供域内对象能力。目录不提供根 barrel，route 精确导入业务文件。
 
 普通单表查询、分页和简单条件更新不建立同名 hook。复用业务、多表事务、状态迁移、对象存储、复杂聚合和后台执行才进入 `hooks/documents`；引用次数不是唯一条件，单入口复杂流程仍可保留业务函数。
 
-### 2. 一个文件的一次完整处理只创建一个任务
+### 2. 一个文档版本和配置只创建一个内容任务
 
 任务键固定为 `file-processing`。任务内部阶段为：
 
 ```text
 queued
   ↓
-reading → parsing → normalizing → segmenting → rag-ingestion
+reading → parsing → normalizing → segmenting → content-publishing
   ↓
 completed
 ```
 
-管理端将前四个阶段归类展示为“预处理”，将 `rag-ingestion` 展示为“RAG 接入”。阶段运行记录用于耗时、进度、错误和恢复，不作为任务中心一级记录。
+管理端将读取、解析、标准化和切分展示为版本内容处理，将 `content-publishing` 展示为“发布内容结果”。阶段运行记录用于耗时、进度和错误，不作为任务中心一级记录。
 
-本 change 中 `rag-ingestion` 表示将 ready 文档安全关联到指定知识库，并产出可供后续索引器消费的稳定 Segment 交接结果。未来实现 Embedding 和索引时，可在同一任务定义中增加版本化阶段，或在需求明确后新增独立任务类型；当前不得将仅有关联的数据展示为“已建立向量索引”。
+本 change 中 `content-publishing` 表示版本级 Segment 已生成，并批量发布所有仍以该版本为 pending 的知识库关系。同一版本关联多个知识库不得重复解析和切分。当前尚未实现 Embedding 和索引，因此不得将内容处理成功展示为“已建立向量索引”。
 
 备选方案是每个阶段创建一条通用任务。该方案会造成一个文件产生多条任务、取消和重试语义复杂、任务中心难以阅读，因此不采用。
 
@@ -115,7 +114,7 @@ file_processing_tasks
 ├── file_id
 ├── document_id
 ├── document_version_id
-├── dataset_id
+├── task_type
 ├── execution_no
 ├── trigger_source
 ├── processing_config_version
@@ -157,7 +156,7 @@ to-be-started → pending → completed
 - Worker 只领取 `to-be-started` 任务。
 - 服务重启时识别超过心跳期限的 `pending` 文件任务，并根据最后完成阶段恢复或标记可重试失败。
 - 取消只在阶段边界生效，后续阶段不得继续写入产物。
-- 相同文件、目标知识库和处理配置只能存在一个活动任务。
+- 相同 DocumentVersion 和处理配置只能存在一个活动内容任务，不因目标知识库不同而重复创建。
 - 每次用户重试或重新执行都创建新的 `task_id` 和递增 `execution_no`，历史任务不可覆盖。
 
 ### 5. 上传意图在文件域保存，文件验证成功后自动创建任务
@@ -166,7 +165,7 @@ to-be-started → pending → completed
 
 ```text
 enterRag
-datasetId?
+datasetIds?
 processingConfigVersion?
 ```
 
@@ -208,8 +207,8 @@ createdAt
 
 - 任务分类：全部、文件处理、系统任务。
 - 状态统计：等待执行、执行中、执行成功、执行失败、已取消。
-- 筛选：文件名、知识库、任务阶段、触发方式、发起人、创建时间。
-- 文件任务列：文件、执行序号、当前阶段、进度、知识库和错误摘要。
+- 筛选：文件名、任务阶段、触发方式、发起人、创建时间。
+- 文件任务列：文件、执行序号、当前阶段、进度和错误摘要。
 - 文件任务详情：阶段时间线、结果摘要、失败原因和技术日志折叠区。
 - 操作：等待/执行中任务可取消，失败任务可创建新任务重试，成功任务可再次执行。
 
@@ -254,7 +253,7 @@ apps/admin/src/pages/system/task/
 - [文件域目录体量变大] → 按 `upload`、`content`、`knowledge`、`tasks/<task-key>` 子域拆分，公共入口只暴露稳定用例，不建立巨型 service。
 - [迁移期间存在两套任务记录] → 增加兼容读取和一次性迁移，切换后禁止创建新的 `document_processing_jobs`，最终删除兼容分支。
 - [任务主表增加业务查询字段] → 字段保持通用语义，文件专属数据放扩展表，避免 `tasks` 变成文件任务专表。
-- [服务端自动创建任务导致重复] → 使用文件、知识库、配置和活动状态唯一约束，并为上传完成使用稳定幂等键。
+- [服务端自动创建任务导致重复] → 使用 DocumentVersion、配置和活动状态事务互斥，并为上传完成使用稳定幂等键。
 - [长任务在服务重启后停滞] → 使用数据库领取、心跳超时和阶段 checkpoint 恢复，不依赖进程内数组。
 - [取消发生时阶段仍在执行] → 阶段边界检查取消状态，昂贵外部调用增加中止信号和超时，产物写入使用事务或幂等替换。
 - [当前没有实际 Embedding/索引能力] → UI 使用“RAG 接入/知识库关联”准确文案，接口保留版本化阶段扩展点，不展示虚假的向量索引成功。
@@ -266,7 +265,7 @@ apps/admin/src/pages/system/task/
 2. 新建 `hooks/file` 公共入口，先以适配器方式复用现有 upload、document、rag 实现，建立目录边界和回归测试。
 3. 实现 `tasks/file-processing` 任务定义、持久化领取、阶段执行、取消、重试、执行序号和恢复。
 4. 将现有文档处理阶段迁入文件任务，迁移或兼容读取已有 `document_processing_jobs` 和阶段记录；迁移期间禁止重复执行同一版本。
-5. 将知识库和关联服务迁入文件域 `knowledge`，保留现有表和兼容 routes，文件任务负责在最后阶段建立关联。
+5. 将知识库关系归入 `rag`，版本内容任务在最后阶段批量发布仍匹配 pendingVersion 的关系。
 6. 增强 `/file/list` 和文件处理 routes，上传会话持久化 RAG 意图并在验证成功后幂等创建任务。
 7. 重构管理端文件管理页面，移除通用文件/上传会话页签和独立 RAG 文档操作入口，接入任务摘要与处理弹窗。
 8. 增强现有任务中心的文件任务筛选、统计、详情、取消和重试，并完成权限隔离。

@@ -43,7 +43,7 @@
 
 - [x] 6.1 实现一个文档加入、移出和批量更新多个知识库，保证 `(datasetId, documentId)` 唯一。
 - [x] 6.2 修改 Segment 持久化和索引元数据，使内容明确绑定 documentVersionId，重处理不得混入其他版本。
-- [x] 6.3 实现以 Dataset + DocumentVersion + 配置为幂等键的 RAG 任务，更新关系 pending/processing/failed 状态。
+- [x] 6.3 实现以 DocumentVersion + 配置为幂等键的内容任务，批量更新各关系 pending/processing/failed 状态。
 - [x] 6.4 RAG 成功后使用 pendingVersion 条件更新 activeVersion 并清空 pending，失败时保留旧 activeVersion。
 - [x] 6.5 修改检索读取，只允许 relation.activeVersionId 对应的 Segment/向量结果参与召回。
 - [x] 6.6 实现新版本上传、历史回切、失败重试、连续版本覆盖和关系删除时的迟到任务保护。
@@ -66,10 +66,23 @@
 
 ## 9. Route 与 hooks 边界纠偏
 
-- [x] 9.1 将知识库基础 CRUD、上传会话列表/状态、文档 RAG 默认值和任务取消等普通查询或更新迁回对应 route 直接使用 ORM。
+- [x] 9.1 将知识库基础 CRUD、上传会话列表/状态和文档 RAG 默认值等普通查询或更新迁回对应 route 直接使用 ORM；需要同步派生状态的任务取消保留业务函数。
 - [x] 9.2 把上传初始化、完成、取消和 Multipart 编排收回 `upload/` 高层业务函数，route 不再组合 File、S3、会话和文档版本内部原语。
 - [x] 9.3 将文档复杂读取、版本、删除、预览、RAG 和任务运行时按功能目录归位，拆除混杂的 `documents/commands.ts` 与 `processing/` 职责。
 - [x] 9.4 删除 `files/queries.ts`、`rag/datasets.ts`、`upload/shared.ts`、根 barrel 和空目录；File 行、mapper、S3 与 worker 原语不得作为 route 公共 API。
 - [x] 9.5 更新 README 和精确 import，移除死导出与重复查询，保持 API、数据库结构及业务行为不变。
 - [x] 9.6 运行服务端 lint、OpenSpec strict 校验和 `git diff --check`。
 - [x] 9.7 审计并纠正相关未归档 OpenSpec 中“所有 route 必须经过 hooks”、根公共入口、独立顶层 hook 和每类任务机械建目录等冲突规则。
+
+## 10. 文档内容与 RAG 职责纠偏
+
+- [x] 10.1 将 parser、normalize、segment、配置和执行器从 `rag/` 迁入 `document/content/`，保持算法行为不变。
+- [x] 10.2 将内容任务幂等边界收敛为 `DocumentVersion + processingConfigVersion`，同一版本关联多个知识库只处理一次。
+- [x] 10.3 将关系 processing/ready/failed 改为按文档版本批量条件更新，迟到任务仍不得覆盖更新后的 pending 版本。
+- [x] 10.4 删除无消费者的 Segment 读取预留和任务单知识库字段，更新任务详情、取消/重试、README 与旧 OpenSpec 规则。
+- [x] 10.5 运行服务端与管理端 lint、OpenSpec strict、静态引用审计和 `git diff --check`。
+
+## 11. 错误调用精简
+
+- [x] 11.1 全仓删除 `ROOT_ERROR` 固定附加消息，仅保留真正依赖运行时数据的动态详情。
+- [x] 11.2 更新相关未归档 OpenSpec 错误调用规则，并运行服务端 lint、OpenSpec strict、静态审计和 `git diff --check`。

@@ -94,7 +94,6 @@
         </template>
         <template #stage="{ row }">{{ fileStageLabel(row.self.current_stage) }}</template>
         <template #progress="{ row }">{{ row.self.progress }}%</template>
-        <template #dataset="{ row }">{{ row.self.file_task?.dataset_name ?? '-' }}</template>
         <template #infos="{ row }">
           <div class="space-y-1 text-sm">
             <div
@@ -182,7 +181,6 @@ const route = useRoute();
 /** 任务中心当前一级分类视图。 */
 const categoryView = ref<'all' | 'file-processing' | 'system'>('all');
 const fileTaskDetailRef = ref<InstanceType<typeof FileTaskDetail>>();
-const datasets = ref<{ datasetId: string; name: string }[]>([]);
 
 /** 任务类型 */
 const taskType = shallowRef<TaskType[]>([]);
@@ -305,15 +303,6 @@ const taskColumns = computed<SchemaFormColumn<SearchForm>[]>(() => [
           fieldProps: { clearable: true },
         },
         {
-          dataIndex: 'dataset_id' as const,
-          title: '知识库',
-          valueType: 'select' as const,
-          valueEnum: Object.fromEntries(
-            datasets.value.map((dataset) => [dataset.datasetId, dataset.name]),
-          ),
-          fieldProps: { clearable: true },
-        },
-        {
           dataIndex: 'current_stage' as const,
           title: '当前阶段',
           valueType: 'select' as const,
@@ -323,7 +312,7 @@ const taskColumns = computed<SchemaFormColumn<SearchForm>[]>(() => [
             parsing: '解析内容',
             normalizing: '整理内容',
             segmenting: '生成知识片段',
-            'rag-ingestion': 'RAG 接入',
+            'content-publishing': '发布内容结果',
             completed: '已完成',
           },
           fieldProps: { clearable: true },
@@ -467,7 +456,6 @@ const fileTableRows: TableRow[] = [
   { label: '状态', value: 'status_text', slot: 'status_text', width: 130 },
   { label: '当前阶段', value: 'stage', slot: 'stage', width: 140 },
   { label: '进度', value: 'progress', slot: 'progress', width: 80 },
-  { label: '知识库', value: 'dataset', slot: 'dataset', minWidth: 140 },
   { label: '触发用户', value: 'execution_user_name', width: 120 },
   { label: '添加日期', value: 'create_timestamp', width: 180 },
   { label: '操作', value: 'edit', slot: 'edit', width: 100, fixed: 'right' },
@@ -563,7 +551,7 @@ function fileStageLabel(stage: string | null) {
     parsing: '解析内容',
     normalizing: '整理内容',
     segmenting: '生成知识片段',
-    'rag-ingestion': 'RAG 接入',
+    'content-publishing': '发布内容结果',
     'preview-converting': '生成预览页面',
     'preview-publishing': '发布预览页面',
     completed: '已完成',
@@ -580,11 +568,6 @@ onMounted(async () => {
   if (fileId) {
     taskForm.value = { ...taskForm.value, business_id: fileId };
   }
-  const datasetResult = await api('/documents/dataset-list', {
-    status: ['active'],
-    limit: [0, 1000],
-  });
-  datasets.value = datasetResult.list;
   await Promise.all([
     getList(true),
     httpCache.user.get({ full: true }),

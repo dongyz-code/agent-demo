@@ -8,8 +8,8 @@
 - 新增通用文件预览和在线查看能力：PDF、图片、音视频、纯文本直接查看；Office 文件通过可插拔转换器生成 PDF；不可信主动内容采用隔离或强制下载。
 - 新增通用 upload/file routes：会话列表、状态等普通查询直接使用 ORM；初始化、完成、Multipart 和对象验证等复杂状态流程调用 hooks，route 不直接执行 S3 内部命令。
 - 新增管理端可复用上传和文件查看组件，使用 Uppy Core + AWS S3 插件管理上传调度，同时复用项目现有 Vue UI 风格。
-- 在 `apps/server/src/hooks/documents/document` 收敛复杂文档读取、版本切换和删除；解析、标准化与 Segment 归 `rag/pipeline`，不建立根公共入口。
-- 在 `apps/server/src/hooks/documents/rag` 收敛知识库文档关系、RAG 任务与 pipeline；知识库基础 CRUD 直接由 route 使用 ORM。
+- 在 `apps/server/src/hooks/documents/document` 收敛复杂文档读取、版本切换、删除及 `document/content` 版本内容处理；解析、标准化与 Segment 不依赖知识库，也不建立根公共入口。
+- 在 `apps/server/src/hooks/documents/rag` 只收敛知识库文档关系与 active/pending 版本发布；知识库基础 CRUD 直接由 route 使用 ORM。
 - 上传完成只返回通用 `fileId`；管理端显式创建文档并加入知识库，上传模块不主动触发文档处理或 RAG。
 - 明确可读性约束：普通 CRUD 直接 ORM，复杂或复用流程进入功能 hook，调用方精确导入、状态迁移显式、组件按交互单元拆分，并为新增函数和类型补充中文 TSDoc。
 - 完善管理端文件中心与知识库页面：提供通用文件、上传会话、分页文档、处理进度和可恢复上传入口，并让“上传 → 创建文档 → 加入知识库”的业务失败能够回到上传队列展示与重试。

@@ -10,10 +10,9 @@ const { api } = routerHandler({
   handler: async ({ body }) => {
     const form = body.form ?? {};
     let taskIds: string[] | undefined;
-    if (form.file_name?.trim() || form.dataset_id) {
+    if (form.file_name?.trim()) {
       taskIds = await findFileProcessingTaskIds({
         file_name: form.file_name,
-        dataset_id: form.dataset_id,
       });
       if (!taskIds.length) return [];
     }

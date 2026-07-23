@@ -42,14 +42,10 @@ export interface FileProcessingTaskInfo {
   documentId: string;
   /** 任务绑定的不可变文档版本。 */
   documentVersionId: string;
-  /** 当前任务执行预览还是 RAG 处理。 */
+  /** 当前任务执行页面预览还是版本内容处理。 */
   taskType: DocumentProcessingTaskType;
   /** 文件显示名称。 */
   filename: string;
-  /** 目标知识库标识。 */
-  datasetId: string | null;
-  /** 目标知识库名称。 */
-  datasetName: string | null;
   /** 同一文件的执行序号。 */
   executionNo: number;
   /** 任务创建来源。 */

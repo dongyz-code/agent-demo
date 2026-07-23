@@ -1,7 +1,6 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type {
   DocumentInfo,
-  DocumentSegment,
   DocumentStatus,
 } from './document.js';
 
@@ -43,18 +42,6 @@ export interface RagDatasetDocumentSummary {
   status: RagDatasetDocumentStatus;
   /** 最近一次处理失败的安全错误摘要。 */
   error: string | null;
-}
-
-/** 仅从知识库 activeVersion 读取的可检索 Segment。 */
-export interface RagDatasetSegmentInfo extends DocumentSegment {
-  /** 当前检索知识库。 */
-  datasetId: string;
-  /** Segment 所属文档。 */
-  documentId: string;
-  /** 关系当前实际生效的不可变文档版本。 */
-  documentVersionId: string;
-  /** 切分规则版本，用于索引元数据和重处理区分。 */
-  segmentProfileVersion: string;
 }
 
 /** RAG 接口只管理知识库及其文档关联。 */

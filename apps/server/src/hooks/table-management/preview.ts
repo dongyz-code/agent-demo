@@ -1,5 +1,6 @@
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, sql } from '@/database/index.js';
+import { db } from '@/database/index.js';
+import { sql } from 'drizzle-orm';
 
 import { maskPreviewValue } from './sensitive.js';
 

@@ -1,7 +1,7 @@
 import { and, eq, ne } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { getDocumentDetail } from '@/hooks/documents/document/read.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
@@ -12,7 +12,7 @@ const { api } = routerHandler({
   permission: adminPermissionKey('actions.documents.dataset-document-manage'),
   handler: async ({ body, __token }) => {
     const [updated] = await db
-      .update(schema.documents)
+      .update(schemas.documents)
       .set({
         rag_enabled: body.ragEnabled,
         last_update_user_id: __token.user_id,
@@ -20,17 +20,14 @@ const { api } = routerHandler({
       })
       .where(
         and(
-          eq(schema.documents.document_id, body.documentId),
-          eq(schema.documents.create_user_id, __token.user_id),
-          ne(schema.documents.status, 'deleted'),
+          eq(schemas.documents.document_id, body.documentId),
+          eq(schemas.documents.create_user_id, __token.user_id),
+          ne(schemas.documents.status, 'deleted'),
         ),
       )
-      .returning({ id: schema.documents.document_id });
+      .returning({ id: schemas.documents.document_id });
     if (!updated) {
-      throw new ROOT_ERROR(
-        '相关文件不存在',
-        'DOCUMENT_NOT_FOUND: 文档不存在',
-      );
+      throw new ROOT_ERROR('相关文件不存在');
     }
     return await getDocumentDetail(body.documentId, __token.user_id);
   },

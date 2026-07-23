@@ -10,10 +10,10 @@ import {
   quoteIdent,
   quoteQualified,
 } from '@/database/structure/index.js';
-import { db, schema, sql } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { dayJsformat } from '@repo/utils-node';
 import { randomUUID } from 'node:crypto';
-import { eq, SQL } from 'drizzle-orm';
+import { eq, sql, SQL } from 'drizzle-orm';
 
 import { buildResetColumnSourceMap } from './plan-utils.js';
 import { assertManagedTableSchema } from './schema.js';
@@ -387,7 +387,7 @@ async function saveOperationPlan({
   const now = new Date();
   const expire = new Date(now.getTime() + planExpireMs);
   const status: TableStructureOpStatus = blockers.length ? 'blocked' : 'planned';
-  await db.insert(schema.table_structure_ops).values({
+  await db.insert(schemas.table_structure_ops).values({
     op_id,
     type,
     status,
@@ -502,14 +502,14 @@ async function applySavedPlan({
     };
   } catch (error) {
     await db
-      .update(schema.table_structure_ops)
+      .update(schemas.table_structure_ops)
       .set({
         status: 'failed',
         error: error instanceof Error ? error.message : String(error),
         apply_user_id: user_id,
         end_timestamp: new Date(),
       })
-      .where(eq(schema.table_structure_ops.op_id, op_id));
+      .where(eq(schemas.table_structure_ops.op_id, op_id));
     throw error;
   }
 }
@@ -526,8 +526,8 @@ async function getOperationForApply({
 }) {
   const [row] = await db
     .select()
-    .from(schema.table_structure_ops)
-    .where(eq(schema.table_structure_ops.op_id, op_id))
+    .from(schemas.table_structure_ops)
+    .where(eq(schemas.table_structure_ops.op_id, op_id))
     .limit(1);
 
   if (!row || row.type !== type) {
@@ -556,14 +556,14 @@ async function updateOperationStatus({
   end?: boolean;
 }) {
   await db
-    .update(schema.table_structure_ops)
+    .update(schemas.table_structure_ops)
     .set({
       status,
       apply_user_id: user_id,
       ...(start ? { start_timestamp: new Date() } : {}),
       ...(end ? { end_timestamp: new Date() } : {}),
     })
-    .where(eq(schema.table_structure_ops.op_id, op_id));
+    .where(eq(schemas.table_structure_ops.op_id, op_id));
 }
 
 /** 复制源表中可兼容字段的数据到临时新表。 */

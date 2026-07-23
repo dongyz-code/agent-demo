@@ -14,7 +14,7 @@ import {
 } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { presignGetObject } from '../storage/presign.js';
 
 import type {
@@ -45,9 +45,9 @@ export interface SearchDocumentsInput {
 
 /** 文档、当前版本与内部源文件的联合行。 */
 type CurrentDocumentRow = {
-  document: typeof schema.documents.$inferSelect;
-  version: typeof schema.document_versions.$inferSelect;
-  file: typeof schema.files.$inferSelect;
+  document: typeof schemas.documents.$inferSelect;
+  version: typeof schemas.document_versions.$inferSelect;
+  file: typeof schemas.files.$inferSelect;
 };
 
 /**
@@ -67,82 +67,82 @@ export async function searchDocuments(
     ? sql`exists (
         select 1
         from rag_dataset_documents rdd
-        where rdd.document_id = ${schema.documents.document_id}
+        where rdd.document_id = ${schemas.documents.document_id}
           and rdd.dataset_id = ${input.datasetId}
       )`
     : undefined;
   const where = and(
-    eq(schema.documents.create_user_id, userId),
-    ne(schema.documents.status, 'deleted'),
+    eq(schemas.documents.create_user_id, userId),
+    ne(schemas.documents.status, 'deleted'),
     input.search?.trim()
       ? or(
-          ilike(schema.documents.name, `%${input.search.trim()}%`),
-          ilike(schema.files.filename, `%${input.search.trim()}%`),
+          ilike(schemas.documents.name, `%${input.search.trim()}%`),
+          ilike(schemas.files.filename, `%${input.search.trim()}%`),
         )
       : undefined,
     input.status?.length
-      ? inArray(schema.documents.status, input.status)
+      ? inArray(schemas.documents.status, input.status)
       : undefined,
     input.previewStatus?.length
-      ? inArray(schema.document_versions.preview_status, input.previewStatus)
+      ? inArray(schemas.document_versions.preview_status, input.previewStatus)
       : undefined,
     createdStart
-      ? gte(schema.documents.create_timestamp, createdStart)
+      ? gte(schemas.documents.create_timestamp, createdStart)
       : undefined,
-    createdEnd ? lte(schema.documents.create_timestamp, createdEnd) : undefined,
+    createdEnd ? lte(schemas.documents.create_timestamp, createdEnd) : undefined,
     datasetFilter,
   );
   const baseQuery = db
     .select({
-      document: schema.documents,
-      version: schema.document_versions,
-      file: schema.files,
+      document: schemas.documents,
+      version: schemas.document_versions,
+      file: schemas.files,
     })
-    .from(schema.documents)
+    .from(schemas.documents)
     .innerJoin(
-      schema.document_versions,
+      schemas.document_versions,
       eq(
-        schema.document_versions.document_version_id,
-        schema.documents.active_version_id,
+        schemas.document_versions.document_version_id,
+        schemas.documents.active_version_id,
       ),
     )
     .innerJoin(
-      schema.files,
-      eq(schema.files.file_id, schema.document_versions.source_file_id),
+      schemas.files,
+      eq(schemas.files.file_id, schemas.document_versions.source_file_id),
     )
     .where(where);
-  const [rows, countRows] = await Promise.all([
+  const [rows, countResult] = await Promise.all([
     baseQuery
-      .orderBy(desc(schema.documents.create_timestamp))
+      .orderBy(desc(schemas.documents.create_timestamp))
       .offset(start)
       .limit(Math.max(0, end - start)),
     input.withCount
       ? db
-          .select({ value: countDistinct(schema.documents.document_id) })
-          .from(schema.documents)
+          .select({ value: countDistinct(schemas.documents.document_id) })
+          .from(schemas.documents)
           .innerJoin(
-            schema.document_versions,
+            schemas.document_versions,
             eq(
-              schema.document_versions.document_version_id,
-              schema.documents.active_version_id,
+              schemas.document_versions.document_version_id,
+              schemas.documents.active_version_id,
             ),
           )
           .innerJoin(
-            schema.files,
-            eq(schema.files.file_id, schema.document_versions.source_file_id),
+            schemas.files,
+            eq(schemas.files.file_id, schemas.document_versions.source_file_id),
           )
           .where(where)
       : Promise.resolve([]),
   ]);
   if (!rows.length) {
-    return { list: [], count: countRows[0]?.value ?? 0 };
+    return { list: [], count: countResult[0]?.value ?? 0 };
   }
   const aggregates = await loadDocumentAggregates(rows);
   return {
     list: await Promise.all(
       rows.map(async (row) => await toDocumentInfo(row, aggregates)),
     ),
-    count: countRows[0]?.value ?? 0,
+    count: countResult[0]?.value ?? 0,
   };
 }
 
@@ -159,23 +159,23 @@ export async function getDocumentDetail(
 ): Promise<DocumentDetail> {
   const [current] = await selectCurrentDocumentRows(
     and(
-      eq(schema.documents.document_id, documentId),
-      eq(schema.documents.create_user_id, userId),
-      ne(schema.documents.status, 'deleted'),
+      eq(schemas.documents.document_id, documentId),
+      eq(schemas.documents.create_user_id, userId),
+      ne(schemas.documents.status, 'deleted'),
     ),
   ).limit(1);
   if (!current) {
-    throw new ROOT_ERROR('相关文件不存在', 'DOCUMENT_NOT_FOUND: 文档不存在');
+    throw new ROOT_ERROR('相关文件不存在');
   }
   const versionRows = await db
-    .select({ version: schema.document_versions, file: schema.files })
-    .from(schema.document_versions)
+    .select({ version: schemas.document_versions, file: schemas.files })
+    .from(schemas.document_versions)
     .innerJoin(
-      schema.files,
-      eq(schema.files.file_id, schema.document_versions.source_file_id),
+      schemas.files,
+      eq(schemas.files.file_id, schemas.document_versions.source_file_id),
     )
-    .where(eq(schema.document_versions.document_id, documentId))
-    .orderBy(desc(schema.document_versions.version));
+    .where(eq(schemas.document_versions.document_id, documentId))
+    .orderBy(desc(schemas.document_versions.version));
   const aggregates = await loadDocumentAggregates([current]);
   return {
     ...(await toDocumentInfo(current, aggregates)),
@@ -198,46 +198,43 @@ export async function resolveDocumentVersion(
 ) {
   const [row] = await db
     .select({
-      document: schema.documents,
-      version: schema.document_versions,
-      file: schema.files,
+      document: schemas.documents,
+      version: schemas.document_versions,
+      file: schemas.files,
     })
-    .from(schema.documents)
+    .from(schemas.documents)
     .innerJoin(
-      schema.document_versions,
+      schemas.document_versions,
       and(
         eq(
-          schema.document_versions.document_id,
-          schema.documents.document_id,
+          schemas.document_versions.document_id,
+          schemas.documents.document_id,
         ),
         documentVersionId
           ? eq(
-              schema.document_versions.document_version_id,
+              schemas.document_versions.document_version_id,
               documentVersionId,
             )
           : eq(
-              schema.document_versions.document_version_id,
-              schema.documents.active_version_id,
+              schemas.document_versions.document_version_id,
+              schemas.documents.active_version_id,
             ),
       ),
     )
     .innerJoin(
-      schema.files,
-      eq(schema.files.file_id, schema.document_versions.source_file_id),
+      schemas.files,
+      eq(schemas.files.file_id, schemas.document_versions.source_file_id),
     )
     .where(
       and(
-        eq(schema.documents.document_id, documentId),
-        eq(schema.documents.create_user_id, userId),
-        ne(schema.documents.status, 'deleted'),
+        eq(schemas.documents.document_id, documentId),
+        eq(schemas.documents.create_user_id, userId),
+        ne(schemas.documents.status, 'deleted'),
       ),
     )
     .limit(1);
   if (!row) {
-    throw new ROOT_ERROR(
-      '相关文件不存在',
-      'DOCUMENT_VERSION_NOT_FOUND: 文档或版本不存在',
-    );
+    throw new ROOT_ERROR('相关文件不存在');
   }
   return row;
 }
@@ -279,21 +276,21 @@ export async function getDocumentDownload(
 function selectCurrentDocumentRows(where: ReturnType<typeof and>) {
   return db
     .select({
-      document: schema.documents,
-      version: schema.document_versions,
-      file: schema.files,
+      document: schemas.documents,
+      version: schemas.document_versions,
+      file: schemas.files,
     })
-    .from(schema.documents)
+    .from(schemas.documents)
     .innerJoin(
-      schema.document_versions,
+      schemas.document_versions,
       eq(
-        schema.document_versions.document_version_id,
-        schema.documents.active_version_id,
+        schemas.document_versions.document_version_id,
+        schemas.documents.active_version_id,
       ),
     )
     .innerJoin(
-      schema.files,
-      eq(schema.files.file_id, schema.document_versions.source_file_id),
+      schemas.files,
+      eq(schemas.files.file_id, schemas.document_versions.source_file_id),
     )
     .where(where);
 }
@@ -307,7 +304,7 @@ interface DocumentAggregates {
   /** 每个当前版本的第一页内部行。 */
   coverByVersion: Map<
     string,
-    typeof schema.document_preview_pages.$inferSelect
+    typeof schemas.document_preview_pages.$inferSelect
   >;
 }
 
@@ -320,37 +317,37 @@ async function loadDocumentAggregates(
   const [versionCounts, datasetRows, coverRows] = await Promise.all([
     db
       .select({
-        documentId: schema.document_versions.document_id,
+        documentId: schemas.document_versions.document_id,
         value: count(),
       })
-      .from(schema.document_versions)
-      .where(inArray(schema.document_versions.document_id, documentIds))
-      .groupBy(schema.document_versions.document_id),
+      .from(schemas.document_versions)
+      .where(inArray(schemas.document_versions.document_id, documentIds))
+      .groupBy(schemas.document_versions.document_id),
     db
       .select({
-        documentId: schema.rag_dataset_documents.document_id,
-        relation: schema.rag_dataset_documents,
-        dataset: schema.rag_datasets,
+        documentId: schemas.rag_dataset_documents.document_id,
+        relation: schemas.rag_dataset_documents,
+        dataset: schemas.rag_datasets,
       })
-      .from(schema.rag_dataset_documents)
+      .from(schemas.rag_dataset_documents)
       .innerJoin(
-        schema.rag_datasets,
+        schemas.rag_datasets,
         eq(
-          schema.rag_datasets.dataset_id,
-          schema.rag_dataset_documents.dataset_id,
+          schemas.rag_datasets.dataset_id,
+          schemas.rag_dataset_documents.dataset_id,
         ),
       )
-      .where(inArray(schema.rag_dataset_documents.document_id, documentIds)),
+      .where(inArray(schemas.rag_dataset_documents.document_id, documentIds)),
     db
       .select()
-      .from(schema.document_preview_pages)
+      .from(schemas.document_preview_pages)
       .where(
         and(
           inArray(
-            schema.document_preview_pages.document_version_id,
+            schemas.document_preview_pages.document_version_id,
             versionIds,
           ),
-          eq(schema.document_preview_pages.page_number, 1),
+          eq(schemas.document_preview_pages.page_number, 1),
         ),
       ),
   ]);
@@ -411,8 +408,8 @@ async function toDocumentInfo(
 
 /** 将版本与源文件联合行转换为公共版本摘要。 */
 function toDocumentVersionInfo(row: {
-  version: typeof schema.document_versions.$inferSelect;
-  file: typeof schema.files.$inferSelect;
+  version: typeof schemas.document_versions.$inferSelect;
+  file: typeof schemas.files.$inferSelect;
 }): DocumentVersionInfo {
   return {
     documentVersionId: row.version.document_version_id,
@@ -432,7 +429,7 @@ function toDocumentVersionInfo(row: {
 
 /** 为已通过文档权限校验的页面行签发短期访问地址。 */
 async function toPreviewPageInfo(
-  page: typeof schema.document_preview_pages.$inferSelect,
+  page: typeof schemas.document_preview_pages.$inferSelect,
   filename: string,
 ): Promise<DocumentPreviewPageInfo> {
   const signed = await presignGetObject({

@@ -1,11 +1,11 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { pickObj } from '@repo/utils-node';
 import { inArray } from 'drizzle-orm';
 import { stringifyRolePermissionPayload } from '@/router/permission.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
-import type { SqlData } from '@/database/index.js';
+type RoleRow = typeof schemas.role.$inferSelect;
 
 const { api } = routerHandler({
   url: '/sys/role/update',
@@ -16,7 +16,7 @@ const { api } = routerHandler({
       return 'ok';
     }
 
-    const updateForm: Partial<SqlData['role']> = pickObj(form, [
+    const updateForm: Partial<RoleRow> = pickObj(form, [
       'name',
       'desc',
       'available',
@@ -29,13 +29,13 @@ const { api } = routerHandler({
     if (Object.keys(updateForm).length) {
       const ids = Array.isArray(id) ? id : [id];
       await db
-        .update(schema.role)
+        .update(schemas.role)
         .set({
           ...updateForm,
           last_update_user_id: operator,
           last_update_timestamp: now,
         })
-        .where(inArray(schema.role.role_id, ids));
+        .where(inArray(schemas.role.role_id, ids));
     }
 
     return 'ok';

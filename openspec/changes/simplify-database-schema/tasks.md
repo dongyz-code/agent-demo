@@ -59,3 +59,9 @@
 - [ ] 7.3 在含历史表的 schema 启动服务，验证只报告五张未注册物理表而不自动删除或改写数据
 - [ ] 7.4 运行 `pnpm --filter @repo/deploy-server lint` 与 `pnpm turbo lint`
 - [ ] 7.5 运行 OpenSpec 校验并核对 proposal、design、specs、tasks 的退役清单、保留清单和迁移顺序一致
+
+## 8. 数据库访问入口收敛
+
+- [x] 8.1 将 `database/index.ts` 收敛为 `db` 和 `schemas`，删除连接池转发、客户端类型、Drizzle 二次导出、查询 helper 和未使用映射
+- [x] 8.2 将调用方迁移为 `schemas` 与 Drizzle 原生 API，使用表 `$inferSelect/$inferInsert` 替代绑定管理白名单的通用类型
+- [x] 8.3 运行服务端 lint、OpenSpec strict、旧导出零引用审计和 `git diff --check`

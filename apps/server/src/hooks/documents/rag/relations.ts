@@ -1,20 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import {
-  and,
-  asc,
-  eq,
-  inArray,
-  isNotNull,
-  isNull,
-  ne,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
-
-import type { RagDatasetSegmentInfo } from '@repo/types';
+import { db, schemas } from '@/database/index.js';
+import { FileProcessingLeaseLostError } from '../tasks/runtime.js';
 
 /** 校验文档存在、未删除且属于当前操作用户。 */
 async function assertOwnedDocument(
@@ -22,134 +11,18 @@ async function assertOwnedDocument(
   userId: string,
 ): Promise<void> {
   const [document] = await db
-    .select({ id: schema.documents.document_id })
-    .from(schema.documents)
+    .select({ id: schemas.documents.document_id })
+    .from(schemas.documents)
     .where(
       and(
-        eq(schema.documents.document_id, documentId),
-        eq(schema.documents.create_user_id, userId),
-        ne(schema.documents.status, 'deleted'),
+        eq(schemas.documents.document_id, documentId),
+        eq(schemas.documents.create_user_id, userId),
+        ne(schemas.documents.status, 'deleted'),
       ),
     )
     .limit(1);
   if (!document) {
-    throw new ROOT_ERROR('相关文件不存在', 'DOCUMENT_NOT_FOUND: 文档不存在');
-  }
-}
-
-/**
- * 幂等建立知识库与文档关系，并把指定版本设为待处理目标。
- *
- * @param datasetId 目标知识库标识。
- * @param documentId 文档标识。
- * @param documentVersionId 待处理版本标识。
- * @param userId 当前操作用户。
- */
-export async function ensureDocumentDatasetRelation(
-  datasetId: string,
-  documentId: string,
-  documentVersionId: string,
-  userId: string,
-) {
-  const [dataset] = await db
-    .select({ status: schema.rag_datasets.status })
-    .from(schema.rag_datasets)
-    .where(eq(schema.rag_datasets.dataset_id, datasetId))
-    .limit(1);
-  if (!dataset) {
-    throw new ROOT_ERROR(
-      '相关文件不存在',
-      'RAG_DATASET_NOT_FOUND: 知识库不存在',
-    );
-  }
-  if (dataset.status !== 'active') {
-    throw new ROOT_ERROR(
-      '数据异常',
-      'RAG_DATASET_DISABLED: 停用知识库不能加入文档',
-    );
-  }
-  await assertOwnedDocument(documentId, userId);
-  const now = new Date();
-  await db
-    .insert(schema.rag_dataset_documents)
-    .values({
-      dataset_document_id: randomUUID(),
-      dataset_id: datasetId,
-      document_id: documentId,
-      active_version_id: null,
-      pending_version_id: documentVersionId,
-      rag_status: 'pending',
-      rag_error: null,
-      create_user_id: userId,
-      create_timestamp: now,
-      last_update_user_id: userId,
-      last_update_timestamp: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.rag_dataset_documents.dataset_id,
-        schema.rag_dataset_documents.document_id,
-      ],
-      set: {
-        pending_version_id: documentVersionId,
-        rag_status: 'pending',
-        rag_error: null,
-        last_update_user_id: userId,
-        last_update_timestamp: now,
-      },
-    });
-}
-
-/**
- * 为失败重试或成功重跑准备仍然存在且版本未被覆盖的知识库关系。
- *
- * @param datasetId 目标知识库标识。
- * @param documentId 文档标识。
- * @param documentVersionId 原任务绑定的不可变版本。
- * @param userId 当前操作用户。
- * @returns 关系仍允许重试时结束；关系已删除或有更新 pending 版本时拒绝。
- */
-export async function prepareExistingRagRelationRetry(
-  datasetId: string,
-  documentId: string,
-  documentVersionId: string,
-  userId: string,
-): Promise<void> {
-  const now = new Date();
-  const [updated] = await db
-    .update(schema.rag_dataset_documents)
-    .set({
-      pending_version_id: documentVersionId,
-      rag_status: 'pending',
-      rag_error: null,
-      last_update_user_id: userId,
-      last_update_timestamp: now,
-    })
-    .where(
-      and(
-        eq(schema.rag_dataset_documents.dataset_id, datasetId),
-        eq(schema.rag_dataset_documents.document_id, documentId),
-        or(
-          eq(
-            schema.rag_dataset_documents.pending_version_id,
-            documentVersionId,
-          ),
-          and(
-            isNull(schema.rag_dataset_documents.pending_version_id),
-            eq(
-              schema.rag_dataset_documents.active_version_id,
-              documentVersionId,
-            ),
-          ),
-        ),
-      ),
-    )
-    .returning({ id: schema.rag_dataset_documents.dataset_document_id });
-  if (!updated) {
-    throw new ROOT_ERROR(
-      '数据异常',
-      'RAG_RELATION_VERSION_CONFLICT: 知识库关系已删除或已有更新的待处理版本',
-    );
+    throw new ROOT_ERROR('相关文件不存在');
   }
 }
 
@@ -160,9 +33,9 @@ export type DocumentDatasetRelationMode = 'add' | 'remove' | 'replace';
 export interface UpdateDocumentDatasetRelationsInput {
   /** 文档稳定标识。 */
   documentId: string;
-  /** 新关系处理时使用的文档版本。 */
+  /** 加入或保留关系本次应处理的文档版本。 */
   documentVersionId: string;
-  /** 本次加入、移出或替换后的知识库标识。 */
+  /** 本次加入、移出或作为完整结果的知识库标识。 */
   datasetIds: string[];
   /** 加入、移出或全量替换。 */
   mode: DocumentDatasetRelationMode;
@@ -171,11 +44,12 @@ export interface UpdateDocumentDatasetRelationsInput {
 }
 
 /**
- * 原子批量加入、移出或替换一个文档的知识库关系。
+ * 原子批量加入、移出或替换文档知识库关系。
  *
- * 移除关系会同时取消仍在等待或运行的 RAG 任务；关系删除本身是迟到任务的发布屏障。
+ * 加入和替换会把目标关系指向同一个待处理版本，但不会创建按知识库重复的内容任务。
+ * 移除关系本身就是迟到发布的屏障，不取消可能仍服务其他知识库的版本内容任务。
  *
- * @param input 文档版本、目标知识库集合、变更方式和审计用户。
+ * @param input 文档版本、知识库集合、变更方式和审计用户。
  * @returns 实际新增和移除的知识库标识。
  */
 export async function updateDocumentDatasetRelations(
@@ -186,19 +60,16 @@ export async function updateDocumentDatasetRelations(
   if (input.mode !== 'remove' && requestedDatasetIds.length) {
     const datasetRows = await db
       .select({
-        id: schema.rag_datasets.dataset_id,
-        status: schema.rag_datasets.status,
+        id: schemas.rag_datasets.dataset_id,
+        status: schemas.rag_datasets.status,
       })
-      .from(schema.rag_datasets)
-      .where(inArray(schema.rag_datasets.dataset_id, requestedDatasetIds));
+      .from(schemas.rag_datasets)
+      .where(inArray(schemas.rag_datasets.dataset_id, requestedDatasetIds));
     if (
       datasetRows.length !== requestedDatasetIds.length ||
       datasetRows.some((dataset) => dataset.status !== 'active')
     ) {
-      throw new ROOT_ERROR(
-        '数据异常',
-        'RAG_DATASET_INVALID: 目标知识库不存在或已停用',
-      );
+      throw new ROOT_ERROR('数据异常');
     }
   }
 
@@ -208,11 +79,11 @@ export async function updateDocumentDatasetRelations(
     );
     const existingRows = await tx
       .select({
-        relationId: schema.rag_dataset_documents.dataset_document_id,
-        datasetId: schema.rag_dataset_documents.dataset_id,
+        relationId: schemas.rag_dataset_documents.dataset_document_id,
+        datasetId: schemas.rag_dataset_documents.dataset_id,
       })
-      .from(schema.rag_dataset_documents)
-      .where(eq(schema.rag_dataset_documents.document_id, input.documentId));
+      .from(schemas.rag_dataset_documents)
+      .where(eq(schemas.rag_dataset_documents.document_id, input.documentId));
     const existingIds = new Set(existingRows.map((row) => row.datasetId));
     const targetIds =
       input.mode === 'replace'
@@ -234,43 +105,15 @@ export async function updateDocumentDatasetRelations(
     const now = new Date();
 
     if (removedRows.length) {
-      await tx.delete(schema.rag_dataset_documents).where(
+      await tx.delete(schemas.rag_dataset_documents).where(
         inArray(
-          schema.rag_dataset_documents.dataset_document_id,
+          schemas.rag_dataset_documents.dataset_document_id,
           removedRows.map((row) => row.relationId),
         ),
       );
-      const removedTaskRows = await tx
-        .select({ taskId: schema.file_processing_tasks.task_id })
-        .from(schema.file_processing_tasks)
-        .where(
-          and(
-            eq(schema.file_processing_tasks.task_type, 'rag'),
-            eq(schema.file_processing_tasks.document_id, input.documentId),
-            inArray(schema.file_processing_tasks.dataset_id, removedDatasetIds),
-          ),
-        );
-      if (removedTaskRows.length) {
-        await tx
-          .update(schema.tasks)
-          .set({
-            status: 'killed',
-            end_timestamp: now,
-            last_update_timestamp: now,
-          })
-          .where(
-            and(
-              inArray(
-                schema.tasks.task_id,
-                removedTaskRows.map((row) => row.taskId),
-              ),
-              inArray(schema.tasks.status, ['to-be-started', 'pending']),
-            ),
-          );
-      }
     }
     if (addedDatasetIds.length) {
-      await tx.insert(schema.rag_dataset_documents).values(
+      await tx.insert(schemas.rag_dataset_documents).values(
         addedDatasetIds.map((datasetId) => ({
           dataset_document_id: randomUUID(),
           dataset_id: datasetId,
@@ -286,127 +129,203 @@ export async function updateDocumentDatasetRelations(
         })),
       );
     }
+
+    const processingDatasetIds =
+      input.mode === 'replace'
+        ? [...targetIds]
+        : input.mode === 'add'
+          ? requestedDatasetIds
+          : [];
+    if (processingDatasetIds.length) {
+      await tx
+        .update(schemas.rag_dataset_documents)
+        .set({
+          pending_version_id: input.documentVersionId,
+          rag_status: 'pending',
+          rag_error: null,
+          last_update_user_id: input.userId,
+          last_update_timestamp: now,
+        })
+        .where(
+          and(
+            eq(
+              schemas.rag_dataset_documents.document_id,
+              input.documentId,
+            ),
+            inArray(
+              schemas.rag_dataset_documents.dataset_id,
+              processingDatasetIds,
+            ),
+          ),
+        );
+    }
     return { addedDatasetIds, removedDatasetIds };
   });
 }
 
 /**
- * 读取知识库当前实际生效版本的 Segment。
+ * 为内容失败重试或成功重跑重新准备仍指向该版本的全部知识库关系。
  *
- * pending 或失败的新版本不会参与结果；关系删除后也无法通过此入口召回旧 Segment。
- *
- * @param datasetId 目标知识库标识。
- * @param documentIds 可选文档范围；为空时读取知识库全部 active 文档。
- * @returns 按文档和位置稳定排序、携带索引版本元数据的 Segment。
+ * @param input 文档、不可变版本和审计用户。
+ * @returns 被重新设为 pending 的关系数量。
  */
-export async function listActiveDatasetSegments(
-  datasetId: string,
-  documentIds?: string[],
-): Promise<RagDatasetSegmentInfo[]> {
-  if (documentIds && !documentIds.length) return [];
-  const rows = await db
-    .select({
-      relation: schema.rag_dataset_documents,
-      segment: schema.document_segments,
-    })
-    .from(schema.rag_dataset_documents)
-    .innerJoin(
-      schema.documents,
-      and(
-        eq(
-          schema.documents.document_id,
-          schema.rag_dataset_documents.document_id,
-        ),
-        eq(schema.documents.status, 'active'),
-      ),
-    )
-    .innerJoin(
-      schema.document_segments,
-      eq(
-        schema.document_segments.document_version_id,
-        schema.rag_dataset_documents.active_version_id,
-      ),
-    )
-    .where(
-      and(
-        eq(schema.rag_dataset_documents.dataset_id, datasetId),
-        isNotNull(schema.rag_dataset_documents.active_version_id),
-        documentIds?.length
-          ? inArray(schema.rag_dataset_documents.document_id, documentIds)
-          : undefined,
-      ),
-    )
-    .orderBy(
-      asc(schema.rag_dataset_documents.document_id),
-      asc(schema.document_segments.position),
-    );
-  return rows.map((row) => ({
-    datasetId: row.relation.dataset_id,
-    documentId: row.relation.document_id,
-    documentVersionId: row.segment.document_version_id,
-    segmentProfileVersion: row.segment.segment_profile_version,
-    segmentId: row.segment.segment_id,
-    parentSegmentId: row.segment.parent_segment_id,
-    content: row.segment.content,
-    embeddingContent: row.segment.embedding_content,
-    contentHash: row.segment.content_hash,
-    headingPath: JSON.parse(row.segment.heading_path) as string[],
-    page: row.segment.page,
-    position: row.segment.position,
-    tokenCount: row.segment.token_count,
-  }));
-}
-
-/** 将匹配 pending 版本的知识库关系标记为处理中。 */
-export async function markRagVersionProcessing(input: {
-  /** 知识库标识。 */
-  datasetId: string;
-  /** 文档标识。 */
+export async function prepareDocumentRagRelationsForReprocessing(input: {
+  /** 文档稳定标识。 */
   documentId: string;
-  /** 本次处理的文档版本。 */
+  /** 本次重新处理的文档版本。 */
   documentVersionId: string;
   /** 当前操作用户。 */
   userId: string;
-}) {
-  const [updated] = await db
-    .update(schema.rag_dataset_documents)
+}): Promise<number> {
+  const rows = await db
+    .update(schemas.rag_dataset_documents)
     .set({
-      rag_status: 'processing',
+      pending_version_id: input.documentVersionId,
+      rag_status: 'pending',
       rag_error: null,
       last_update_user_id: input.userId,
       last_update_timestamp: new Date(),
     })
     .where(
       and(
-        eq(schema.rag_dataset_documents.dataset_id, input.datasetId),
-        eq(schema.rag_dataset_documents.document_id, input.documentId),
-        eq(
-          schema.rag_dataset_documents.pending_version_id,
-          input.documentVersionId,
+        eq(schemas.rag_dataset_documents.document_id, input.documentId),
+        or(
+          eq(
+            schemas.rag_dataset_documents.pending_version_id,
+            input.documentVersionId,
+          ),
+          eq(
+            schemas.rag_dataset_documents.active_version_id,
+            input.documentVersionId,
+          ),
         ),
       ),
     )
-    .returning({ id: schema.rag_dataset_documents.dataset_document_id });
-  return Boolean(updated);
+    .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
+  return rows.length;
+}
+
+/** 将仍以指定版本为 pending 的全部知识库关系标记为处理中。 */
+export async function markDocumentRagRelationsProcessing(input: {
+  /** 当前内容任务标识。 */
+  taskId: string;
+  /** 当前 worker 持有的任务 lease。 */
+  leaseId: string;
+  /** 文档稳定标识。 */
+  documentId: string;
+  /** 本次处理的文档版本。 */
+  documentVersionId: string;
+  /** 当前操作用户。 */
+  userId: string;
+}): Promise<number> {
+  return await db.transaction(async (tx) => {
+    const now = new Date();
+    const [owned] = await tx
+      .update(schemas.tasks)
+      .set({ last_update_timestamp: now })
+      .where(
+        and(
+          eq(schemas.tasks.task_id, input.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, input.leaseId),
+        ),
+      )
+      .returning({ taskId: schemas.tasks.task_id });
+    if (!owned) throw new FileProcessingLeaseLostError();
+    const rows = await tx
+      .update(schemas.rag_dataset_documents)
+      .set({
+        rag_status: 'processing',
+        rag_error: null,
+        last_update_user_id: input.userId,
+        last_update_timestamp: now,
+      })
+      .where(
+        and(
+          eq(schemas.rag_dataset_documents.document_id, input.documentId),
+          eq(
+            schemas.rag_dataset_documents.pending_version_id,
+            input.documentVersionId,
+          ),
+        ),
+      )
+      .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
+    return rows.length;
+  });
 }
 
 /**
- * 原子发布仍是 pending 目标的 RAG 版本。
+ * 仅在内容任务仍持有 lease 时发布匹配的知识库关系。
  *
- * @returns 成功切换时为 true；目标已变化或关系已删除时为 false。
+ * @param input 任务 lease、文档版本和审计用户。
+ * @returns 成功切换的知识库关系数量。
  */
-export async function publishRagVersion(input: {
-  /** 知识库标识。 */
-  datasetId: string;
-  /** 文档标识。 */
+export async function publishDocumentRagRelationsForTask(input: {
+  /** 当前内容任务标识。 */
+  taskId: string;
+  /** 当前 worker 持有的任务 lease。 */
+  leaseId: string;
+  /** 文档稳定标识。 */
   documentId: string;
   /** 本次成功处理的文档版本。 */
   documentVersionId: string;
   /** 当前操作用户。 */
   userId: string;
-}) {
-  const [updated] = await db
-    .update(schema.rag_dataset_documents)
+}): Promise<number> {
+  return await db.transaction(async (tx) => {
+    const now = new Date();
+    const [owned] = await tx
+      .update(schemas.tasks)
+      .set({ last_update_timestamp: now })
+      .where(
+        and(
+          eq(schemas.tasks.task_id, input.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, input.leaseId),
+        ),
+      )
+      .returning({ taskId: schemas.tasks.task_id });
+    if (!owned) throw new FileProcessingLeaseLostError();
+    const rows = await tx
+      .update(schemas.rag_dataset_documents)
+      .set({
+        active_version_id: input.documentVersionId,
+        pending_version_id: null,
+        rag_status: 'ready',
+        rag_error: null,
+        last_update_user_id: input.userId,
+        last_update_timestamp: now,
+      })
+      .where(
+        and(
+          eq(schemas.rag_dataset_documents.document_id, input.documentId),
+          eq(
+            schemas.rag_dataset_documents.pending_version_id,
+            input.documentVersionId,
+          ),
+        ),
+      )
+      .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
+    return rows.length;
+  });
+}
+
+/**
+ * 原子发布所有仍以指定版本为 pending 的知识库关系。
+ *
+ * @param input 文档、成功版本和审计用户。
+ * @returns 成功切换的知识库关系数量。
+ */
+export async function publishDocumentRagRelations(input: {
+  /** 文档稳定标识。 */
+  documentId: string;
+  /** 本次成功处理的文档版本。 */
+  documentVersionId: string;
+  /** 当前操作用户。 */
+  userId: string;
+}): Promise<number> {
+  const rows = await db
+    .update(schemas.rag_dataset_documents)
     .set({
       active_version_id: input.documentVersionId,
       pending_version_id: null,
@@ -417,23 +336,20 @@ export async function publishRagVersion(input: {
     })
     .where(
       and(
-        eq(schema.rag_dataset_documents.dataset_id, input.datasetId),
-        eq(schema.rag_dataset_documents.document_id, input.documentId),
+        eq(schemas.rag_dataset_documents.document_id, input.documentId),
         eq(
-          schema.rag_dataset_documents.pending_version_id,
+          schemas.rag_dataset_documents.pending_version_id,
           input.documentVersionId,
         ),
       ),
     )
-    .returning({ id: schema.rag_dataset_documents.dataset_document_id });
-  return Boolean(updated);
+    .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
+  return rows.length;
 }
 
-/** 记录目标版本失败，同时保留旧 active 版本。 */
-export async function failRagVersion(input: {
-  /** 知识库标识。 */
-  datasetId: string;
-  /** 文档标识。 */
+/** 记录指定版本的全部待处理关系失败，同时保留各自旧 active 版本。 */
+export async function failDocumentRagRelations(input: {
+  /** 文档稳定标识。 */
   documentId: string;
   /** 本次失败的目标版本。 */
   documentVersionId: string;
@@ -441,9 +357,9 @@ export async function failRagVersion(input: {
   error: string;
   /** 当前操作用户。 */
   userId: string;
-}) {
+}): Promise<void> {
   await db
-    .update(schema.rag_dataset_documents)
+    .update(schemas.rag_dataset_documents)
     .set({
       rag_status: 'failed',
       rag_error: input.error,
@@ -452,10 +368,9 @@ export async function failRagVersion(input: {
     })
     .where(
       and(
-        eq(schema.rag_dataset_documents.dataset_id, input.datasetId),
-        eq(schema.rag_dataset_documents.document_id, input.documentId),
+        eq(schemas.rag_dataset_documents.document_id, input.documentId),
         eq(
-          schema.rag_dataset_documents.pending_version_id,
+          schemas.rag_dataset_documents.pending_version_id,
           input.documentVersionId,
         ),
       ),

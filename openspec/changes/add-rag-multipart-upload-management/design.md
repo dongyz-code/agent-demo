@@ -11,14 +11,14 @@
 - 在 `hooks/documents/upload` 建立上传初始化、完成、Multipart、验证和文档版本绑定能力。
 - 支持 Uppy + AWS S3 Multipart 浏览器直传、断点恢复、取消和幂等完成。
 - 对 PDF、图片、音视频、文本和 Office 文件提供安全在线查看路径。
-- 在 `hooks/documents/document` 管理复杂文档读取、版本和删除，在 `rag/pipeline` 管理解析、标准化与 Segment。
-- 在 `hooks/documents/rag` 管理知识库文档关系和 RAG 任务；知识库基础 CRUD 直接归 route。
+- 在 `hooks/documents/document` 管理复杂文档读取、版本、删除及 `document/content` 版本内容处理。
+- 在 `hooks/documents/rag` 管理知识库文档关系与 active/pending 版本发布；知识库基础 CRUD 直接归 route。
 - 按查询复杂度划分 route 与 hooks，保持调用方精确导入、组件职责清晰和完整中文 TSDoc。
 
 **Non-Goals:**
 
 - 不让上传模块理解知识库、头像或附件等业务规则。
-- 不在 route handler 中组合 S3、File 行、预览转换、RAG pipeline 或 worker 控制流程；普通局部 ORM 查询不受此限制。
+- 不在 route handler 中组合 S3、File 行、预览转换、文档内容处理或 worker 控制流程；普通局部 ORM 查询不受此限制。
 - 不允许前端持有 MinIO 长期凭证或拼接对象 URL。
 - 首期不实现 Office 在线编辑、复杂视频转码和跨区域对象存储容灾。
 - 本 change 不实现混合检索、Reranker 和回答评估闭环，只建立其上游文件、文档处理与知识库关联基础。
@@ -236,34 +236,32 @@ hooks/documents/upload 完成并验证 File
   ↓
 创建预览任务
   ↓
-按本次选择建立知识库关系并创建 RAG 任务
+按本次选择建立知识库关系并创建唯一版本内容任务
 ```
 
 File 只作为 DocumentVersion 的内部源文件。客户端不再用 `fileId` 继续拼接文档流程；完成请求幂等返回 Document 与 Version，预览和 RAG 失败各自重试，不回滚已验证版本。
 
-### 11. `hooks/documents/rag` 统一内容处理流程
+### 11. `document/content` 统一版本内容处理流程
 
 ```text
-apps/server/src/hooks/documents/rag/
-├── assignment.ts
-├── relations.ts
-├── task.ts
-├── runner.ts
-├── config.ts
-└── pipeline/
-    ├── parsers/
-    ├── normalize.ts
-    ├── segment.ts
-    ├── ids.ts
-    └── types.ts
+apps/server/src/hooks/documents/
+├── document/content/
+│   ├── parsers/
+│   ├── normalize.ts
+│   ├── segment.ts
+│   ├── task.ts
+│   └── runner.ts
+└── rag/
+    ├── assignment.ts
+    └── relations.ts
 ```
 
-runner 通过 `storage/source` 接收可信文件描述和可读取流，解析器输出统一 `ParsedBlock[]`。Docling、LibreOffice 或具体库类型不得越过 parser 边界。
+内容 runner 通过 `storage/source` 接收可信文件描述和可读取流，解析器输出统一 `ParsedBlock[]`。Docling、LibreOffice 或具体库类型不得越过 parser 边界。同一 DocumentVersion 与处理配置只创建一个内容任务；任务生成一套版本级 Segment 后，批量发布所有仍以该版本为 pending 的知识库关系。
 
 处理阶段：
 
 ```text
-queued → reading → parsing → normalizing → segmenting → ready
+queued → reading → parsing → normalizing → segmenting → content-publishing → completed
 ```
 
 每阶段记录配置版本、统计、产物和错误。Segment ID 由文档版本、策略版本、位置和内容 Hash 确定，重试不会重复插入。Embedding 和索引消费关系的 activeVersion 对应 Segment，不通过根公共接口，也不在解析器或 route 内调用。
@@ -315,17 +313,17 @@ rag_dataset_documents
 
 ```text
 hooks/documents/
-├── document/   复杂读取、版本、删除与清理
+├── document/   复杂读取、版本、删除、清理与版本内容处理
 ├── upload/     上传初始化、完成和 Multipart 编排
 ├── preview/    页面查询、转换任务和 runner
-├── rag/        文档关系、任务、runner 和 pipeline
+├── rag/        知识库文档关系与版本发布
 ├── tasks/      任务详情、worker、lease 和阶段运行时
 └── storage/    模块内部对象与源文件能力
 ```
 
 - `upload` 回答“上传如何安全完成并绑定文档版本”。
-- `document` 回答“文档如何聚合读取、形成版本和完成生命周期操作”。
-- `rag` 回答“文档如何解析为 Segment、属于哪些知识库，以及哪个版本参与检索”。
+- `document` 回答“文档如何聚合读取、形成版本、解析为 Segment 和完成生命周期操作”。
+- `rag` 回答“文档属于哪些知识库，以及哪个版本参与检索”。
 - 普通知识库、上传会话和简单状态查询直接留在 route，不为目录对称建立薄函数。
 - 文档可加入多个知识库；知识库删除关联不得删除文档本身。
 - 解析块与 Chunk 从 RAG 命名空间移出，统一命名为文档块与 `DocumentSegment`，供摘要、审核和 RAG 等多个消费者复用。
@@ -356,7 +354,7 @@ hooks/documents/
 2. 完成 upload/file routes、管理端 Uppy 组件、文件列表、下载和直接预览。
 3. 接入缩略图和 Office 预览 Worker，启用派生物状态与清理。
 4. 建立 `hooks/documents/document` 的文档版本能力，通过域内源文件边界接入已验证 File。
-5. 在 `hooks/documents/rag` 实现解析器、统一块模型、标准化、Segment 和知识库文档关联。
+5. 在 `hooks/documents/document/content` 实现解析器、统一块模型、标准化和 Segment，在 `hooks/documents/rag` 实现知识库文档关系与版本发布。
 6. 启用过期 Multipart、未绑定文件、派生物和失败文档处理产物的定时清理与一致性巡检。
 7. 灰度开放上传与 RAG 入口；出现问题时关闭新 routes，保留已上传对象与任务状态用于恢复。
 

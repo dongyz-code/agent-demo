@@ -1,13 +1,11 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { randomUUID } from 'node:crypto';
 import { ROOT_ERROR } from '@/configs/error.js';
 import { stringifyRolePermissionPayload } from '@/router/permission.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
-import type { SqlInsertData } from '@/database/index.js';
-
-type Item = SqlInsertData['role'];
+type Item = typeof schemas.role.$inferInsert;
 
 const { api } = routerHandler({
   url: '/sys/role/create',
@@ -42,7 +40,7 @@ const { api } = routerHandler({
       return item;
     });
 
-    await db.insert(schema.role).values(listNext);
+    await db.insert(schemas.role).values(listNext);
 
     return 'ok';
   },

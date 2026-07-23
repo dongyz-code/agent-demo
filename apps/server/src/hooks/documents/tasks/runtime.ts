@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 
-import { countRows, db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { FILE_PROCESSING_STAGE_PROGRESS } from './definition.js';
 import { getErrorCode } from './errors.js';
 
@@ -20,10 +20,8 @@ export interface FileProcessingTaskContext {
   documentId: string;
   /** 当前文档版本标识。 */
   documentVersionId: string;
-  /** 目标知识库标识。 */
-  datasetId: string | null;
-  /** 当前任务执行预览还是 RAG 处理。 */
-  taskType?: DocumentProcessingTaskType;
+  /** 当前任务执行页面预览还是版本内容处理。 */
+  taskType: DocumentProcessingTaskType;
   /** 创建任务的操作用户。 */
   userId: string;
 }
@@ -62,18 +60,18 @@ export async function runTaskStage<T>(
 ) {
   await lease.assertActive();
   const attempt =
-    (await countRows(
-      schema.file_processing_task_stage_runs,
+    (await db.$count(
+      schemas.file_processing_task_stage_runs,
       and(
-        eq(schema.file_processing_task_stage_runs.task_id, context.taskId),
-        eq(schema.file_processing_task_stage_runs.stage, stage),
+        eq(schemas.file_processing_task_stage_runs.task_id, context.taskId),
+        eq(schemas.file_processing_task_stage_runs.stage, stage),
       ),
     )) + 1;
   const stageRunId = randomUUID();
   const start = new Date();
   await db.transaction(async (tx) => {
     const [owned] = await tx
-      .update(schema.tasks)
+      .update(schemas.tasks)
       .set({
         current_stage: stage,
         progress: FILE_PROCESSING_STAGE_PROGRESS[stage],
@@ -81,14 +79,14 @@ export async function runTaskStage<T>(
       })
       .where(
         and(
-          eq(schema.tasks.task_id, context.taskId),
-          eq(schema.tasks.status, 'pending'),
-          eq(schema.tasks.pending_uuid, lease.leaseId),
+          eq(schemas.tasks.task_id, context.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, lease.leaseId),
         ),
       )
-      .returning({ taskId: schema.tasks.task_id });
+      .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
-    await tx.insert(schema.file_processing_task_stage_runs).values({
+    await tx.insert(schemas.file_processing_task_stage_runs).values({
       stage_run_id: stageRunId,
       task_id: context.taskId,
       stage,
@@ -109,19 +107,19 @@ export async function runTaskStage<T>(
     const processedItems = getProcessedItems(result);
     await db.transaction(async (tx) => {
       const [owned] = await tx
-        .update(schema.tasks)
+        .update(schemas.tasks)
         .set({ last_update_timestamp: new Date() })
         .where(
           and(
-            eq(schema.tasks.task_id, context.taskId),
-            eq(schema.tasks.status, 'pending'),
-            eq(schema.tasks.pending_uuid, lease.leaseId),
+            eq(schemas.tasks.task_id, context.taskId),
+            eq(schemas.tasks.status, 'pending'),
+            eq(schemas.tasks.pending_uuid, lease.leaseId),
           ),
         )
-        .returning({ taskId: schema.tasks.task_id });
+        .returning({ taskId: schemas.tasks.task_id });
       if (!owned) throw new FileProcessingLeaseLostError();
       await tx
-        .update(schema.file_processing_task_stage_runs)
+        .update(schemas.file_processing_task_stage_runs)
         .set({
           status: 'completed',
           processed_items: processedItems,
@@ -130,10 +128,10 @@ export async function runTaskStage<T>(
           end_timestamp: new Date(),
         })
         .where(
-          eq(schema.file_processing_task_stage_runs.stage_run_id, stageRunId),
+          eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
         );
       await tx
-        .update(schema.tasks)
+        .update(schemas.tasks)
         .set({
           processed_items: processedItems,
           total_items: processedItems,
@@ -141,9 +139,9 @@ export async function runTaskStage<T>(
         })
         .where(
           and(
-            eq(schema.tasks.task_id, context.taskId),
-            eq(schema.tasks.status, 'pending'),
-            eq(schema.tasks.pending_uuid, lease.leaseId),
+            eq(schemas.tasks.task_id, context.taskId),
+            eq(schemas.tasks.status, 'pending'),
+            eq(schemas.tasks.pending_uuid, lease.leaseId),
           ),
         );
     });
@@ -159,7 +157,7 @@ export async function runTaskStage<T>(
     }
     const message = error instanceof Error ? error.message : '阶段执行失败';
     await db
-      .update(schema.file_processing_task_stage_runs)
+      .update(schemas.file_processing_task_stage_runs)
       .set({
         status: (await isTaskCanceled(context.taskId)) ? 'killed' : 'failed',
         error_code: getErrorCode(message, 'FILE_PROCESSING_FAILED'),
@@ -167,7 +165,7 @@ export async function runTaskStage<T>(
         end_timestamp: new Date(),
       })
       .where(
-        eq(schema.file_processing_task_stage_runs.stage_run_id, stageRunId),
+        eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
       );
     throw error;
   }
@@ -184,7 +182,7 @@ export async function completeTask(
   const now = new Date();
   await db.transaction(async (tx) => {
     const [completed] = await tx
-      .update(schema.tasks)
+      .update(schemas.tasks)
       .set({
         status: 'completed',
         current_stage: 'completed',
@@ -198,21 +196,21 @@ export async function completeTask(
       })
       .where(
         and(
-          eq(schema.tasks.task_id, context.taskId),
-          eq(schema.tasks.status, 'pending'),
-          eq(schema.tasks.pending_uuid, lease.leaseId),
+          eq(schemas.tasks.task_id, context.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, lease.leaseId),
         ),
       )
-      .returning({ taskId: schema.tasks.task_id });
+      .returning({ taskId: schemas.tasks.task_id });
     if (!completed) throw new FileProcessingLeaseLostError();
     await tx
-      .update(schema.file_processing_tasks)
+      .update(schemas.file_processing_tasks)
       .set({
         result_summary: JSON.stringify(resultSummary),
         last_update_user_id: context.userId,
         last_update_timestamp: now,
       })
-      .where(eq(schema.file_processing_tasks.task_id, context.taskId));
+      .where(eq(schemas.file_processing_tasks.task_id, context.taskId));
   });
 }
 
@@ -224,7 +222,7 @@ export async function failTask(
   message: string,
 ) {
   const [failed] = await db
-    .update(schema.tasks)
+    .update(schemas.tasks)
     .set({
       status: 'failed',
       error_code: errorCode,
@@ -234,19 +232,19 @@ export async function failTask(
     })
     .where(
       and(
-        eq(schema.tasks.task_id, taskId),
-        eq(schema.tasks.status, 'pending'),
-        eq(schema.tasks.pending_uuid, leaseId),
+        eq(schemas.tasks.task_id, taskId),
+        eq(schemas.tasks.status, 'pending'),
+        eq(schemas.tasks.pending_uuid, leaseId),
       ),
     )
-    .returning({ taskId: schema.tasks.task_id });
+    .returning({ taskId: schemas.tasks.task_id });
   return Boolean(failed);
 }
 
 /** 将取消期间仍为 pending 的当前阶段记录终结为 killed。 */
 async function finishCanceledStageRun(stageRunId: string) {
   await db
-    .update(schema.file_processing_task_stage_runs)
+    .update(schemas.file_processing_task_stage_runs)
     .set({
       status: 'killed',
       error_code: 'FILE_PROCESSING_TASK_CANCELED',
@@ -255,8 +253,8 @@ async function finishCanceledStageRun(stageRunId: string) {
     })
     .where(
       and(
-        eq(schema.file_processing_task_stage_runs.stage_run_id, stageRunId),
-        eq(schema.file_processing_task_stage_runs.status, 'pending'),
+        eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
+        eq(schemas.file_processing_task_stage_runs.status, 'pending'),
       ),
     );
 }
@@ -264,9 +262,9 @@ async function finishCanceledStageRun(stageRunId: string) {
 /** 查询任务是否已被取消。 */
 export async function isTaskCanceled(taskId: string) {
   const [task] = await db
-    .select({ status: schema.tasks.status })
-    .from(schema.tasks)
-    .where(eq(schema.tasks.task_id, taskId))
+    .select({ status: schemas.tasks.status })
+    .from(schemas.tasks)
+    .where(eq(schemas.tasks.task_id, taskId))
     .limit(1);
   return task?.status === 'killed';
 }

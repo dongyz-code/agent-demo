@@ -1,4 +1,4 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
@@ -15,27 +15,27 @@ const { api } = routerHandler({
     const [items, userRole] = await Promise.all([
       db
         .select({
-          user_id: schema.user.user_id,
-          nickname: schema.user.nickname,
-          email: schema.user.email,
-          available: schema.user.available,
-          last_login_timestamp: schema.user.last_login_timestamp,
-          create_timestamp: schema.user.create_timestamp,
-          last_update_timestamp: schema.user.last_update_timestamp,
-          create_user_id: schema.user.create_user_id,
-          last_update_user_id: schema.user.last_update_user_id,
-          extra: schema.user.extra,
-          username: schema.user.username,
+          user_id: schemas.user.user_id,
+          nickname: schemas.user.nickname,
+          email: schemas.user.email,
+          available: schemas.user.available,
+          last_login_timestamp: schemas.user.last_login_timestamp,
+          create_timestamp: schemas.user.create_timestamp,
+          last_update_timestamp: schemas.user.last_update_timestamp,
+          create_user_id: schemas.user.create_user_id,
+          last_update_user_id: schemas.user.last_update_user_id,
+          extra: schemas.user.extra,
+          username: schemas.user.username,
         })
-        .from(schema.user)
-        .where(inArray(schema.user.user_id, ids)),
+        .from(schemas.user)
+        .where(inArray(schemas.user.user_id, ids)),
       db
         .select({
-          user_id: schema.user_role.user_id,
-          role_id: schema.user_role.role_id,
+          user_id: schemas.user_role.user_id,
+          role_id: schemas.user_role.role_id,
         })
-        .from(schema.user_role)
-        .where(inArray(schema.user_role.user_id, ids)),
+        .from(schemas.user_role)
+        .where(inArray(schemas.user_role.user_id, ids)),
     ]);
 
     const userRoleMap = new Map<string, string[]>();

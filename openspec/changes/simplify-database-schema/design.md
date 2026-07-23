@@ -76,6 +76,14 @@
 
 新增表评审必须同时回答业务所有者、写路径、读路径、唯一事实、保留期和清理方式。仅有“未来可能需要”的 spec 不足以进入启动注册；可以先定义 DTO、内存模型或适配接口，待持久化需求出现后再建表。
 
+### 决策 8：数据库公共入口只保留 db 与 schemas
+
+`database/index.ts` 只导出数据库客户端 `db` 和汇总表定义 `schemas`。调用方通过 `schemas.<table>` 显式选择表，通过 `drizzle-orm` 直接使用 `and`、`asc`、`desc`、`sql` 等表达式，并通过 `db.$count` 完成计数。`schemas` 只聚合真实表定义；`managedTableRegistry` 与 `bootstrappedTableRegistry` 保留在独立的 `tables/registry.ts`，仅供表管理和启动同步使用。
+
+删除 `tableNames`、`listFilter`、`rangeFilter`、`searchFilter`、`whereAll`、`orderByAsc`、`orderByDesc` 和 `countRows`。这些封装要么只是 Drizzle API 的改名，要么以 `AnyColumn` 丢失列类型，并且 `countRows` 固定全局客户端后不适用于事务。筛选条件留在具体查询中，避免为简单 ORM 条件建立新的公共工具层。
+
+`SqlData`、`SqlInsertData` 不再根据 `managedTableRegistry` 生成；业务代码使用对应表的 `$inferSelect`、`$inferInsert`。表管理白名单与业务数据类型因此保持独立。连接池继续由 `client.ts` 内部持有，不作为数据库公共入口的一部分。
+
 ## Risks / Trade-offs
 
 - [旧任务表存在尚未查看的历史记录] → 物理删除前强制精确计数、导出和摘要校验，代码退役与删除分开部署。
@@ -86,6 +94,7 @@
 - [与尚未归档的 documents 变更产生规格冲突] → 本变更声明接续关系，先完成其剩余集成测试，再按本变更 delta 替代过渡性保留要求。
 - [Agent 表当前没有运行时入口] → 将其记录为产品明确保留的预留结构，本变更不删除、不改列、不改类型；后续 Agent 功能负责补齐读写和生命周期。
 - [表数量指标诱导继续合并] → 验收关注事实来源、消费者和完整性，不把 19 作为未来不可变化的硬上限。
+- [迁移筛选条件时改变空数组语义] → 按各接口现有契约显式处理空数组，并通过类型检查和静态审计确认旧 helper 零引用。
 
 ## Migration Plan
 

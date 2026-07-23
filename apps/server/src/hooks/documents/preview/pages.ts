@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, lt } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { resolveDocumentVersion } from '../document/read.js';
 import { presignGetObject } from '../storage/presign.js';
 import { createDocumentPreviewTask } from './task.js';
@@ -40,16 +40,10 @@ export async function getDocumentPreviewPages(
   const startPage = input.startPage ?? 1;
   const requestedPageSize = input.pageSize ?? DEFAULT_PAGE_SIZE;
   if (!Number.isInteger(startPage) || startPage < 1) {
-    throw new ROOT_ERROR(
-      '非法参数',
-      'DOCUMENT_PREVIEW_PAGE_INVALID: 起始页必须是大于等于 1 的整数',
-    );
+    throw new ROOT_ERROR('非法参数');
   }
   if (!Number.isInteger(requestedPageSize) || requestedPageSize < 1) {
-    throw new ROOT_ERROR(
-      '非法参数',
-      'DOCUMENT_PREVIEW_PAGE_SIZE_INVALID: 页面数量必须是正整数',
-    );
+    throw new ROOT_ERROR('非法参数');
   }
   const pageSize = Math.min(requestedPageSize, MAX_PAGE_SIZE);
   const resolved = await resolveDocumentVersion(
@@ -69,21 +63,21 @@ export async function getDocumentPreviewPages(
   }
   const rows = await db
     .select()
-    .from(schema.document_preview_pages)
+    .from(schemas.document_preview_pages)
     .where(
       and(
         eq(
-          schema.document_preview_pages.document_version_id,
+          schemas.document_preview_pages.document_version_id,
           version.document_version_id,
         ),
-        gte(schema.document_preview_pages.page_number, startPage),
+        gte(schemas.document_preview_pages.page_number, startPage),
         lt(
-          schema.document_preview_pages.page_number,
+          schemas.document_preview_pages.page_number,
           startPage + pageSize,
         ),
       ),
     )
-    .orderBy(asc(schema.document_preview_pages.page_number));
+    .orderBy(asc(schemas.document_preview_pages.page_number));
   const pages = await Promise.all(
     rows.map(
       async (page) =>
@@ -136,7 +130,7 @@ export async function retryDocumentPreview(
 
 /** 为已通过文档权限校验的页面行签发短期内联地址。 */
 async function signPreviewPage(
-  page: typeof schema.document_preview_pages.$inferSelect,
+  page: typeof schemas.document_preview_pages.$inferSelect,
   filename: string,
 ): Promise<DocumentPreviewPageInfo> {
   const signed = await presignGetObject({

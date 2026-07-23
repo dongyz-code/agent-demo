@@ -95,7 +95,7 @@ function listUploadPolicies(): Record<UploadPolicyKey, UploadPolicy> {
 export function getUploadPolicy(key: UploadPolicyKey): UploadPolicy {
   const policy = listUploadPolicies()[key];
   if (!policy) {
-    throw new ROOT_ERROR('非法参数', 'UPLOAD_INVALID_POLICY: 上传策略不存在');
+    throw new ROOT_ERROR('非法参数');
   }
   return policy;
 }

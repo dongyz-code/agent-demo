@@ -1,5 +1,25 @@
 ## ADDED Requirements
 
+### Requirement: 数据库公共入口保持最小
+服务端数据库公共入口 MUST 只暴露数据库客户端 `db` 和汇总表定义 `schemas`。调用方 MUST 直接使用 Drizzle 原生查询表达式，MUST NOT 为简单条件、排序、计数或 SQL 表达式维护二次封装。
+
+#### Scenario: 业务代码访问数据库
+- **WHEN** route 或复杂业务流程构造 Drizzle 查询
+- **THEN** 调用方 MUST 从数据库入口读取 `db` 与 `schemas`
+- **THEN** 调用方 MUST 从 `drizzle-orm` 直接读取查询表达式
+
+#### Scenario: 业务代码推导表数据类型
+- **WHEN** 调用方需要某张表的读取或写入类型
+- **THEN** 调用方 MUST 使用对应表的 `$inferSelect` 或 `$inferInsert`
+- **THEN** 类型 MUST NOT 依赖表管理白名单 `managedTableRegistry`
+
+#### Scenario: 数据库入口静态审计
+- **WHEN** 数据库访问入口收敛完成
+- **THEN** `tableNames`、筛选 helper、排序 helper 和 `countRows` MUST 零引用
+- **THEN** 连接池 MUST NOT 通过数据库公共入口暴露
+- **THEN** 无调用方使用的数据库客户端类型 MUST NOT 预留导出
+- **THEN** `schemas` MUST 只聚合表定义，表管理和启动注册表 MUST 从独立模块导入
+
 ### Requirement: Drizzle 目标结构包含外键
 服务端自管 Drizzle 结构描述 MUST 从表定义中读取外键名称、本地列、引用 schema、引用表、引用列以及更新和删除动作。DDL 生成器和 catalog 差异比较 MUST 消费同一目标描述。
 

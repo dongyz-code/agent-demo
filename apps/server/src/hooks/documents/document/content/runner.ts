@@ -1,61 +1,54 @@
 import { and, eq, sql } from 'drizzle-orm';
 
-import { db, schema } from '@/database/index.js';
-import { getReadableDocumentSource } from '../storage/source.js';
+import { db, schemas } from '@/database/index.js';
+import {
+  failDocumentRagRelations,
+  markDocumentRagRelationsProcessing,
+  publishDocumentRagRelationsForTask,
+} from '../../rag/relations.js';
+import { getReadableDocumentSource } from '../../storage/source.js';
+import { getErrorCode } from '../../tasks/errors.js';
 import {
   completeTask,
   failTask,
   FileProcessingLeaseLostError,
   isTaskCanceled,
   runTaskStage,
-} from '../tasks/runtime.js';
-import { getErrorCode } from '../tasks/errors.js';
-import { getDefaultSegmentProfile } from './config.js';
-import { normalizeDocumentBlocks } from './pipeline/normalize.js';
-import { getDocumentParser } from './pipeline/parsers/registry.js';
-import { createDocumentSegments } from './pipeline/segment.js';
-import {
-  failRagVersion,
-  markRagVersionProcessing,
-  publishRagVersion,
-} from './relations.js';
+} from '../../tasks/runtime.js';
+import { getDefaultSegmentProfile } from './definition.js';
+import { normalizeDocumentBlocks } from './normalize.js';
+import { getDocumentParser } from './parsers/registry.js';
+import { createDocumentSegments } from './segment.js';
 
 import type { DocumentSegment } from '@repo/types';
 import type {
   FileProcessingTaskContext,
   FileProcessingTaskLease,
-} from '../tasks/runtime.js';
+} from '../../tasks/runtime.js';
 
 /**
- * 执行已领取 RAG 任务的读取、解析、切分和版本发布流程。
+ * 执行已领取文档版本的读取、解析、切分和内容发布流程。
+ *
+ * 同一任务只生成一套版本级 Segment；完成后批量发布所有仍以该版本为 pending
+ * 的知识库关系。关系已删除或改指新版本时不会被迟到任务恢复。
  *
  * @param context worker 已校验的文档版本任务上下文。
  * @param lease 当前领取对应的 lease 校验器。
  * @returns 任务成功、失败、取消或失去 lease 后结束。
  */
-export async function runDocumentRagTask(
+export async function runDocumentContentTask(
   context: FileProcessingTaskContext,
   lease: FileProcessingTaskLease,
 ): Promise<void> {
-  const datasetId = context.datasetId;
   try {
     await lease.assertActive();
-    if (!datasetId) {
-      throw new Error(
-        'FILE_PROCESSING_CONTEXT_INVALID: RAG 任务缺少目标知识库',
-      );
-    }
-    const processing = await markRagVersionProcessing({
-      datasetId,
+    await markDocumentRagRelationsProcessing({
+      taskId: context.taskId,
+      leaseId: lease.leaseId,
       documentId: context.documentId,
       documentVersionId: context.documentVersionId,
       userId: context.userId,
     });
-    if (!processing) {
-      throw new Error(
-        'RAG_TARGET_SUPERSEDED: 知识库关系已删除或待处理版本已经变化',
-      );
-    }
     const file = await runTaskStage(context, lease, 'reading', async () =>
       getReadableDocumentSource(context.fileId),
     );
@@ -78,13 +71,14 @@ export async function runDocumentRagTask(
       segments,
       segmentProfileVersion: profile.version,
     });
-    const published = await runTaskStage(
+    const publishedRelationCount = await runTaskStage(
       context,
       lease,
-      'rag-ingestion',
+      'content-publishing',
       async () =>
-        await publishRagVersion({
-          datasetId,
+        await publishDocumentRagRelationsForTask({
+          taskId: context.taskId,
+          leaseId: lease.leaseId,
           documentId: context.documentId,
           documentVersionId: context.documentVersionId,
           userId: context.userId,
@@ -93,10 +87,9 @@ export async function runDocumentRagTask(
     await completeTask(context, lease, segments.length, {
       documentId: context.documentId,
       documentVersionId: context.documentVersionId,
-      datasetId,
       segmentCount: segments.length,
-      capability: 'rag-ingestion',
-      published,
+      capability: 'document-content',
+      publishedRelationCount,
     });
   } catch (error) {
     if (
@@ -105,28 +98,25 @@ export async function runDocumentRagTask(
     ) {
       return;
     }
-    const message = error instanceof Error ? error.message : '文件处理失败';
+    const message = error instanceof Error ? error.message : '文档内容处理失败';
     const failed = await failTask(
       context.taskId,
       lease.leaseId,
-      getErrorCode(message, 'FILE_PROCESSING_FAILED'),
+      getErrorCode(message, 'DOCUMENT_CONTENT_PROCESSING_FAILED'),
       message,
     );
     if (!failed) return;
-    if (datasetId) {
-      await failRagVersion({
-        datasetId,
-        documentId: context.documentId,
-        documentVersionId: context.documentVersionId,
-        error: message,
-        userId: context.userId,
-      });
-    }
+    await failDocumentRagRelations({
+      documentId: context.documentId,
+      documentVersionId: context.documentVersionId,
+      error: message,
+      userId: context.userId,
+    });
     throw error;
   }
 }
 
-/** 幂等保存当前版本和配置对应的最终 Segment。 */
+/** 幂等替换当前版本唯一一套 Segment。 */
 async function persistContentResult(
   context: FileProcessingTaskContext,
   lease: FileProcessingTaskLease,
@@ -143,37 +133,30 @@ async function persistContentResult(
       sql`select pg_advisory_xact_lock(hashtext(${[
         'document-segments',
         context.documentVersionId,
-        result.segmentProfileVersion,
       ].join(':')}))`,
     );
     const [owned] = await tx
-      .update(schema.tasks)
+      .update(schemas.tasks)
       .set({ last_update_timestamp: new Date() })
       .where(
         and(
-          eq(schema.tasks.task_id, context.taskId),
-          eq(schema.tasks.status, 'pending'),
-          eq(schema.tasks.pending_uuid, lease.leaseId),
+          eq(schemas.tasks.task_id, context.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, lease.leaseId),
         ),
       )
-      .returning({ taskId: schema.tasks.task_id });
+      .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     await tx
-      .delete(schema.document_segments)
+      .delete(schemas.document_segments)
       .where(
-        and(
-          eq(
-            schema.document_segments.document_version_id,
-            context.documentVersionId,
-          ),
-          eq(
-            schema.document_segments.segment_profile_version,
-            result.segmentProfileVersion,
-          ),
+        eq(
+          schemas.document_segments.document_version_id,
+          context.documentVersionId,
         ),
       );
     if (result.segments.length) {
-      await tx.insert(schema.document_segments).values(
+      await tx.insert(schemas.document_segments).values(
         result.segments.map((segment) => ({
           segment_id: segment.segmentId,
           document_version_id: context.documentVersionId,

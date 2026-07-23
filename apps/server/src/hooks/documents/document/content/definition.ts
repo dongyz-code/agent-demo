@@ -1,9 +1,9 @@
 import { ROOT } from '@/configs/index.js';
 
-import type { DocumentSegmentProfile } from './pipeline/types.js';
+import type { DocumentSegmentProfile } from './types.js';
 
-/** 首期文档预处理与 RAG 接入配置版本。 */
-export const DEFAULT_FILE_PROCESSING_CONFIG_VERSION = 'file-processing-v1';
+/** 首期文档版本内容处理配置。 */
+export const DEFAULT_DOCUMENT_CONTENT_CONFIG_VERSION = 'document-content-v1';
 
 /**
  * 返回当前服务配置对应的默认 Segment 策略。

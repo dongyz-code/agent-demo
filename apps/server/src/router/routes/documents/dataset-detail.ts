@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -12,20 +12,17 @@ const { api } = routerHandler({
   handler: async ({ body }) => {
     const [dataset] = await db
       .select({
-        datasetId: schema.rag_datasets.dataset_id,
-        name: schema.rag_datasets.name,
-        description: schema.rag_datasets.description,
-        status: schema.rag_datasets.status,
-        createdAt: schema.rag_datasets.create_timestamp,
+        datasetId: schemas.rag_datasets.dataset_id,
+        name: schemas.rag_datasets.name,
+        description: schemas.rag_datasets.description,
+        status: schemas.rag_datasets.status,
+        createdAt: schemas.rag_datasets.create_timestamp,
       })
-      .from(schema.rag_datasets)
-      .where(eq(schema.rag_datasets.dataset_id, body.datasetId))
+      .from(schemas.rag_datasets)
+      .where(eq(schemas.rag_datasets.dataset_id, body.datasetId))
       .limit(1);
     if (!dataset) {
-      throw new ROOT_ERROR(
-        '相关文件不存在',
-        'RAG_DATASET_NOT_FOUND: 知识库不存在',
-      );
+      throw new ROOT_ERROR('相关文件不存在');
     }
     return dataset;
   },

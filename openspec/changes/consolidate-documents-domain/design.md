@@ -36,17 +36,17 @@
 
 ```
 hooks/documents/
-  document/           文档复杂读取、版本、删除和清理
+  document/           文档复杂读取、版本、删除、清理和版本内容处理
   upload/             上传初始化、完成、Multipart 和私有会话规则
   preview/            页面查询、任务、转换器与执行器
-  rag/                文档关系、任务、runner 与 pipeline
+  rag/                知识库文档关系与版本发布
   tasks/              文档任务详情、worker、lease 与阶段运行时
   storage/            模块内部对象与源文件能力
 ```
 
-划分依据：按用户可识别的功能和后台状态边界，而非按旧目录名。RAG 算法归 `rag/pipeline`，通用任务租约归 `tasks`；File 行与 S3 原语只作为模块内部实现存在。
+划分依据：按用户可识别的功能和后台状态边界，而非按旧目录名。解析、标准化和 Segment 归 `document/content`，同一 DocumentVersion 与配置只处理一次；`rag` 只维护知识库关系和 active/pending 发布，通用任务租约归 `tasks`；File 行与 S3 原语只作为模块内部实现存在。
 
-**替代方案**：保留 `stages/` 五个转发壳文件。否决：每个 stage 仅一行调用，纯增加跳转层级，runner 直接调 `content` 函数即可。若某阶段确有独立逻辑（如 rag-ingestion 的幂等关联），作为 `processing` 内函数保留，不单列文件。
+**替代方案**：保留 `stages/` 五个转发壳文件。否决：每个 stage 仅一行调用，纯增加跳转层级，内容 runner 直接调用解析、标准化和 Segment 函数即可；关系发布作为 `rag/relations` 的批量条件更新保留，不为单个阶段再建目录。
 
 ### 决策 3：routes 收敛与最多两层
 
@@ -68,7 +68,7 @@ router loader 已支持递归加载、文件路径即路由（`server-fastify-ro
 
 ### 决策 5：统一错误处理
 
-删除 `FileProcessingError extends Error`，documents 域业务错误直接抛出项目统一 `ROOT_ERROR` 实例。调用点使用已注册的 `ROOT_ERROR` 键表达 HTTP 语义（`非法参数`→400、`认证: 权限不足`→403、`相关文件不存在`→404、`数据异常`→409、`服务异常`→500），不再维护额外领域错误工厂或 `kind` 映射层。业务错误码保留在错误详情前缀中，便于日志和管理端排查。
+删除 `FileProcessingError extends Error`，documents 域业务错误直接抛出项目统一 `ROOT_ERROR` 实例。调用点使用已注册的 `ROOT_ERROR` 键表达 HTTP 语义（`非法参数`→400、`认证: 权限不足`→403、`相关文件不存在`→404、`数据异常`→409、`服务异常`→500），不再维护额外领域错误工厂或 `kind` 映射层。固定错误只传已注册的错误键；第二参数只用于补充无法在错误定义中预先表达的运行时上下文，不重复固定业务错误码或文案。
 
 **修复 HTTP 500 塌缩**：`ROOT_ERROR` 带 `statusCode`，fastify `normalizeError` 可正确读取，file 侧业务错误不再塌缩 500。
 

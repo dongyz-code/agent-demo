@@ -2,11 +2,11 @@ import { routerHandler } from '@/router/utils.js';
 import { authentication } from '@/router/authentication.js';
 import { ROOT } from '@/configs/env.js';
 import { ROOT_ERROR } from '@/configs/error.js';
-import { db, schema, whereAll } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { getSha256Hex } from '@/utils/index.js';
 import { addUserLog } from '@/hooks/user-log/index.js';
 import { getAdminPermissionContext } from '@/router/permission.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import type { ApiLogin } from '@/types/index.js';
 
@@ -51,14 +51,14 @@ async function getUserItem(
   }
   const [item] = await db
     .select({
-      user_id: schema.user.user_id,
-      nickname: schema.user.nickname,
+      user_id: schemas.user.user_id,
+      nickname: schemas.user.nickname,
     })
-    .from(schema.user)
+    .from(schemas.user)
     .where(
-      whereAll(
-        eq(schema.user.username, username),
-        eq(schema.user.password, password),
+      and(
+        eq(schemas.user.username, username),
+        eq(schemas.user.password, password),
       ),
     )
     .limit(1);
@@ -104,11 +104,11 @@ const { api } = routerHandler({
 
       /** 更新最后登录时间 */
       await db
-        .update(schema.user)
+        .update(schemas.user)
         .set({
           last_login_timestamp: new Date(),
         })
-        .where(eq(schema.user.user_id, userItem.user_id));
+        .where(eq(schemas.user.user_id, userItem.user_id));
 
       addUserLog({
         key: 'user.login',

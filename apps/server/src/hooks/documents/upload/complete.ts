@@ -1,10 +1,10 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
-import { ROOT, ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
+import { db, schemas } from '@/database/index.js';
 import { createDocumentVersionFromFile } from '../document/version.js';
 import { createDocumentPreviewTask } from '../preview/task.js';
-import { createDocumentRagTask } from '../rag/task.js';
+import { applyDocumentDatasetAssignment } from '../rag/assignment.js';
 import {
   completeMultipartUpload,
   headStoredObject,
@@ -29,7 +29,7 @@ import type { Upload, UploadedPartInfo } from '@repo/types';
 const MAGIC_PREFIX_BYTES = 8192;
 
 /**
- * 完成对象上传、创建文档版本并触发预览与 RAG 任务。
+ * 完成对象上传、创建文档版本并触发预览与版本内容任务。
  *
  * @param input 上传会话标识与可选 Multipart 完成清单。
  * @param userId 当前操作用户，用于会话所有权、文档范围和审计。
@@ -60,23 +60,18 @@ export async function completeDocumentUpload(
       userId,
     );
   }
-  if (ROOT.fileProcessing.enabled && session.enter_rag) {
-    await Promise.all(
-      parseUploadDatasetIds(session.dataset_ids).map(
-        async (datasetId) =>
-          await createDocumentRagTask(
-            {
-              documentId: binding.document.documentId,
-              documentVersionId: binding.documentVersionId,
-              datasetId,
-              processingConfigVersion:
-                session.processing_config_version ?? undefined,
-              triggerSource: 'upload',
-            },
-            userId,
-          ),
-      ),
-    );
+  const datasetIds = parseUploadDatasetIds(session.dataset_ids);
+  if (session.enter_rag && datasetIds.length) {
+    await applyDocumentDatasetAssignment({
+      documentId: binding.document.documentId,
+      documentVersionId: binding.documentVersionId,
+      datasetIds,
+      mode: 'add',
+      userId,
+      processingConfigVersion:
+        session.processing_config_version ?? undefined,
+      triggerSource: 'upload',
+    });
   }
   return {
     documentId: binding.document.documentId,
@@ -88,7 +83,7 @@ export async function completeDocumentUpload(
 
 /** 幂等完成上传并返回已验证源文件行。 */
 async function finishUpload(
-  session: typeof schema.file_upload_sessions.$inferSelect,
+  session: typeof schemas.file_upload_sessions.$inferSelect,
   submittedParts: Pick<UploadedPartInfo, 'partNumber' | 'etag'>[] | undefined,
   userId: string,
 ) {
@@ -98,7 +93,7 @@ async function finishUpload(
   assertTransferableUploadSession(session);
 
   const [claimed] = await db
-    .update(schema.file_upload_sessions)
+    .update(schemas.file_upload_sessions)
     .set({
       status: 'completing',
       last_update_user_id: userId,
@@ -106,8 +101,8 @@ async function finishUpload(
     })
     .where(
       and(
-        eq(schema.file_upload_sessions.session_id, session.session_id),
-        inArray(schema.file_upload_sessions.status, [
+        eq(schemas.file_upload_sessions.session_id, session.session_id),
+        inArray(schemas.file_upload_sessions.status, [
           'initialized',
           'uploading',
         ]),
@@ -115,20 +110,14 @@ async function finishUpload(
     )
     .returning();
   if (!claimed) {
-    throw new ROOT_ERROR(
-      '数据异常',
-      'UPLOAD_SESSION_STATE_CONFLICT: 上传正在由其他请求完成',
-    );
+    throw new ROOT_ERROR('数据异常');
   }
 
   const file = await getUploadSourceFile(session.file_id);
   try {
     if (session.mode === 'multipart') {
       if (!session.upload_id || !session.part_count || !submittedParts) {
-        throw new ROOT_ERROR(
-          '非法参数',
-          'UPLOAD_PART_INVALID: 缺少 Multipart 分片信息',
-        );
+        throw new ROOT_ERROR('非法参数');
       }
       const actualParts = await listMultipartParts({
         bucket: file.bucket,
@@ -146,7 +135,7 @@ async function finishUpload(
 
     const verified = await validateStoredFile(file, session, userId);
     await db
-      .update(schema.file_upload_sessions)
+      .update(schemas.file_upload_sessions)
       .set({
         status: 'completed',
         uploaded_size: session.size,
@@ -157,12 +146,12 @@ async function finishUpload(
         last_update_timestamp: new Date(),
       })
       .where(
-        eq(schema.file_upload_sessions.session_id, session.session_id),
+        eq(schemas.file_upload_sessions.session_id, session.session_id),
       );
     return verified;
   } catch (error) {
     await db
-      .update(schema.file_upload_sessions)
+      .update(schemas.file_upload_sessions)
       .set({
         status: 'failed',
         error_code: 'UPLOAD_FILE_REJECTED',
@@ -171,7 +160,7 @@ async function finishUpload(
         last_update_timestamp: new Date(),
       })
       .where(
-        eq(schema.file_upload_sessions.session_id, session.session_id),
+        eq(schemas.file_upload_sessions.session_id, session.session_id),
       );
     throw error;
   }
@@ -179,19 +168,19 @@ async function finishUpload(
 
 /** 验证上传完成后的对象并写入可信文件信息。 */
 async function validateStoredFile(
-  file: typeof schema.files.$inferSelect,
-  session: typeof schema.file_upload_sessions.$inferSelect,
+  file: typeof schemas.files.$inferSelect,
+  session: typeof schemas.file_upload_sessions.$inferSelect,
   userId: string,
 ) {
   const now = new Date();
   await db
-    .update(schema.files)
+    .update(schemas.files)
     .set({
       status: 'verifying',
       last_update_user_id: userId,
       last_update_timestamp: now,
     })
-    .where(eq(schema.files.file_id, file.file_id));
+    .where(eq(schemas.files.file_id, file.file_id));
 
   try {
     const head = await headStoredObject({
@@ -199,10 +188,7 @@ async function validateStoredFile(
       objectKey: file.object_key,
     });
     if (head.ContentLength !== file.size) {
-      throw new ROOT_ERROR(
-        '非法参数',
-        'UPLOAD_OBJECT_MISMATCH: 对象大小与初始化声明不一致',
-      );
+      throw new ROOT_ERROR('非法参数');
     }
 
     const prefix = await readObjectPrefix({
@@ -219,10 +205,7 @@ async function validateStoredFile(
       !trustedContentType ||
       !policy.allowedContentTypes.includes(trustedContentType)
     ) {
-      throw new ROOT_ERROR(
-        '非法参数',
-        'UPLOAD_FILE_TYPE_NOT_ALLOWED: 实际文件类型不在上传策略允许范围内',
-      );
+      throw new ROOT_ERROR('非法参数');
     }
 
     const sha256 = await calculateObjectSha256({
@@ -230,7 +213,7 @@ async function validateStoredFile(
       objectKey: file.object_key,
     });
     const [updated] = await db
-      .update(schema.files)
+      .update(schemas.files)
       .set({
         content_type: trustedContentType,
         sha256,
@@ -240,19 +223,19 @@ async function validateStoredFile(
         last_update_user_id: userId,
         last_update_timestamp: now,
       })
-      .where(eq(schema.files.file_id, file.file_id))
+      .where(eq(schemas.files.file_id, file.file_id))
       .returning();
     if (!updated) throw new Error('文件验证结果写入失败');
     return updated;
   } catch (error) {
     await db
-      .update(schema.files)
+      .update(schemas.files)
       .set({
         status: 'rejected',
         last_update_user_id: userId,
         last_update_timestamp: new Date(),
       })
-      .where(eq(schema.files.file_id, file.file_id));
+      .where(eq(schemas.files.file_id, file.file_id));
     throw error;
   }
 }
@@ -298,7 +281,7 @@ function validateCompletionParts(
   partCount: number,
 ): void {
   if (actualParts.length !== partCount || submittedParts.length !== partCount) {
-    throw new ROOT_ERROR('非法参数', 'UPLOAD_PART_INVALID: 分片数量不完整');
+    throw new ROOT_ERROR('非法参数');
   }
   const submitted = new Map(
     submittedParts.map((part) => [part.partNumber, normalizeEtag(part.etag)]),

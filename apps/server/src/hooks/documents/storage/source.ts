@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { openStoredObject } from './objects.js';
 
 import type { Readable } from 'node:stream';
@@ -22,14 +22,11 @@ export interface ReadableDocumentSource extends StoredFileInfo {
 export async function getDocumentSourceFile(fileId: string) {
   const [file] = await db
     .select()
-    .from(schema.files)
-    .where(eq(schema.files.file_id, fileId))
+    .from(schemas.files)
+    .where(eq(schemas.files.file_id, fileId))
     .limit(1);
   if (!file || file.status === 'deleted') {
-    throw new ROOT_ERROR(
-      '相关文件不存在',
-      'UPLOAD_SESSION_NOT_FOUND: 文件不存在',
-    );
+    throw new ROOT_ERROR('相关文件不存在');
   }
   return file;
 }
@@ -45,10 +42,7 @@ export async function getReadableDocumentSource(
 ): Promise<ReadableDocumentSource> {
   const file = await getDocumentSourceFile(fileId);
   if (file.status !== 'verified') {
-    throw new ROOT_ERROR(
-      '数据异常',
-      'UPLOAD_FILE_REJECTED: 只有验证成功的文件可以被业务读取',
-    );
+    throw new ROOT_ERROR('数据异常');
   }
   return {
     fileId: file.file_id,

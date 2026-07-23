@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { DOCUMENT_CLEANUP_TASK_KEY } from '../tasks/definition.js';
 
 /**
@@ -20,51 +20,51 @@ export async function removeDocument(
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
     const [document] = await tx
       .select({
-        name: schema.documents.name,
-        status: schema.documents.status,
+        name: schemas.documents.name,
+        status: schemas.documents.status,
       })
-      .from(schema.documents)
+      .from(schemas.documents)
       .where(
         and(
-          eq(schema.documents.document_id, documentId),
-          eq(schema.documents.create_user_id, userId),
+          eq(schemas.documents.document_id, documentId),
+          eq(schemas.documents.create_user_id, userId),
         ),
       )
       .limit(1);
     if (!document) return false;
     const versionRows = await tx
-      .select({ id: schema.document_versions.document_version_id })
-      .from(schema.document_versions)
-      .where(eq(schema.document_versions.document_id, documentId));
+      .select({ id: schemas.document_versions.document_version_id })
+      .from(schemas.document_versions)
+      .where(eq(schemas.document_versions.document_id, documentId));
     const versionIds = versionRows.map((row) => row.id);
     const now = new Date();
     if (document.status !== 'deleted') {
       await tx
-        .update(schema.documents)
+        .update(schemas.documents)
         .set({
           status: 'deleted',
           last_update_user_id: userId,
           last_update_timestamp: now,
         })
-        .where(eq(schema.documents.document_id, documentId));
+        .where(eq(schemas.documents.document_id, documentId));
     }
     await tx
-      .delete(schema.rag_dataset_documents)
-      .where(eq(schema.rag_dataset_documents.document_id, documentId));
+      .delete(schemas.rag_dataset_documents)
+      .where(eq(schemas.rag_dataset_documents.document_id, documentId));
     if (versionIds.length) {
       const taskRows = await tx
-        .select({ id: schema.file_processing_tasks.task_id })
-        .from(schema.file_processing_tasks)
+        .select({ id: schemas.file_processing_tasks.task_id })
+        .from(schemas.file_processing_tasks)
         .where(
           inArray(
-            schema.file_processing_tasks.document_version_id,
+            schemas.file_processing_tasks.document_version_id,
             versionIds,
           ),
         );
       const taskIds = taskRows.map((row) => row.id);
       if (taskIds.length) {
         await tx
-          .update(schema.tasks)
+          .update(schemas.tasks)
           .set({
             status: 'killed',
             end_timestamp: now,
@@ -72,23 +72,23 @@ export async function removeDocument(
           })
           .where(
             and(
-              inArray(schema.tasks.task_id, taskIds),
-              inArray(schema.tasks.status, ['to-be-started', 'pending']),
+              inArray(schemas.tasks.task_id, taskIds),
+              inArray(schemas.tasks.status, ['to-be-started', 'pending']),
             ),
           );
       }
     }
     const [cleanupTask] = await tx
       .select({
-        id: schema.tasks.task_id,
-        status: schema.tasks.status,
+        id: schemas.tasks.task_id,
+        status: schemas.tasks.status,
       })
-      .from(schema.tasks)
+      .from(schemas.tasks)
       .where(
         and(
-          eq(schema.tasks.task_key, DOCUMENT_CLEANUP_TASK_KEY),
-          eq(schema.tasks.business_type, 'document'),
-          eq(schema.tasks.business_id, documentId),
+          eq(schemas.tasks.task_key, DOCUMENT_CLEANUP_TASK_KEY),
+          eq(schemas.tasks.business_type, 'document'),
+          eq(schemas.tasks.business_id, documentId),
         ),
       )
       .limit(1);
@@ -99,7 +99,7 @@ export async function removeDocument(
         cleanupTask.status === 'deleted'
       ) {
         await tx
-          .update(schema.tasks)
+          .update(schemas.tasks)
           .set({
             status: 'to-be-started',
             current_stage: 'queued',
@@ -113,11 +113,11 @@ export async function removeDocument(
             end_timestamp: null,
             last_update_timestamp: now,
           })
-          .where(eq(schema.tasks.task_id, cleanupTask.id));
+          .where(eq(schemas.tasks.task_id, cleanupTask.id));
       }
       return cleanupTask.status !== 'completed';
     }
-    await tx.insert(schema.tasks).values({
+    await tx.insert(schemas.tasks).values({
       task_id: randomUUID(),
       task_key: DOCUMENT_CLEANUP_TASK_KEY,
       task_name: `${document.name} / 文档清理`,

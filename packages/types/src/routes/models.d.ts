@@ -16,8 +16,8 @@ export type TaskCategory = 'system' | 'file-processing';
 /** 统一任务关联的业务对象类型。 */
 export type TaskBusinessType = 'file' | 'document' | 'document-version';
 
-/** 文档版本任务类型；预览和 RAG 共用同一套任务与租约。 */
-export type DocumentProcessingTaskType = 'preview' | 'rag';
+/** 文档版本任务类型；页面预览和版本内容处理共用任务运行时。 */
+export type DocumentProcessingTaskType = 'preview' | 'content';
 
 /** 文件处理任务当前阶段。 */
 export type FileProcessingStage =
@@ -26,7 +26,7 @@ export type FileProcessingStage =
   | 'parsing'
   | 'normalizing'
   | 'segmenting'
-  | 'rag-ingestion'
+  | 'content-publishing'
   | 'preview-converting'
   | 'preview-publishing'
   | 'completed';

@@ -121,7 +121,7 @@
 - [x] 13.2 新增 document 共享类型和 routes 类型，将文档、版本、处理阶段、解析块与 Segment 从 RAG 类型中解耦
 - [x] 13.3 将文档数据表重构为通用 `documents`、`document_versions`、`document_processing_*`、`document_parsed_blocks`、`document_segments`，并新增 `rag_dataset_documents` 关联表
 - [x] 13.4 将复杂文档读取、版本和删除归入 `hooks/documents/document`，不建立根公共入口
-- [x] 13.5 将知识库文档关系、任务和 pipeline 归入 `hooks/documents/rag`，知识库基础 CRUD 由 route 直接使用 ORM
+- [x] 13.5 将版本内容任务和 pipeline 归入 `hooks/documents/document/content`，知识库关系与版本发布归入 `hooks/documents/rag`，知识库基础 CRUD 由 route 直接使用 ORM
 - [x] 13.6 新增 document routes，并将 RAG routes 调整为知识库与文档关联接口；普通 CRUD 直接 ORM，复杂流程精确导入业务函数
 - [x] 13.7 调整管理端流程为“上传取得 fileId → 创建文档取得 documentId → 加入知识库”，保持弹窗组件职责清晰
 - [x] 13.8 更新依赖边界、确定性处理、文档复用、知识库关联和删除语义测试，并运行全部 lint、构建与 MinIO/PostgreSQL 集成测试

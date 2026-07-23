@@ -9,7 +9,7 @@ import {
   createTriggerSqls,
 } from './ddl.js';
 import { describeTableTarget } from './descriptor.js';
-import { bootstrappedTableRegistry } from '../tables/index.js';
+import { bootstrappedTableRegistry } from '../tables/registry.js';
 import { getTableCatalogSnapshot } from './catalog.js';
 import { compareTableStructure } from './diff.js';
 

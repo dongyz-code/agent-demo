@@ -13,8 +13,6 @@ export type TaskSqlFilter = {
   business_id?: string;
   /** 文件显示名称。 */
   file_name?: string;
-  /** 目标知识库标识。 */
-  dataset_id?: string;
   /** 任务发起用户。 */
   execution_user_id?: string;
   search?: string;
@@ -131,8 +129,6 @@ export type TaskAction = ApiMultAction<{
         file_task?: {
           file_id: string;
           filename: string;
-          dataset_id: string | null;
-          dataset_name: string | null;
           execution_no: number;
           trigger_source: import('../models.js').FileProcessingTriggerSource;
           processing_config_version: string;

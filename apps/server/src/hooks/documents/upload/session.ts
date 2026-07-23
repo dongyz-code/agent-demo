@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 
 import type { UploadSessionStatus } from '@repo/types';
 
@@ -24,19 +24,16 @@ export async function getOwnedUploadSession(
 ) {
   const [session] = await db
     .select()
-    .from(schema.file_upload_sessions)
+    .from(schemas.file_upload_sessions)
     .where(
       and(
-        eq(schema.file_upload_sessions.session_id, sessionId),
-        eq(schema.file_upload_sessions.create_user_id, userId),
+        eq(schemas.file_upload_sessions.session_id, sessionId),
+        eq(schemas.file_upload_sessions.create_user_id, userId),
       ),
     )
     .limit(1);
   if (!session) {
-    throw new ROOT_ERROR(
-      '相关文件不存在',
-      'UPLOAD_SESSION_NOT_FOUND: 上传会话不存在',
-    );
+    throw new ROOT_ERROR('相关文件不存在');
   }
   return session;
 }
@@ -50,14 +47,11 @@ export async function getOwnedUploadSession(
 export async function getUploadSourceFile(fileId: string) {
   const [file] = await db
     .select()
-    .from(schema.files)
-    .where(eq(schema.files.file_id, fileId))
+    .from(schemas.files)
+    .where(eq(schemas.files.file_id, fileId))
     .limit(1);
   if (!file || file.status === 'deleted') {
-    throw new ROOT_ERROR(
-      '相关文件不存在',
-      'UPLOAD_SESSION_NOT_FOUND: 文件不存在',
-    );
+    throw new ROOT_ERROR('相关文件不存在');
   }
   return file;
 }
@@ -69,10 +63,10 @@ export async function getUploadSourceFile(fileId: string) {
  * @returns 校验通过时无返回值。
  */
 export function assertTransferableUploadSession(
-  session: typeof schema.file_upload_sessions.$inferSelect,
+  session: typeof schemas.file_upload_sessions.$inferSelect,
 ): void {
   if (session.expire_timestamp.getTime() <= Date.now()) {
-    throw new ROOT_ERROR('非法参数', 'UPLOAD_SESSION_EXPIRED: 上传会话已过期');
+    throw new ROOT_ERROR('非法参数');
   }
   if (!transferableStatuses.has(session.status)) {
     throw new ROOT_ERROR(

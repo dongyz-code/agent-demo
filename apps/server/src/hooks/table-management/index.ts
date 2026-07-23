@@ -1,6 +1,6 @@
-import { countRows, db, schema, sql, whereAll } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { compareTableStructure, getTableCatalogSnapshot } from '@/database/structure/index.js';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { getManagedTableSchemaByKey, listManagedTableSchemas } from './schema.js';
 import { isSensitiveColumn } from './sensitive.js';
@@ -133,37 +133,37 @@ export async function listTableOperations({
   /** 是否返回总数。 */
   withCount?: boolean;
 }) {
-  const where = whereAll(
-    table ? eq(schema.table_structure_ops.table_key, table) : undefined,
-    tables?.length ? inArray(schema.table_structure_ops.table_key, tables) : undefined,
-    type ? eq(schema.table_structure_ops.type, type) : undefined,
-    status ? eq(schema.table_structure_ops.status, status) : undefined,
+  const where = and(
+    table ? eq(schemas.table_structure_ops.table_key, table) : undefined,
+    tables?.length ? inArray(schemas.table_structure_ops.table_key, tables) : undefined,
+    type ? eq(schemas.table_structure_ops.type, type) : undefined,
+    status ? eq(schemas.table_structure_ops.status, status) : undefined,
   );
 
   const getList = async () => {
     return await db
       .select({
-        op_id: schema.table_structure_ops.op_id,
-        type: schema.table_structure_ops.type,
-        status: schema.table_structure_ops.status,
-        table_key: schema.table_structure_ops.table_key,
-        table_schema: schema.table_structure_ops.table_schema,
-        target_table_name: schema.table_structure_ops.target_table_name,
-        source_table_name: schema.table_structure_ops.source_table_name,
-        warnings: schema.table_structure_ops.warnings,
-        blockers: schema.table_structure_ops.blockers,
-        backup_table_name: schema.table_structure_ops.backup_table_name,
-        error: schema.table_structure_ops.error,
-        create_user_id: schema.table_structure_ops.create_user_id,
-        create_timestamp: schema.table_structure_ops.create_timestamp,
-        expire_timestamp: schema.table_structure_ops.expire_timestamp,
-        apply_user_id: schema.table_structure_ops.apply_user_id,
-        start_timestamp: schema.table_structure_ops.start_timestamp,
-        end_timestamp: schema.table_structure_ops.end_timestamp,
+        op_id: schemas.table_structure_ops.op_id,
+        type: schemas.table_structure_ops.type,
+        status: schemas.table_structure_ops.status,
+        table_key: schemas.table_structure_ops.table_key,
+        table_schema: schemas.table_structure_ops.table_schema,
+        target_table_name: schemas.table_structure_ops.target_table_name,
+        source_table_name: schemas.table_structure_ops.source_table_name,
+        warnings: schemas.table_structure_ops.warnings,
+        blockers: schemas.table_structure_ops.blockers,
+        backup_table_name: schemas.table_structure_ops.backup_table_name,
+        error: schemas.table_structure_ops.error,
+        create_user_id: schemas.table_structure_ops.create_user_id,
+        create_timestamp: schemas.table_structure_ops.create_timestamp,
+        expire_timestamp: schemas.table_structure_ops.expire_timestamp,
+        apply_user_id: schemas.table_structure_ops.apply_user_id,
+        start_timestamp: schemas.table_structure_ops.start_timestamp,
+        end_timestamp: schemas.table_structure_ops.end_timestamp,
       })
-      .from(schema.table_structure_ops)
+      .from(schemas.table_structure_ops)
       .where(where)
-      .orderBy(desc(schema.table_structure_ops.create_timestamp))
+      .orderBy(desc(schemas.table_structure_ops.create_timestamp))
       .offset(limit[0] ?? 0)
       .limit((limit[1] ?? 20) - (limit[0] ?? 0));
   };
@@ -172,7 +172,7 @@ export async function listTableOperations({
     if (!withCount) {
       return 0;
     }
-    return await countRows(schema.table_structure_ops, where);
+    return await db.$count(schemas.table_structure_ops, where);
   };
 
   const [list, count] = await Promise.all([getList(), getCount()]);
@@ -190,8 +190,8 @@ export async function detailTableOperations(ids: string[]) {
 
   return await db
     .select()
-    .from(schema.table_structure_ops)
-    .where(inArray(schema.table_structure_ops.op_id, ids));
+    .from(schemas.table_structure_ops)
+    .where(inArray(schemas.table_structure_ops.op_id, ids));
 }
 
 /** 返回最近一次操作记录，供表清单直接展示。 */

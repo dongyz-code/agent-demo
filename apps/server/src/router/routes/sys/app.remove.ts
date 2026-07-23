@@ -1,4 +1,4 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
@@ -13,8 +13,8 @@ const { api } = routerHandler({
     }
 
     await db
-      .delete(schema.apps)
-      .where(inArray(schema.apps.id, Array.isArray(ids) ? ids : [ids]));
+      .delete(schemas.apps)
+      .where(inArray(schemas.apps.id, Array.isArray(ids) ? ids : [ids]));
 
     return 'ok';
   },

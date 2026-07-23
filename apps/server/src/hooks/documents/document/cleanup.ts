@@ -1,6 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { getErrorCode } from '../tasks/errors.js';
 import {
   failTask,
@@ -103,9 +103,9 @@ async function loadDocumentCleanupObjects(
   documentId: string,
 ): Promise<DocumentCleanupStoredObject[]> {
   const [document] = await db
-    .select({ status: schema.documents.status })
-    .from(schema.documents)
-    .where(eq(schema.documents.document_id, documentId))
+    .select({ status: schemas.documents.status })
+    .from(schemas.documents)
+    .where(eq(schemas.documents.document_id, documentId))
     .limit(1);
   if (!document) return [];
   if (document.status !== 'deleted') {
@@ -115,31 +115,31 @@ async function loadDocumentCleanupObjects(
   }
   const versions = await db
     .select({
-      id: schema.document_versions.document_version_id,
-      fileId: schema.document_versions.source_file_id,
+      id: schemas.document_versions.document_version_id,
+      fileId: schemas.document_versions.source_file_id,
     })
-    .from(schema.document_versions)
-    .where(eq(schema.document_versions.document_id, documentId));
+    .from(schemas.document_versions)
+    .where(eq(schemas.document_versions.document_id, documentId));
   if (!versions.length) return [];
   const versionIds = versions.map((version) => version.id);
   const fileIds = versions.map((version) => version.fileId);
   const [pages, files] = await Promise.all([
     db
       .select({
-        bucket: schema.document_preview_pages.bucket,
-        objectKey: schema.document_preview_pages.object_key,
+        bucket: schemas.document_preview_pages.bucket,
+        objectKey: schemas.document_preview_pages.object_key,
       })
-      .from(schema.document_preview_pages)
+      .from(schemas.document_preview_pages)
       .where(
-        inArray(schema.document_preview_pages.document_version_id, versionIds),
+        inArray(schemas.document_preview_pages.document_version_id, versionIds),
       ),
     db
       .select({
-        bucket: schema.files.bucket,
-        objectKey: schema.files.object_key,
+        bucket: schemas.files.bucket,
+        objectKey: schemas.files.object_key,
       })
-      .from(schema.files)
-      .where(inArray(schema.files.file_id, fileIds)),
+      .from(schemas.files)
+      .where(inArray(schemas.files.file_id, fileIds)),
   ]);
   return [...pages, ...files];
 }
@@ -159,7 +159,7 @@ async function deleteDocumentDatabaseRows(
   await db.transaction(async (tx) => {
     const now = new Date();
     const [owned] = await tx
-      .update(schema.tasks)
+      .update(schemas.tasks)
       .set({
         current_stage: 'cleanup-database',
         progress: 80,
@@ -167,18 +167,18 @@ async function deleteDocumentDatabaseRows(
       })
       .where(
         and(
-          eq(schema.tasks.task_id, context.taskId),
-          eq(schema.tasks.status, 'pending'),
-          eq(schema.tasks.pending_uuid, lease.leaseId),
+          eq(schemas.tasks.task_id, context.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, lease.leaseId),
         ),
       )
-      .returning({ id: schema.tasks.task_id });
+      .returning({ id: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
 
     const [document] = await tx
-      .select({ status: schema.documents.status })
-      .from(schema.documents)
-      .where(eq(schema.documents.document_id, context.documentId))
+      .select({ status: schemas.documents.status })
+      .from(schemas.documents)
+      .where(eq(schemas.documents.document_id, context.documentId))
       .limit(1);
     if (document && document.status !== 'deleted') {
       throw new Error(
@@ -188,87 +188,87 @@ async function deleteDocumentDatabaseRows(
     if (document) {
       const versions = await tx
         .select({
-          id: schema.document_versions.document_version_id,
-          fileId: schema.document_versions.source_file_id,
+          id: schemas.document_versions.document_version_id,
+          fileId: schemas.document_versions.source_file_id,
         })
-        .from(schema.document_versions)
-        .where(eq(schema.document_versions.document_id, context.documentId));
+        .from(schemas.document_versions)
+        .where(eq(schemas.document_versions.document_id, context.documentId));
       const versionIds = versions.map((version) => version.id);
       const fileIds = versions.map((version) => version.fileId);
       const processingTasks = await tx
-        .select({ id: schema.file_processing_tasks.task_id })
-        .from(schema.file_processing_tasks)
+        .select({ id: schemas.file_processing_tasks.task_id })
+        .from(schemas.file_processing_tasks)
         .where(
-          eq(schema.file_processing_tasks.document_id, context.documentId),
+          eq(schemas.file_processing_tasks.document_id, context.documentId),
         );
       const processingTaskIds = processingTasks.map((task) => task.id);
       if (processingTaskIds.length) {
         await tx
-          .delete(schema.file_processing_task_stage_runs)
+          .delete(schemas.file_processing_task_stage_runs)
           .where(
             inArray(
-              schema.file_processing_task_stage_runs.task_id,
+              schemas.file_processing_task_stage_runs.task_id,
               processingTaskIds,
             ),
           );
         await tx
-          .delete(schema.file_processing_tasks)
+          .delete(schemas.file_processing_tasks)
           .where(
-            inArray(schema.file_processing_tasks.task_id, processingTaskIds),
+            inArray(schemas.file_processing_tasks.task_id, processingTaskIds),
           );
         await tx
-          .delete(schema.tasks)
-          .where(inArray(schema.tasks.task_id, processingTaskIds));
+          .delete(schemas.tasks)
+          .where(inArray(schemas.tasks.task_id, processingTaskIds));
       }
       await tx
-        .delete(schema.rag_dataset_documents)
+        .delete(schemas.rag_dataset_documents)
         .where(
-          eq(schema.rag_dataset_documents.document_id, context.documentId),
+          eq(schemas.rag_dataset_documents.document_id, context.documentId),
         );
       if (versionIds.length) {
         await tx
-          .delete(schema.document_segments)
+          .delete(schemas.document_segments)
           .where(
-            inArray(schema.document_segments.document_version_id, versionIds),
+            inArray(schemas.document_segments.document_version_id, versionIds),
           );
         await tx
-          .delete(schema.document_preview_pages)
+          .delete(schemas.document_preview_pages)
           .where(
             inArray(
-              schema.document_preview_pages.document_version_id,
+              schemas.document_preview_pages.document_version_id,
               versionIds,
             ),
           );
         await tx
-          .delete(schema.document_versions)
+          .delete(schemas.document_versions)
           .where(
-            inArray(schema.document_versions.document_version_id, versionIds),
+            inArray(schemas.document_versions.document_version_id, versionIds),
           );
       }
       if (fileIds.length) {
         const sessions = await tx
-          .select({ id: schema.file_upload_sessions.session_id })
-          .from(schema.file_upload_sessions)
-          .where(inArray(schema.file_upload_sessions.file_id, fileIds));
+          .select({ id: schemas.file_upload_sessions.session_id })
+          .from(schemas.file_upload_sessions)
+          .where(inArray(schemas.file_upload_sessions.file_id, fileIds));
         const sessionIds = sessions.map((session) => session.id);
         if (sessionIds.length) {
           await tx
-            .delete(schema.file_upload_parts)
-            .where(inArray(schema.file_upload_parts.session_id, sessionIds));
+            .delete(schemas.file_upload_parts)
+            .where(inArray(schemas.file_upload_parts.session_id, sessionIds));
           await tx
-            .delete(schema.file_upload_sessions)
-            .where(inArray(schema.file_upload_sessions.session_id, sessionIds));
+            .delete(schemas.file_upload_sessions)
+            .where(inArray(schemas.file_upload_sessions.session_id, sessionIds));
         }
         await tx
-          .delete(schema.files)
-          .where(inArray(schema.files.file_id, fileIds));
+          .delete(schemas.files)
+          .where(inArray(schemas.files.file_id, fileIds));
       }
       await tx
-        .delete(schema.documents)
-        .where(eq(schema.documents.document_id, context.documentId));
+        .delete(schemas.documents)
+        .where(eq(schemas.documents.document_id, context.documentId));
     }
     const [completed] = await tx
-      .update(schema.tasks)
+      .update(schemas.tasks)
       .set({
         status: 'completed',
         current_stage: 'completed',
@@ -282,12 +282,12 @@ async function deleteDocumentDatabaseRows(
       })
       .where(
         and(
-          eq(schema.tasks.task_id, context.taskId),
-          eq(schema.tasks.status, 'pending'),
-          eq(schema.tasks.pending_uuid, lease.leaseId),
+          eq(schemas.tasks.task_id, context.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, lease.leaseId),
         ),
       )
-      .returning({ id: schema.tasks.task_id });
+      .returning({ id: schemas.tasks.task_id });
     if (!completed) throw new FileProcessingLeaseLostError();
   });
 }

@@ -1,10 +1,11 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { pickObj } from '@repo/utils-node';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
 
-import type { SqlData, SqlInsertData } from '@/database/index.js';
+type UserRow = typeof schemas.user.$inferSelect;
+type UserRoleInsert = typeof schemas.user_role.$inferInsert;
 
 const { api } = routerHandler({
   url: '/sys/user/update',
@@ -16,7 +17,7 @@ const { api } = routerHandler({
       return 'ok';
     }
 
-    const updateForm: Partial<SqlData['user']> = pickObj(form, [
+    const updateForm: Partial<UserRow> = pickObj(form, [
       'nickname',
       'email',
       'password',
@@ -28,7 +29,7 @@ const { api } = routerHandler({
     const withRole = 'role_id' in form;
 
     if (withRole) {
-      const list: SqlInsertData['user_role'][] = [];
+      const list: UserRoleInsert[] = [];
       form.role_id?.forEach((role_id) => {
         userIds.forEach((user_id) => {
           list.push({
@@ -42,10 +43,10 @@ const { api } = routerHandler({
       promiseList.push(
         db.transaction(async (tx) => {
           await tx
-            .delete(schema.user_role)
-            .where(inArray(schema.user_role.user_id, userIds));
+            .delete(schemas.user_role)
+            .where(inArray(schemas.user_role.user_id, userIds));
           if (list.length) {
-            await tx.insert(schema.user_role).values(list);
+            await tx.insert(schemas.user_role).values(list);
           }
         }),
       );
@@ -54,13 +55,13 @@ const { api } = routerHandler({
     if (Object.keys(updateForm).length || withRole) {
       promiseList.push(
         db
-          .update(schema.user)
+          .update(schemas.user)
           .set({
             ...updateForm,
             last_update_user_id: operator,
             last_update_timestamp: now,
           })
-          .where(inArray(schema.user.user_id, userIds)),
+          .where(inArray(schemas.user.user_id, userIds)),
       );
     }
 

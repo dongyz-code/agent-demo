@@ -14,7 +14,7 @@ export const FILE_PROCESSING_STAGE_PROGRESS: Record<
   parsing: 30,
   normalizing: 50,
   segmenting: 80,
-  'rag-ingestion': 95,
+  'content-publishing': 95,
   'preview-converting': 70,
   'preview-publishing': 90,
   completed: 100,

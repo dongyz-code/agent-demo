@@ -4,7 +4,6 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="文件">{{ detail.filename }}</el-descriptions-item>
         <el-descriptions-item label="执行次数">第 {{ detail.executionNo }} 次</el-descriptions-item>
-        <el-descriptions-item label="知识库">{{ detail.datasetName ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ taskStatusLabels[detail.status] }}</el-descriptions-item>
         <el-descriptions-item label="当前阶段">{{ stageLabels[detail.stage] }}</el-descriptions-item>
         <el-descriptions-item label="进度">{{ detail.progress }}%</el-descriptions-item>
@@ -48,7 +47,7 @@
         type="primary"
         @click="retry"
       >
-        {{ detail.status === 'failed' ? '重试' : '再次执行' }}
+        {{ detail.status === 'completed' ? '再次执行' : '重试' }}
       </el-button>
     </template>
   </el-drawer>
@@ -93,7 +92,7 @@ const canRetry = computed(() =>
 const taskStatusLabels: Record<FileProcessingTaskStatus, string> = {
   'to-be-started': '等待执行',
   pending: '执行中',
-  completed: '接入成功',
+  completed: '处理成功',
   failed: '执行失败',
   killed: '已取消',
 };
@@ -104,7 +103,7 @@ const stageLabels: Record<FileProcessingStage, string> = {
   parsing: '解析内容',
   normalizing: '整理内容',
   segmenting: '生成知识片段',
-  'rag-ingestion': 'RAG 接入',
+  'content-publishing': '发布内容结果',
   'preview-converting': '生成预览页面',
   'preview-publishing': '发布预览页面',
   completed: '已完成',

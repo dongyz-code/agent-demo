@@ -2,7 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import { ROOT } from '@/configs/index.js';
-import * as schema from './tables/index.js';
+import * as schemas from './tables/index.js';
 
 import type { PoolConfig } from 'pg';
 
@@ -28,8 +28,6 @@ function quoteSearchPathIdentifier(value: string) {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-export const pool = new Pool(createPoolConfig());
+const pool = new Pool(createPoolConfig());
 
-export const db = drizzle({ client: pool, schema });
-
-export type Db = typeof db;
+export const db = drizzle({ client: pool, schema: schemas });

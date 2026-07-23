@@ -48,7 +48,7 @@ documents 域的普通单表查询、分页和简单条件更新 MUST 由 route 
 
 #### Scenario: route 与 runtime 分离
 - **WHEN** 用户创建或取消文件处理任务
-- **THEN** 简单条件取消 MAY 由 route 直接更新任务状态，复杂任务创建与重试 MUST 调用对应业务函数
+- **THEN** 单表条件更新 MAY 由 route 直接使用 ORM；需要同步预览或关系状态的取消以及复杂任务创建、重试 MUST 调用对应业务函数
 - **THEN** 后台 worker MUST 独立于 route 异步执行阶段编排
 
 ### Requirement: 旧文档处理流水线下线

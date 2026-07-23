@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 文档层仅消费已验证文件
-文档版本和 RAG runner MUST 通过 `hooks/documents/storage/source` 的内部能力接收和读取已验证文件，不得直接访问 MinIO 客户端，也不得把 File 行或对象存储原语暴露给 route。只有 `verified` 文件才能创建文档版本并启动处理。
+文档版本和 `document/content` runner MUST 通过 `hooks/documents/storage/source` 的内部能力接收和读取已验证文件，不得直接访问 MinIO 客户端，也不得把 File 行或对象存储原语暴露给 route。只有 `verified` 文件才能创建文档版本并启动处理。
 
 #### Scenario: 创建通用文档
 - **WHEN** 用户使用有效 `fileId` 创建文档版本
@@ -12,7 +12,7 @@
 - **THEN** 文档模块拒绝创建处理任务
 
 ### Requirement: 显式文档处理状态与幂等
-系统 MUST 为文档版本维护处理状态和阶段记录，并使用文档版本与处理配置保证幂等。重试 MUST 从最近成功阶段继续，不得重复创建 Segment。
+系统 MUST 使用文档版本与处理配置作为内容任务幂等边界，同一版本关联多个知识库时不得重复解析或切分。重试 MUST 幂等替换该版本的 Segment，不得生成重复内容。
 
 #### Scenario: 首次处理
 - **WHEN** 已验证文件首次绑定新文档版本
@@ -20,7 +20,7 @@
 
 #### Scenario: Worker 中断
 - **WHEN** 任务中断后重试
-- **THEN** 系统复用已成功产物并从未完成阶段继续
+- **THEN** 系统重新领取或创建可重试任务，并幂等写入版本内容
 
 ### Requirement: 解析器注册与选择
 文档模块 MUST 通过解析器注册表按可信 MIME、文件签名和扩展信息选择解析器。解析器 MUST 遵循统一接口并声明支持类型、版本、超时和错误分类。
@@ -63,18 +63,18 @@
 - **THEN** 系统在安全边界二次切分并保留标题路径与重叠上下文
 
 ### Requirement: 处理配置版本化
-系统 MUST 记录解析器、标准化器、Segment 及后续 Embedding/索引配置版本，使结果可复现。配置变化不得静默覆盖旧结果。
+系统 MUST 记录解析器、标准化器和 Segment 配置版本，使结果可复现。当前版本只发布一套内容结果；配置变化时由新任务替换版本级 Segment，历史任务记录保留旧配置审计。
 
 #### Scenario: 修改 Segment 配置
 - **WHEN** 发布新 Segment 配置版本
-- **THEN** 新任务使用新版本，旧结果保持可追溯并可选择重建
+- **THEN** 新任务使用新版本并替换当前 Segment，旧任务记录仍可追溯
 
 ### Requirement: 上传完成后以文档为中心编排
 上传初始化、完成与 Multipart 状态迁移 MUST 由 `hooks/documents/upload` 承载；上传完成后服务端 MUST 在同一业务流程中创建或追加 DocumentVersion，并按本次选择建立知识库关系。普通局部查询 MAY 由 route 直接使用 ORM。
 
 #### Scenario: 仅完成上传
 - **WHEN** 上传成功且本次关闭 RAG
-- **THEN** 系统仍创建文档版本，但不创建 RAG 任务
+- **THEN** 系统仍创建文档版本，但不建立知识库关系或创建版本内容任务
 
 #### Scenario: 显式创建并加入知识库
 - **WHEN** 客户端完成带知识库选择的上传
@@ -96,4 +96,4 @@
 
 #### Scenario: 新增解析器
 - **WHEN** 开发者新增一种解析器
-- **THEN** 只需实现统一接口并注册，不需要修改上传服务、RAG 服务和 route 分支链
+- **THEN** 只需实现统一接口并注册，不需要修改上传服务、知识库关系逻辑和 route 分支链

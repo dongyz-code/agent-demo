@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, max, sql } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { resolveDocumentVersion } from '../document/read.js';
 import { FILE_PROCESSING_TASK_KEY } from '../tasks/definition.js';
 import {
@@ -44,10 +44,7 @@ export async function createDocumentPreviewTask(
   const contentType =
     resolved.file.content_type ?? resolved.file.declared_content_type;
   if (!documentPageConverter.supports(contentType)) {
-    throw new ROOT_ERROR(
-      '数据异常',
-      'DOCUMENT_PREVIEW_TYPE_UNSUPPORTED: 当前文件类型不支持页面预览',
-    );
+    throw new ROOT_ERROR('数据异常');
   }
   const documentVersionId = resolved.version.document_version_id;
   const lockKey = [
@@ -59,14 +56,14 @@ export async function createDocumentPreviewTask(
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
     const [version] = await tx
       .select({
-        status: schema.document_versions.preview_status,
+        status: schemas.document_versions.preview_status,
         converterVersion:
-          schema.document_versions.preview_converter_version,
+          schemas.document_versions.preview_converter_version,
       })
-      .from(schema.document_versions)
+      .from(schemas.document_versions)
       .where(
         eq(
-          schema.document_versions.document_version_id,
+          schemas.document_versions.document_version_id,
           documentVersionId,
         ),
       )
@@ -78,35 +75,35 @@ export async function createDocumentPreviewTask(
       return null;
     }
     const [active] = await tx
-      .select({ taskId: schema.tasks.task_id })
-      .from(schema.file_processing_tasks)
+      .select({ taskId: schemas.tasks.task_id })
+      .from(schemas.file_processing_tasks)
       .innerJoin(
-        schema.tasks,
-        eq(schema.tasks.task_id, schema.file_processing_tasks.task_id),
+        schemas.tasks,
+        eq(schemas.tasks.task_id, schemas.file_processing_tasks.task_id),
       )
       .where(
         and(
-          eq(schema.file_processing_tasks.task_type, 'preview'),
+          eq(schemas.file_processing_tasks.task_type, 'preview'),
           eq(
-            schema.file_processing_tasks.document_version_id,
+            schemas.file_processing_tasks.document_version_id,
             documentVersionId,
           ),
           eq(
-            schema.file_processing_tasks.processing_config_version,
+            schemas.file_processing_tasks.processing_config_version,
             DOCUMENT_PREVIEW_CONVERTER_VERSION,
           ),
-          inArray(schema.tasks.status, [...ACTIVE_TASK_STATUSES]),
+          inArray(schemas.tasks.status, [...ACTIVE_TASK_STATUSES]),
         ),
       )
       .limit(1);
     if (active) return active.taskId;
 
     const [lastExecution] = await tx
-      .select({ value: max(schema.file_processing_tasks.execution_no) })
-      .from(schema.file_processing_tasks)
+      .select({ value: max(schemas.file_processing_tasks.execution_no) })
+      .from(schemas.file_processing_tasks)
       .where(
         eq(
-          schema.file_processing_tasks.document_version_id,
+          schemas.file_processing_tasks.document_version_id,
           documentVersionId,
         ),
       );
@@ -115,7 +112,7 @@ export async function createDocumentPreviewTask(
     const now = new Date();
     const triggerSource = input.triggerSource ?? 'manual';
     await tx
-      .update(schema.document_versions)
+      .update(schemas.document_versions)
       .set({
         preview_status: 'pending',
         preview_page_count: 0,
@@ -126,11 +123,11 @@ export async function createDocumentPreviewTask(
       })
       .where(
         eq(
-          schema.document_versions.document_version_id,
+          schemas.document_versions.document_version_id,
           documentVersionId,
         ),
       );
-    await tx.insert(schema.tasks).values({
+    await tx.insert(schemas.tasks).values({
       task_id: nextTaskId,
       task_key: FILE_PROCESSING_TASK_KEY,
       task_name: `${resolved.file.filename} / 页面预览`,
@@ -155,13 +152,12 @@ export async function createDocumentPreviewTask(
       logs: null,
       last_update_timestamp: now,
     });
-    await tx.insert(schema.file_processing_tasks).values({
+    await tx.insert(schemas.file_processing_tasks).values({
       task_id: nextTaskId,
       file_id: resolved.file.file_id,
       document_id: input.documentId,
       document_version_id: documentVersionId,
       task_type: 'preview',
-      dataset_id: null,
       execution_no: executionNo,
       trigger_source: triggerSource,
       processing_config_version: DOCUMENT_PREVIEW_CONVERTER_VERSION,

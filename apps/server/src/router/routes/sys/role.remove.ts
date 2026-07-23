@@ -1,4 +1,4 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
@@ -14,10 +14,10 @@ const { api } = routerHandler({
 
     const roleIds = Array.isArray(ids) ? ids : [ids];
     await db.transaction(async (tx) => {
-      await tx.delete(schema.role).where(inArray(schema.role.role_id, roleIds));
+      await tx.delete(schemas.role).where(inArray(schemas.role.role_id, roleIds));
       await tx
-        .delete(schema.user_role)
-        .where(inArray(schema.user_role.role_id, roleIds));
+        .delete(schemas.user_role)
+        .where(inArray(schemas.user_role.role_id, roleIds));
     });
 
     return 'ok';

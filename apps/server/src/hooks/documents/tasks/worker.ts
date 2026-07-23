@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 
 import { logger, ROOT } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { FileProcessingLeaseLostError } from './runtime.js';
 import {
   DOCUMENT_CLEANUP_TASK_KEY,
@@ -138,13 +138,13 @@ async function recoverStaleFileProcessingTasks(): Promise<void> {
   );
   await db.transaction(async (tx) => {
     const staleTasks = await tx
-      .select({ taskId: schema.tasks.task_id })
-      .from(schema.tasks)
+      .select({ taskId: schemas.tasks.task_id })
+      .from(schemas.tasks)
       .where(
         and(
-          inArray(schema.tasks.task_key, getWorkerTaskKeys()),
-          eq(schema.tasks.status, 'pending'),
-          lt(schema.tasks.last_update_timestamp, staleBefore),
+          inArray(schemas.tasks.task_key, getWorkerTaskKeys()),
+          eq(schemas.tasks.status, 'pending'),
+          lt(schemas.tasks.last_update_timestamp, staleBefore),
         ),
       )
       .for('update', { skipLocked: true });
@@ -152,7 +152,7 @@ async function recoverStaleFileProcessingTasks(): Promise<void> {
 
     const taskIds = staleTasks.map((task) => task.taskId);
     await tx
-      .update(schema.file_processing_task_stage_runs)
+      .update(schemas.file_processing_task_stage_runs)
       .set({
         status: 'failed',
         error_code: FILE_PROCESSING_WORKER_LOST_ERROR,
@@ -161,12 +161,12 @@ async function recoverStaleFileProcessingTasks(): Promise<void> {
       })
       .where(
         and(
-          inArray(schema.file_processing_task_stage_runs.task_id, taskIds),
-          eq(schema.file_processing_task_stage_runs.status, 'pending'),
+          inArray(schemas.file_processing_task_stage_runs.task_id, taskIds),
+          eq(schemas.file_processing_task_stage_runs.status, 'pending'),
         ),
       );
     await tx
-      .update(schema.tasks)
+      .update(schemas.tasks)
       .set({
         status: 'to-be-started',
         current_stage: 'queued',
@@ -182,8 +182,8 @@ async function recoverStaleFileProcessingTasks(): Promise<void> {
       })
       .where(
         and(
-          inArray(schema.tasks.task_id, taskIds),
-          eq(schema.tasks.status, 'pending'),
+          inArray(schemas.tasks.task_id, taskIds),
+          eq(schemas.tasks.status, 'pending'),
         ),
       );
   });
@@ -199,17 +199,17 @@ async function drainFileProcessingTasks(): Promise<void> {
     if (available <= 0) return;
     const tasks = await db
       .select({
-        taskId: schema.tasks.task_id,
-        taskKey: schema.tasks.task_key,
+        taskId: schemas.tasks.task_id,
+        taskKey: schemas.tasks.task_key,
       })
-      .from(schema.tasks)
+      .from(schemas.tasks)
       .where(
         and(
-          inArray(schema.tasks.task_key, getWorkerTaskKeys()),
-          eq(schema.tasks.status, 'to-be-started'),
+          inArray(schemas.tasks.task_key, getWorkerTaskKeys()),
+          eq(schemas.tasks.status, 'to-be-started'),
         ),
       )
-      .orderBy(asc(schema.tasks.create_timestamp))
+      .orderBy(asc(schemas.tasks.create_timestamp))
       .limit(available);
     for (const task of tasks) {
       void runClaimedFileProcessingTask(task.taskId, task.taskKey).catch(
@@ -267,8 +267,9 @@ async function runClaimedFileProcessingTask(
       const { runDocumentPreviewTask } = await import('../preview/runner.js');
       await runDocumentPreviewTask(claimed.context, heartbeat.lease);
     } else {
-      const { runDocumentRagTask } = await import('../rag/runner.js');
-      await runDocumentRagTask(claimed.context, heartbeat.lease);
+      const { runDocumentContentTask } =
+        await import('../document/content/runner.js');
+      await runDocumentContentTask(claimed.context, heartbeat.lease);
     }
   } finally {
     await heartbeat?.stop();
@@ -297,15 +298,11 @@ async function claimFileProcessingTask(taskId: string): Promise<
   const { leaseId } = claimed;
 
   const [row] = await db
-    .select({ fileTask: schema.file_processing_tasks })
-    .from(schema.file_processing_tasks)
-    .where(eq(schema.file_processing_tasks.task_id, taskId))
+    .select({ fileTask: schemas.file_processing_tasks })
+    .from(schemas.file_processing_tasks)
+    .where(eq(schemas.file_processing_tasks.task_id, taskId))
     .limit(1);
-  if (
-    !row?.fileTask.document_id ||
-    !row.fileTask.document_version_id ||
-    (row.fileTask.task_type === 'rag' && !row.fileTask.dataset_id)
-  ) {
+  if (!row) {
     await failInvalidClaimedTask(taskId, leaseId);
     return;
   }
@@ -316,7 +313,6 @@ async function claimFileProcessingTask(taskId: string): Promise<
       fileId: row.fileTask.file_id,
       documentId: row.fileTask.document_id,
       documentVersionId: row.fileTask.document_version_id,
-      datasetId: row.fileTask.dataset_id,
       taskType: row.fileTask.task_type,
       userId: row.fileTask.create_user_id,
     },
@@ -362,7 +358,7 @@ async function claimTaskLease(taskId: string, currentStage: string) {
   const now = new Date();
   const leaseId = randomUUID();
   const [claimed] = await db
-    .update(schema.tasks)
+    .update(schemas.tasks)
     .set({
       status: 'pending',
       current_stage: currentStage,
@@ -381,16 +377,16 @@ async function claimTaskLease(taskId: string, currentStage: string) {
     })
     .where(
       and(
-        eq(schema.tasks.task_id, taskId),
-        eq(schema.tasks.status, 'to-be-started'),
+        eq(schemas.tasks.task_id, taskId),
+        eq(schemas.tasks.status, 'to-be-started'),
       ),
     )
     .returning({
-      taskId: schema.tasks.task_id,
-      taskKey: schema.tasks.task_key,
-      businessType: schema.tasks.business_type,
-      businessId: schema.tasks.business_id,
-      userId: schema.tasks.execution_user_id,
+      taskId: schemas.tasks.task_id,
+      taskKey: schemas.tasks.task_key,
+      businessType: schemas.tasks.business_type,
+      businessId: schemas.tasks.business_id,
+      userId: schemas.tasks.execution_user_id,
     });
   if (!claimed) return;
   return {
@@ -425,16 +421,16 @@ async function renewFileProcessingLease(
   leaseId: string,
 ): Promise<boolean> {
   const [renewed] = await db
-    .update(schema.tasks)
+    .update(schemas.tasks)
     .set({ last_update_timestamp: new Date() })
     .where(
       and(
-        eq(schema.tasks.task_id, taskId),
-        eq(schema.tasks.status, 'pending'),
-        eq(schema.tasks.pending_uuid, leaseId),
+        eq(schemas.tasks.task_id, taskId),
+        eq(schemas.tasks.status, 'pending'),
+        eq(schemas.tasks.pending_uuid, leaseId),
       ),
     )
-    .returning({ taskId: schema.tasks.task_id });
+    .returning({ taskId: schemas.tasks.task_id });
   return Boolean(renewed);
 }
 
@@ -444,7 +440,7 @@ async function failInvalidClaimedTask(
   leaseId: string,
 ): Promise<void> {
   await db
-    .update(schema.tasks)
+    .update(schemas.tasks)
     .set({
       status: 'failed',
       error_code: 'FILE_PROCESSING_CONTEXT_INVALID',
@@ -454,9 +450,9 @@ async function failInvalidClaimedTask(
     })
     .where(
       and(
-        eq(schema.tasks.task_id, taskId),
-        eq(schema.tasks.status, 'pending'),
-        eq(schema.tasks.pending_uuid, leaseId),
+        eq(schemas.tasks.task_id, taskId),
+        eq(schemas.tasks.status, 'pending'),
+        eq(schemas.tasks.pending_uuid, leaseId),
       ),
     );
 }

@@ -1,5 +1,5 @@
-import { schema } from '@/database/index.js';
 import { describeTableTarget } from '@/database/structure/index.js';
+import { managedTableRegistry } from '@/database/tables/registry.js';
 
 import { isSensitiveColumn } from './sensitive.js';
 
@@ -8,7 +8,7 @@ import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 /** 返回所有允许表管理功能处理的 Drizzle 表 schema。 */
 export function listManagedTableSchemas(): ManagedTableSchema[] {
-  return Object.entries(schema.managedTableRegistry).map(([table, drizzleTable]) =>
+  return Object.entries(managedTableRegistry).map(([table, drizzleTable]) =>
     getManagedTableSchema(table, drizzleTable as AnyPgTable),
   );
 }
@@ -16,7 +16,7 @@ export function listManagedTableSchemas(): ManagedTableSchema[] {
 /** 根据 managedTableRegistry key 返回单张表的 Drizzle 目标结构。 */
 export function getManagedTableSchemaByKey(table: string) {
   const drizzleTable =
-    schema.managedTableRegistry[table as keyof typeof schema.managedTableRegistry];
+    managedTableRegistry[table as keyof typeof managedTableRegistry];
   if (!drizzleTable) {
     return;
   }

@@ -1,4 +1,4 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 import { isNotNull } from 'drizzle-orm';
@@ -15,9 +15,9 @@ const { api } = routerHandler({
   permission: adminPermissionKey('pages.sys.sys.app-log'),
   handler: async () => {
     const list = await db
-      .selectDistinct({ client_mark: schema.api_logs.client_mark })
-      .from(schema.api_logs)
-      .where(isNotNull(schema.api_logs.client_mark));
+      .selectDistinct({ client_mark: schemas.api_logs.client_mark })
+      .from(schemas.api_logs)
+      .where(isNotNull(schemas.api_logs.client_mark));
     return list.filter(hasClientMark).map(({ client_mark }) => ({
       label: client_mark,
       value: client_mark,

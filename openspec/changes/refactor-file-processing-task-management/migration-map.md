@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | 上传初始化、签名、完成、恢复 | `hooks/upload/index.ts`、`/upload/*` | `components/upload`、文件页上传会话 | `hooks/documents/upload`；会话列表和状态直接归 route |
 | 文件查询、预览、下载、删除 | `hooks/upload/index.ts`、`/file/*` | 文件管理“通用文件”页签 | 文档复杂读取归 `document`、预览归 `preview`，普通查询直接 ORM |
-| 文档创建、解析、切分 | `hooks/document/index.ts`、`/document/*` | 知识库文档上传和处理抽屉 | 文档版本归 `document`，解析与切分归 `rag/pipeline` |
+| 文档创建、解析、切分 | `hooks/document/index.ts`、`/document/*` | 知识库文档上传和处理抽屉 | 文档版本、解析与切分归 `document/content` |
 | 知识库及文档关联 | `hooks/rag/index.ts`、`/rag/*` | 独立 RAG 管理页面 | 复杂关系归 `hooks/documents/rag`；知识库基础 CRUD 直接归 route |
 | 系统脚本任务 | `hooks/task/index.ts`、`/sys/task/*` | 系统管理/任务管理 | 保留并增强为统一任务中心 |
 | 文档处理任务 | `document_processing_jobs` 与阶段表 | RAG 页面任务抽屉 | 新任务写入 `tasks` 与文件任务扩展表；旧记录只读兼容 |

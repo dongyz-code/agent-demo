@@ -13,6 +13,7 @@
 - 为数据库表建立“业务所有者、写路径、读路径、保留理由、清理策略”清单；新增表必须由当前需求和可验证读写路径支撑。
 - 扩展自管 Drizzle 结构描述与 DDL，使稳定关系可以声明、创建和核对外键；对保留表先执行孤儿数据检查，再分批增加外键约束。
 - 提供幂等、可预演的退役流程：先停止注册和写入，再盘点/导出，最后由显式维护命令物理删除；服务启动不得自动删除数据库对象。
+- 收敛服务端数据库公共入口，只保留 `db` 和汇总 `schemas`；查询条件、计数与 SQL 表达式直接使用 Drizzle 原生 API。
 
 ## Capabilities
 
@@ -26,7 +27,7 @@
 
 ## Impact
 
-- 服务端数据库定义：`apps/server/src/database/tables`、`apps/server/src/database/structure` 与启动注册顺序。
+- 服务端数据库定义与访问入口：`apps/server/src/database/index.ts`、`apps/server/src/database/tables`、`apps/server/src/database/structure` 与启动注册顺序。
 - documents 域：Multipart 分片恢复、文件删除保护、文档结果持久化和旧任务兼容代码。
 - PostgreSQL：目标注册表由 26 张收敛为 21 张；物理删除属于显式维护操作，不随普通服务启动执行。
 - 管理端/API：不删除现有用户接口；Multipart 恢复、文件删除保护、任务中心时间线和 Segment 结果的对外行为保持不变。

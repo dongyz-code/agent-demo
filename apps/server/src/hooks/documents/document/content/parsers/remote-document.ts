@@ -29,10 +29,7 @@ export const remoteDocumentParser: DocumentParser = {
   async parse({ file }) {
     const config = ROOT.document;
     if (!config.parserEndpoint) {
-      throw new ROOT_ERROR(
-        '数据异常',
-        'DOCUMENT_PARSER_UNAVAILABLE: 未配置 PDF/Office 解析服务',
-      );
+      throw new ROOT_ERROR('数据异常');
     }
     const response = await axios.post<DocumentParsedBlock[]>(
       `${config.parserEndpoint}/parse`,
@@ -55,10 +52,7 @@ export const remoteDocumentParser: DocumentParser = {
 /** 校验远程解析结果，禁止库专属结构越过适配器。 */
 function validateRemoteBlocks(value: unknown): DocumentParsedBlock[] {
   if (!Array.isArray(value)) {
-    throw new ROOT_ERROR(
-      '服务异常',
-      'DOCUMENT_PARSER_INVALID_RESPONSE: 解析服务返回格式错误',
-    );
+    throw new ROOT_ERROR('服务异常');
   }
   return value.map((item, position) => {
     if (

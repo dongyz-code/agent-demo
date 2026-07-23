@@ -1,4 +1,4 @@
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 import { inArray } from 'drizzle-orm';
@@ -13,9 +13,9 @@ const { api } = routerHandler({
     }
 
     const list = await db
-      .select({ id: schema.api_logs.id, detail: schema.api_logs.detail })
-      .from(schema.api_logs)
-      .where(inArray(schema.api_logs.id, ids));
+      .select({ id: schemas.api_logs.id, detail: schemas.api_logs.detail })
+      .from(schemas.api_logs)
+      .where(inArray(schemas.api_logs.id, ids));
     return list;
   },
 });

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import {
   abortMultipartUpload,
   listMultipartParts,
@@ -30,10 +30,7 @@ export async function signDocumentUploadParts(
   const session = await getOwnedUploadSession(input.sessionId, userId);
   assertTransferableUploadSession(session);
   if (session.mode !== 'multipart' || !session.upload_id || !session.part_count) {
-    throw new ROOT_ERROR(
-      '非法参数',
-      'UPLOAD_PART_INVALID: 当前会话不是 Multipart',
-    );
+    throw new ROOT_ERROR('非法参数');
   }
   const uniqueParts = [...new Set(input.partNumbers)];
   if (
@@ -46,10 +43,7 @@ export async function signDocumentUploadParts(
         partNumber > session.part_count!,
     )
   ) {
-    throw new ROOT_ERROR(
-      '非法参数',
-      'UPLOAD_PART_INVALID: 分片编号范围不合法',
-    );
+    throw new ROOT_ERROR('非法参数');
   }
   const file = await getUploadSourceFile(session.file_id);
   const parts = await Promise.all(
@@ -96,7 +90,7 @@ export async function syncDocumentUploadParts(
   await db.transaction(async (tx) => {
     for (const part of parts) {
       await tx
-        .insert(schema.file_upload_parts)
+        .insert(schemas.file_upload_parts)
         .values({
           part_id: randomUUID(),
           session_id: session.session_id,
@@ -107,8 +101,8 @@ export async function syncDocumentUploadParts(
         })
         .onConflictDoUpdate({
           target: [
-            schema.file_upload_parts.session_id,
-            schema.file_upload_parts.part_number,
+            schemas.file_upload_parts.session_id,
+            schemas.file_upload_parts.part_number,
           ],
           set: {
             etag: part.etag,
@@ -118,14 +112,14 @@ export async function syncDocumentUploadParts(
         });
     }
     await tx
-      .update(schema.file_upload_sessions)
+      .update(schemas.file_upload_sessions)
       .set({
         status: session.status === 'initialized' ? 'uploading' : session.status,
         uploaded_size: parts.reduce((sum, part) => sum + part.size, 0),
         last_update_user_id: userId,
         last_update_timestamp: now,
       })
-      .where(eq(schema.file_upload_sessions.session_id, session.session_id));
+      .where(eq(schemas.file_upload_sessions.session_id, session.session_id));
   });
   const uploaded = new Set(parts.map((part) => part.partNumber));
   return {
@@ -152,10 +146,7 @@ export async function abortDocumentUpload(
   const session = await getOwnedUploadSession(sessionId, userId);
   if (['canceled', 'expired'].includes(session.status)) return 'ok';
   if (['completed'].includes(session.status)) {
-    throw new ROOT_ERROR(
-      '数据异常',
-      'UPLOAD_SESSION_STATE_CONFLICT: 已完成上传不能取消',
-    );
+    throw new ROOT_ERROR('数据异常');
   }
   const file = await getUploadSourceFile(session.file_id);
   if (session.mode === 'multipart' && session.upload_id) {
@@ -166,12 +157,12 @@ export async function abortDocumentUpload(
     });
   }
   await db
-    .update(schema.file_upload_sessions)
+    .update(schemas.file_upload_sessions)
     .set({
       status: 'canceled',
       last_update_user_id: userId,
       last_update_timestamp: new Date(),
     })
-    .where(eq(schema.file_upload_sessions.session_id, sessionId));
+    .where(eq(schemas.file_upload_sessions.session_id, sessionId));
   return 'ok';
 }

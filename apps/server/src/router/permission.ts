@@ -1,5 +1,5 @@
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { and, eq, inArray } from 'drizzle-orm';
 import {
   hasAdminPermissionKey,
@@ -132,9 +132,9 @@ export async function getAdminPermissionContext(
   }
 
   const userRoles = await db
-    .select({ role_id: schema.user_role.role_id })
-    .from(schema.user_role)
-    .where(eq(schema.user_role.user_id, user_id));
+    .select({ role_id: schemas.user_role.role_id })
+    .from(schemas.user_role)
+    .where(eq(schemas.user_role.user_id, user_id));
 
   if (!userRoles.length) {
     return {
@@ -145,15 +145,15 @@ export async function getAdminPermissionContext(
   }
 
   const enabledRows = await db
-    .select({ permission: schema.role.permission })
-    .from(schema.role)
+    .select({ permission: schemas.role.permission })
+    .from(schemas.role)
     .where(
       and(
         inArray(
-          schema.role.role_id,
+          schemas.role.role_id,
           userRoles.map((item) => item.role_id),
         ),
-        eq(schema.role.available, true),
+        eq(schemas.role.available, true),
       ),
     );
 

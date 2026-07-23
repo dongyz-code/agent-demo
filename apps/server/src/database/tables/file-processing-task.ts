@@ -26,23 +26,20 @@ export const file_processing_tasks = pgTable(
     /** 被处理的通用文件。 */
     file_id: uuid('file_id').notNull(),
     /** 处理过程中创建或复用的逻辑文档。 */
-    document_id: uuid('document_id'),
+    document_id: uuid('document_id').notNull(),
     /** 本次任务处理的文档版本。 */
-    document_version_id: uuid('document_version_id'),
-    /** 同一扩展表承载的文档处理能力。 */
+    document_version_id: uuid('document_version_id').notNull(),
+    /** 同一扩展表承载的预览或版本内容处理能力。 */
     task_type: varchar255('task_type')
       .$type<DocumentProcessingTaskType>()
-      .notNull()
-      .default('rag'),
-    /** RAG 接入的目标知识库。 */
-    dataset_id: uuid('dataset_id'),
+      .notNull(),
     /** 同一文件从 1 开始递增的执行序号。 */
     execution_no: integer('execution_no').notNull(),
     /** 上传、手动执行、失败重试或成功后再次执行。 */
     trigger_source: varchar255('trigger_source')
       .$type<FileProcessingTriggerSource>()
       .notNull(),
-    /** 预处理与 RAG 接入配置组合版本。 */
+    /** 预览转换或版本内容处理配置。 */
     processing_config_version: varchar255('processing_config_version').notNull(),
     /** JSON 结果摘要，不保存完整文档内容。 */
     result_summary: text('result_summary'),
@@ -52,10 +49,6 @@ export const file_processing_tasks = pgTable(
     uniqueIndex('file_processing_tasks_file_execution_unique').on(
       table.file_id,
       table.execution_no,
-    ),
-    index('file_processing_tasks_file_dataset_idx').on(
-      table.file_id,
-      table.dataset_id,
     ),
     index('file_processing_tasks_document_idx').on(table.document_id),
     index('file_processing_tasks_version_type_idx').on(

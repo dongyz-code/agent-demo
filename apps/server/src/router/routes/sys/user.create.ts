@@ -1,15 +1,14 @@
 import { routerHandler } from '@/router/utils.js';
 import { randomUUID } from 'node:crypto';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { ROOT_ERROR } from '@/configs/error.js';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
 
-import type { SqlInsertData } from '@/database/index.js';
 import type { ApiSys } from '@/types/index.js';
 
-type UserItem = SqlInsertData['user'];
-type UserRoleItem = SqlInsertData['user_role'];
+type UserItem = typeof schemas.user.$inferInsert;
+type UserRoleItem = typeof schemas.user_role.$inferInsert;
 
 export async function createUser({
   list,
@@ -63,12 +62,12 @@ export async function createUser({
   const insertUser = await db.transaction(async (tx) => {
     const exist = await tx
       .select({
-        user_id: schema.user.user_id,
-        username: schema.user.username,
-        nickname: schema.user.nickname,
+        user_id: schemas.user.user_id,
+        username: schemas.user.username,
+        nickname: schemas.user.nickname,
       })
-      .from(schema.user)
-      .where(inArray(schema.user.username, user.map(({ username }) => username)));
+      .from(schemas.user)
+      .where(inArray(schemas.user.username, user.map(({ username }) => username)));
 
     let needInsertUser: UserItem[] = user.slice();
     let needInsertUserRole: UserRoleItem[] = userRole.slice();
@@ -91,17 +90,17 @@ export async function createUser({
 
     const insertUserResult = needInsertUser.length
       ? await tx
-          .insert(schema.user)
+          .insert(schemas.user)
           .values(needInsertUser)
           .returning({
-            user_id: schema.user.user_id,
-            username: schema.user.username,
-            nickname: schema.user.nickname,
+            user_id: schemas.user.user_id,
+            username: schemas.user.username,
+            nickname: schemas.user.nickname,
           })
       : [];
 
     if (needInsertUserRole.length) {
-      await tx.insert(schema.user_role).values(needInsertUserRole);
+      await tx.insert(schemas.user_role).values(needInsertUserRole);
     }
 
     return [...exist, ...insertUserResult];

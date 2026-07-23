@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import { logger, ROOT_ERROR } from '@/configs/index.js';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { getDocumentSourceFile } from '../storage/source.js';
 import { getErrorCode } from '../tasks/errors.js';
 import {
@@ -97,7 +97,7 @@ export async function runDocumentPreviewTask(
     );
     if (!failed) return;
     await db
-      .update(schema.document_versions)
+      .update(schemas.document_versions)
       .set({
         preview_status: 'failed',
         preview_page_count: 0,
@@ -107,7 +107,7 @@ export async function runDocumentPreviewTask(
       })
       .where(
         eq(
-          schema.document_versions.document_version_id,
+          schemas.document_versions.document_version_id,
           context.documentVersionId,
         ),
       );
@@ -123,24 +123,24 @@ async function markPreviewProcessing(
   await lease.assertActive();
   await db.transaction(async (tx) => {
     const [owned] = await tx
-      .update(schema.tasks)
+      .update(schemas.tasks)
       .set({ last_update_timestamp: new Date() })
       .where(
         and(
-          eq(schema.tasks.task_id, context.taskId),
-          eq(schema.tasks.status, 'pending'),
-          eq(schema.tasks.pending_uuid, lease.leaseId),
+          eq(schemas.tasks.task_id, context.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, lease.leaseId),
         ),
       )
-      .returning({ taskId: schema.tasks.task_id });
+      .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     const [document] = await tx
-      .select({ id: schema.documents.document_id })
-      .from(schema.documents)
+      .select({ id: schemas.documents.document_id })
+      .from(schemas.documents)
       .where(
         and(
-          eq(schema.documents.document_id, context.documentId),
-          eq(schema.documents.status, 'active'),
+          eq(schemas.documents.document_id, context.documentId),
+          eq(schemas.documents.status, 'active'),
         ),
       )
       .limit(1);
@@ -150,7 +150,7 @@ async function markPreviewProcessing(
       );
     }
     await tx
-      .update(schema.document_versions)
+      .update(schemas.document_versions)
       .set({
         preview_status: 'processing',
         preview_error: null,
@@ -160,10 +160,10 @@ async function markPreviewProcessing(
       .where(
         and(
           eq(
-            schema.document_versions.document_version_id,
+            schemas.document_versions.document_version_id,
             context.documentVersionId,
           ),
-          eq(schema.document_versions.document_id, context.documentId),
+          eq(schemas.document_versions.document_id, context.documentId),
         ),
       );
   });
@@ -236,24 +236,24 @@ async function publishPreviewPages(
   await lease.assertActive();
   return await db.transaction(async (tx) => {
     const [owned] = await tx
-      .update(schema.tasks)
+      .update(schemas.tasks)
       .set({ last_update_timestamp: new Date() })
       .where(
         and(
-          eq(schema.tasks.task_id, context.taskId),
-          eq(schema.tasks.status, 'pending'),
-          eq(schema.tasks.pending_uuid, lease.leaseId),
+          eq(schemas.tasks.task_id, context.taskId),
+          eq(schemas.tasks.status, 'pending'),
+          eq(schemas.tasks.pending_uuid, lease.leaseId),
         ),
       )
-      .returning({ taskId: schema.tasks.task_id });
+      .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     const [document] = await tx
-      .select({ id: schema.documents.document_id })
-      .from(schema.documents)
+      .select({ id: schemas.documents.document_id })
+      .from(schemas.documents)
       .where(
         and(
-          eq(schema.documents.document_id, context.documentId),
-          eq(schema.documents.status, 'active'),
+          eq(schemas.documents.document_id, context.documentId),
+          eq(schemas.documents.status, 'active'),
         ),
       )
       .limit(1);
@@ -264,25 +264,25 @@ async function publishPreviewPages(
     }
     const oldPages = await tx
       .select({
-        bucket: schema.document_preview_pages.bucket,
-        objectKey: schema.document_preview_pages.object_key,
+        bucket: schemas.document_preview_pages.bucket,
+        objectKey: schemas.document_preview_pages.object_key,
       })
-      .from(schema.document_preview_pages)
+      .from(schemas.document_preview_pages)
       .where(
         eq(
-          schema.document_preview_pages.document_version_id,
+          schemas.document_preview_pages.document_version_id,
           context.documentVersionId,
         ),
       );
     await tx
-      .delete(schema.document_preview_pages)
+      .delete(schemas.document_preview_pages)
       .where(
         eq(
-          schema.document_preview_pages.document_version_id,
+          schemas.document_preview_pages.document_version_id,
           context.documentVersionId,
         ),
       );
-    await tx.insert(schema.document_preview_pages).values(
+    await tx.insert(schemas.document_preview_pages).values(
       pages.map((page) => ({
         document_version_id: context.documentVersionId,
         page_number: page.pageNumber,
@@ -295,7 +295,7 @@ async function publishPreviewPages(
       })),
     );
     const [updated] = await tx
-      .update(schema.document_versions)
+      .update(schemas.document_versions)
       .set({
         preview_status: 'ready',
         preview_page_count: pages.length,
@@ -307,13 +307,13 @@ async function publishPreviewPages(
       .where(
         and(
           eq(
-            schema.document_versions.document_version_id,
+            schemas.document_versions.document_version_id,
             context.documentVersionId,
           ),
-          eq(schema.document_versions.document_id, context.documentId),
+          eq(schemas.document_versions.document_id, context.documentId),
         ),
       )
-      .returning({ id: schema.document_versions.document_version_id });
+      .returning({ id: schemas.document_versions.document_version_id });
     if (!updated) {
       throw new Error(
         'DOCUMENT_PREVIEW_VERSION_NOT_FOUND: 文档版本不存在',

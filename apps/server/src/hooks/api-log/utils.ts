@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { numSplit, pickObj } from '@repo/utils-node';
-import { db, schema } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { ROOT } from '@/configs/env.js';
 
 import type { ApiSendLogParams, ApiSendLogParamsWithLog } from './static.js';
-import type { SqlInsertData } from '@/database/index.js';
 
-type Item = SqlInsertData['api_logs'];
+type Item = typeof schemas.api_logs.$inferInsert;
 export type ItemAdd = Omit<Item, 'id'>;
 
 /** 添加接口日志 */
@@ -17,7 +16,7 @@ export async function addApiLog({ user_id, ...rest }: ItemAdd) {
     user_id: user_id === ROOT.SYS_ADMIN_USER_ID ? null : user_id,
   };
 
-  await db.insert(schema.api_logs).values(item);
+  await db.insert(schemas.api_logs).values(item);
 }
 
 const MAX_DATA_LENGTH = 1e4;
