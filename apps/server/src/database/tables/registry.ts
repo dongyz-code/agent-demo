@@ -10,11 +10,7 @@ import {
   file_processing_task_stage_runs,
   file_processing_tasks,
 } from './file-processing-task.js';
-import {
-  file_upload_parts,
-  file_upload_sessions,
-  files,
-} from './file.js';
+import { file_upload_sessions, files } from './file.js';
 import { api_logs, user_logs } from './log.js';
 import { rag_dataset_documents, rag_datasets } from './rag.js';
 import { table_structure_ops } from './structure.js';
@@ -43,7 +39,6 @@ export const bootstrappedTableRegistry = [
   ...Object.values(managedTableRegistry),
   table_structure_ops,
   files,
-  file_upload_parts,
   documents,
   document_versions,
   document_preview_pages,

@@ -1,5 +1,7 @@
 ## Why
 
+> **Deferred（2026-07-23）**：当前 `apps/server/src/database/tables` 中没有 `references()` 或 `foreignKey()` 声明，也没有待应用外键消费者。该方案属于超前基础设施，本轮明确不实施、不向主 specs 同步；等出现第一条业务关系及其删除语义后，再从真实用例重新提案。
+
 服务端自管 Drizzle DDL 当前只能描述列、主键、索引和 trigger，不能可靠描述或维护外键；把该能力与删表和数据库出口重构捆绑，会让风险和验收边界失控。需要建立一个只处理外键目标态、差异和受控应用的独立 change。
 
 Supersedes: `simplify-database-schema` 中“Drizzle 外键目标描述与 DDL”及“已有表外键受控同步”部分。

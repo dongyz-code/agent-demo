@@ -246,19 +246,9 @@ async function deleteDocumentDatabaseRows(
           );
       }
       if (fileIds.length) {
-        const sessions = await tx
-          .select({ id: schemas.file_upload_sessions.session_id })
-          .from(schemas.file_upload_sessions)
+        await tx
+          .delete(schemas.file_upload_sessions)
           .where(inArray(schemas.file_upload_sessions.file_id, fileIds));
-        const sessionIds = sessions.map((session) => session.id);
-        if (sessionIds.length) {
-          await tx
-            .delete(schemas.file_upload_parts)
-            .where(inArray(schemas.file_upload_parts.session_id, sessionIds));
-          await tx
-            .delete(schemas.file_upload_sessions)
-            .where(inArray(schemas.file_upload_sessions.session_id, sessionIds));
-        }
         await tx
           .delete(schemas.files)
           .where(inArray(schemas.files.file_id, fileIds));

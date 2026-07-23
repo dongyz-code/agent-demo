@@ -144,28 +144,3 @@ export const file_upload_sessions = pgTable(
     }),
   ],
 );
-
-export const file_upload_parts = pgTable(
-  'file_upload_parts',
-  {
-    /** 分片投影记录标识。 */
-    part_id: uuid('part_id').primaryKey(),
-    /** 所属上传会话。 */
-    session_id: uuid('session_id').notNull(),
-    /** 从 1 开始的分片编号。 */
-    part_number: integer('part_number').notNull(),
-    /** MinIO 返回的 ETag。 */
-    etag: varchar255('etag').notNull(),
-    /** 分片字节数。 */
-    size: bigint('size', { mode: 'number' }).notNull(),
-    /** MinIO 确认分片存在的时间。 */
-    completed_timestamp: timestamptz('completed_timestamp').notNull(),
-  },
-  (table) => [
-    uniqueIndex('file_upload_parts_session_part_unique').on(
-      table.session_id,
-      table.part_number,
-    ),
-    index('file_upload_parts_session_idx').on(table.session_id),
-  ],
-);

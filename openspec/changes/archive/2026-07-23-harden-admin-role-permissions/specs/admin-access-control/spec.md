@@ -76,22 +76,22 @@ admin SHALL 根据路由 `meta` 和当前用户权限过滤菜单和路由，页
 - **THEN** 路由守卫 MUST 允许访问全部已注册管理页面
 
 ### Requirement: 服务端权限守卫
-服务端 SHALL 通过 `routeHandler` 注册 admin 接口权限，并由 `apps/server/src/router/authentication.ts` 中的统一认证权限拦截链执行业务权限守卫。
+服务端 SHALL 通过 `routeHandler` 注册 admin 接口权限，并由唯一的集中式权限 `preHandler` 在身份认证完成后执行业务权限守卫。
 
 #### Scenario: 接口声明权限
 - **WHEN** 新增或修改受保护 admin 接口
-- **THEN** 接口 MUST 通过 `routeHandler` 的权限字段声明所需权限
+- **THEN** 接口 MUST 通过 `routeHandler` 的权限字段声明唯一权限 key
 - **THEN** 业务 handler MUST NOT 手写通用权限断言
 
-#### Scenario: 动态权限规则
-- **WHEN** 接口所需权限取决于请求体、查询字符串或路径参数
-- **THEN** `routeHandler` MUST 支持函数式权限规则返回本次请求所需权限
-- **THEN** `authentication.ts` 中的统一拦截逻辑 MUST 在业务 handler 前执行该规则
+#### Scenario: 复合写接口权限
+- **WHEN** 一个现有写接口根据 payload 更新同一资源的多个字段
+- **THEN** 服务端 MUST 以该 route 声明的单个操作权限校验整个请求
+- **THEN** 系统 MUST NOT 声明当前实现不存在的动态、多权限或策略规则
 
 #### Scenario: 认证入口统一
 - **WHEN** 服务端注册 admin 权限守卫
-- **THEN** 权限守卫 MUST 接入 `authentication.ts` 的认证流程
-- **THEN** 系统 SHOULD NOT 在 `router/index.ts` 为权限单独注册额外的 feature hook
+- **THEN** 身份认证 MUST 在 `onRequest` 阶段完成，权限守卫 MUST 作为唯一的集中式 `preHandler` 在认证后执行
+- **THEN** 业务 route 和 handler MUST NOT 再注册第二套通用权限守卫
 - **THEN** 权限不足 MUST 保持 403 语义，不得被身份认证失败逻辑映射为 401
 
 #### Scenario: 允许有权限请求
@@ -112,25 +112,18 @@ admin SHALL 根据路由 `meta` 和当前用户权限过滤菜单和路由，页
 - **THEN** 检查 MUST 能发现未声明权限的 `/sys/**` 管理接口
 - **THEN** 允许公开或特殊接口时 MUST 通过显式配置说明原因
 
-### Requirement: 角色管理操作权限
-角色管理 SHALL 区分页面入口、角色新增、基础信息编辑、权限授权、启停和删除操作权限。
+### Requirement: 角色管理路由权限
+角色管理 SHALL 在页面入口、角色新增、复合更新和删除路由上声明权限。角色授权与启停的前端动作 key 用于交互控制，服务端现有复合更新路由统一使用角色编辑权限。
 
 #### Scenario: 新增角色
 - **WHEN** 用户提交新增角色请求
 - **THEN** 服务端 MUST 要求用户拥有角色新增权限
+- **THEN** 请求携带权限列表时服务端 MUST 校验全部权限 key 有效
 
-#### Scenario: 编辑角色基础信息
-- **WHEN** 用户修改角色名称或描述
+#### Scenario: 更新角色
+- **WHEN** 用户通过现有角色更新路由修改名称、描述、权限列表或启用状态
 - **THEN** 服务端 MUST 要求用户拥有角色编辑权限
-
-#### Scenario: 修改角色授权
-- **WHEN** 用户修改角色权限列表
-- **THEN** 服务端 MUST 要求用户拥有角色授权权限
-- **THEN** 服务端 MUST 校验提交的权限 key 全部有效
-
-#### Scenario: 启停角色
-- **WHEN** 用户修改角色启用状态
-- **THEN** 服务端 MUST 要求用户拥有角色启停权限
+- **THEN** 修改权限列表时服务端 MUST 校验提交的权限 key 全部有效
 - **THEN** 被禁用角色 MUST 不再参与普通用户权限聚合
 
 #### Scenario: 删除角色
