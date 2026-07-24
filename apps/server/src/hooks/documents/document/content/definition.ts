@@ -1,4 +1,4 @@
-import { ROOT } from '@/configs/index.js';
+import { documentsConfig } from '../../config.js';
 
 import type { DocumentSegmentProfile } from './types.js';
 
@@ -11,7 +11,7 @@ export const DEFAULT_DOCUMENT_CONTENT_CONFIG_VERSION = 'document-content-v1';
  * @returns 包含稳定版本、目标 token 数和重叠 token 数的策略。
  */
 export function getDefaultSegmentProfile(): DocumentSegmentProfile {
-  const config = ROOT.document;
+  const config = documentsConfig.document;
   return {
     version: `structure-v1-${config.segmentSizeTokens}-${config.segmentOverlapTokens}`,
     segmentSizeTokens: config.segmentSizeTokens,

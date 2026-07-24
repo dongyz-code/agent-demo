@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, max, sql } from 'drizzle-orm';
 
-import { ROOT, ROOT_ERROR } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
+import { documentsConfig } from '../../config.js';
 import { getFileProcessingTask } from '../../tasks/detail.js';
 import { FILE_PROCESSING_TASK_KEY } from '../../tasks/definition.js';
 import { notifyFileProcessingWorker } from '../../tasks/worker.js';
@@ -47,7 +48,7 @@ export async function createDocumentContentTask(
   input: CreateDocumentContentTaskInput,
   userId: string,
 ): Promise<FileProcessingTaskInfo> {
-  if (!ROOT.fileProcessing.enabled) {
+  if (!documentsConfig.fileProcessing.enabled) {
     throw new ROOT_ERROR('服务异常');
   }
   const resolved = await resolveDocumentVersion(

@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 
-import { logger, ROOT } from '@/configs/index.js';
+import { logger } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
+import { documentsConfig } from '../config.js';
 import { FileProcessingLeaseLostError } from './runtime.js';
 import {
   DOCUMENT_CLEANUP_TASK_KEY,
@@ -134,7 +135,7 @@ export function notifyFileProcessingWorker(): void {
 async function recoverStaleFileProcessingTasks(): Promise<void> {
   const now = new Date();
   const staleBefore = new Date(
-    now.getTime() - ROOT.fileProcessing.staleTaskSeconds * 1000,
+    now.getTime() - documentsConfig.fileProcessing.staleTaskSeconds * 1000,
   );
   await db.transaction(async (tx) => {
     const staleTasks = await tx
@@ -195,7 +196,7 @@ async function drainFileProcessingTasks(): Promise<void> {
   draining = true;
   try {
     const available =
-      ROOT.fileProcessing.workerConcurrency - activeTaskIds.size;
+      documentsConfig.fileProcessing.workerConcurrency - activeTaskIds.size;
     if (available <= 0) return;
     const tasks = await db
       .select({
@@ -245,7 +246,7 @@ async function runClaimedFileProcessingTask(
       heartbeat = startFileProcessingHeartbeat({
         leaseId: claimed.leaseId,
         intervalMs: getHeartbeatIntervalMs(
-          ROOT.fileProcessing.staleTaskSeconds,
+          documentsConfig.fileProcessing.staleTaskSeconds,
         ),
         renew: async () =>
           await renewFileProcessingLease(taskId, claimed.leaseId),
@@ -259,7 +260,7 @@ async function runClaimedFileProcessingTask(
     if (!claimed) return;
     heartbeat = startFileProcessingHeartbeat({
       leaseId: claimed.leaseId,
-      intervalMs: getHeartbeatIntervalMs(ROOT.fileProcessing.staleTaskSeconds),
+      intervalMs: getHeartbeatIntervalMs(documentsConfig.fileProcessing.staleTaskSeconds),
       renew: async () =>
         await renewFileProcessingLease(taskId, claimed.leaseId),
     });
@@ -404,7 +405,7 @@ async function claimTaskLease(taskId: string, currentStage: string) {
  * @returns 始终包含 cleanup；文件处理关闭时不包含 preview/rag 任务键。
  */
 function getWorkerTaskKeys(): string[] {
-  return ROOT.fileProcessing.enabled
+  return documentsConfig.fileProcessing.enabled
     ? [FILE_PROCESSING_TASK_KEY, DOCUMENT_CLEANUP_TASK_KEY]
     : [DOCUMENT_CLEANUP_TASK_KEY];
 }

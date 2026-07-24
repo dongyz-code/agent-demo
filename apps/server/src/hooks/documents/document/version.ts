@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, max, ne, sql } from 'drizzle-orm';
 
-import { ROOT, ROOT_ERROR } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
+import { documentsConfig } from '../config.js';
 import { getDocumentSourceFile } from '../storage/source.js';
 import { createDocumentContentTask } from './content/task.js';
 import { getDocumentDetail, resolveDocumentVersion } from './read.js';
@@ -234,7 +235,7 @@ export async function setActiveDocumentVersion(
     return relations.length;
   });
 
-  if (ROOT.fileProcessing.enabled && relationCount) {
+  if (documentsConfig.fileProcessing.enabled && relationCount) {
     await createDocumentContentTask(
       {
         documentId,

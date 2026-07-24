@@ -1,4 +1,4 @@
-import type { APIRoutes, APISource, PinoLogLevel } from '@repo/utils-node';
+import type { APIRoutes, APISource } from '@repo/utils-node';
 import type { API } from '@repo/types';
 
 export type * from '@repo/types';
@@ -38,72 +38,13 @@ export interface S3StorageConf {
   bucket: string;
 }
 
-/** 通用上传行为配置，未填写字段使用服务端安全默认值。 */
-export interface UploadConf {
-  /** 预签名 URL 有效秒数。 */
-  presignExpiresSeconds?: number;
-  /** 达到该字节数时使用 Multipart。 */
-  multipartThresholdBytes?: number;
-  /** Multipart 默认分片字节数。 */
-  partSizeBytes?: number;
-  /** 单文件最大字节数。 */
-  maxFileSizeBytes?: number;
-  /** 单次允许签发的最大分片数量。 */
-  maxSignedParts?: number;
-  /** 上传会话有效秒数。 */
-  sessionExpiresSeconds?: number;
-  /** 未绑定文件保留天数。 */
-  unboundRetentionDays?: number;
-  /** 严格验证阶段读取文本预览的最大字节数。 */
-  maxTextPreviewBytes?: number;
-  /** Office 预览 Worker 地址；未配置时安全降级为不可预览。 */
-  officePreviewEndpoint?: string;
-}
-
-/** 通用文档处理配置。 */
-export interface DocumentConf {
-  /** PDF/Office 统一解析服务地址；未配置时相关类型返回明确不支持错误。 */
-  parserEndpoint?: string;
-  /** 外部解析服务超时毫秒数。 */
-  parserTimeoutMs?: number;
-  /** 默认 Segment 目标 token 数。 */
-  segmentSizeTokens?: number;
-  /** 相邻 Segment 重叠 token 数。 */
-  segmentOverlapTokens?: number;
-}
-
-/** 文件处理任务配置。 */
-export interface FileProcessingConf {
-  /** 文件管理上传时是否默认进入 RAG 接入流程。 */
-  defaultEnterRag?: boolean;
-  /** 单个服务实例允许并行执行的文件处理任务数。 */
-  workerConcurrency?: number;
-  /** 执行中任务失去心跳的判定秒数。 */
-  staleTaskSeconds?: number;
-  /** 是否启用新文件处理流程，用于迁移期回滚。 */
-  enabled?: boolean;
-}
-
-/** 额外补充的配置 */
+/**
+ * 额外补充的配置：仅基础设施连接（数据库/对象存储/AI）。
+ *
+ * 域与特性配置（日志、上传、文档处理、文件处理等）不在此声明，由各消费方自行定义切片
+ * 类型并从 `ROOT` 按约定读取——`ROOT` 是 conf.json 的运行期载体，类型只保证连接契约。
+ */
 export type ConfExtra = {
-  /** 日志配置，不配置时使用服务端默认结构化日志策略。 */
-  logging?: {
-    /** 全局运行日志级别，作为 fastify/system 未单独配置时的兜底。 */
-    level?: PinoLogLevel;
-    /** Fastify 请求日志级别，用于控制接口耗时和错误摘要输出。 */
-    fastifyLevel?: PinoLogLevel;
-    /** 系统日志级别，用于控制启动、任务、异常和外部调用日志输出。 */
-    systemLevel?: PinoLogLevel;
-    /** 是否输出到 stdout；生产默认在文件日志开启时关闭，避免默认双写。 */
-    stdout?: boolean;
-    /** 本地文件日志配置，作为 stdout 之外的短期兜底。 */
-    file?: {
-      /** 是否启用本地文件日志，默认启用。 */
-      enabled?: boolean;
-      /** 本地日期日志目录保留天数，默认 30 天。 */
-      retentionDays?: number;
-    };
-  };
   pg: {
     host: string;
     port: number;
@@ -117,12 +58,6 @@ export type ConfExtra = {
     /** S3 兼容存储配置。 */
     s3: S3StorageConf;
   };
-  /** 通用文件上传配置。 */
-  upload?: UploadConf;
-  /** 通用文档处理配置。 */
-  document?: DocumentConf;
-  /** 文件处理任务配置。 */
-  fileProcessing?: FileProcessingConf;
   /** AI 供应商配置，密钥和代理地址统一放在本地 conf.json 的 `AI` 节点。 */
   AI?: AiConf;
 };

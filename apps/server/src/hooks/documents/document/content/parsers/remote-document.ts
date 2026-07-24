@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-import { ROOT, ROOT_ERROR } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
+import { documentsConfig } from '../../../config.js';
 
 import type { DocumentParsedBlock } from '@repo/types';
 import type { DocumentParser } from '../types.js';
@@ -27,7 +28,7 @@ export const remoteDocumentParser: DocumentParser = {
   version: '1',
   contentTypes: REMOTE_TYPES,
   async parse({ file }) {
-    const config = ROOT.document;
+    const config = documentsConfig.document;
     if (!config.parserEndpoint) {
       throw new ROOT_ERROR('数据异常');
     }
