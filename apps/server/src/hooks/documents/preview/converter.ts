@@ -4,7 +4,7 @@ import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import sharp from 'sharp';
 
-import { ROOT } from '@/configs/index.js';
+import { documentsConfig } from '../config.js';
 import { presignGetObject } from '../storage/presign.js';
 
 import type { Readable } from 'node:stream';
@@ -206,7 +206,7 @@ async function* convertPdf(
 
 /** 通过受控 Worker 把 Office 文件转换为 PDF。 */
 async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
-  const endpoint = ROOT.upload.officePreviewEndpoint;
+  const endpoint = documentsConfig.upload.officePreviewEndpoint;
   if (!endpoint) {
     throw new Error(
       'DOCUMENT_PREVIEW_OFFICE_WORKER_MISSING: 未配置 Office 转换 Worker',
@@ -224,7 +224,7 @@ async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
     { sourceUrl: signed.url, filename: source.filename, target: 'pdf' },
     {
       responseType: 'arraybuffer',
-      timeout: ROOT.document.parserTimeoutMs,
+      timeout: documentsConfig.document.parserTimeoutMs,
       maxContentLength: MAX_SOURCE_BYTES,
       maxBodyLength: MAX_SOURCE_BYTES,
     },
@@ -244,7 +244,7 @@ async function* convertText(
 ): AsyncGenerator<ConvertedDocumentPage> {
   const content = await readSourceBuffer(
     source,
-    ROOT.upload.maxTextPreviewBytes,
+    documentsConfig.upload.maxTextPreviewBytes,
   );
   const raw = content.toString('utf8').replaceAll('\u0000', '');
   const safeText =

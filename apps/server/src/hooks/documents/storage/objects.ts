@@ -165,7 +165,7 @@ export async function deleteStoredObject(body: {
 
 /** 检查配置 Bucket 是否可访问。 */
 export async function checkUploadBucket(): Promise<void> {
-  const config = ROOT.upload;
+  const config = ROOT.storage.s3;
   await getInternalS3Client().send(
     new HeadBucketCommand({ Bucket: config.bucket }),
   );

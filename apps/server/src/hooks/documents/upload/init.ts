@@ -3,6 +3,7 @@ import { and, eq, inArray, ne } from 'drizzle-orm';
 
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
+import { documentsConfig } from '../config.js';
 import {
   abortMultipartUpload,
   createMultipartUpload,
@@ -45,8 +46,8 @@ export async function initializeDocumentUpload(
     ? await getUploadTargetDocument(input.documentId, userId)
     : undefined;
   const defaultEnterRag =
-    input.policyKey === 'rag-document' && ROOT.fileProcessing.enabled
-      ? (targetDocument?.ragEnabled ?? ROOT.fileProcessing.defaultEnterRag)
+    input.policyKey === 'rag-document' && documentsConfig.fileProcessing.enabled
+      ? (targetDocument?.ragEnabled ?? documentsConfig.fileProcessing.defaultEnterRag)
       : false;
   const enterRag = input.enterRag ?? defaultEnterRag;
   const datasetIds = [
@@ -159,7 +160,7 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
     return await buildInitResponse(existing);
   }
 
-  const config = ROOT.upload;
+  const s3 = ROOT.storage.s3;
   const now = new Date();
   const fileId = randomUUID();
   const sessionId = randomUUID();
@@ -173,7 +174,7 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
   let uploadId: string | undefined;
   if (mode === 'multipart') {
     uploadId = await createMultipartUpload({
-      bucket: config.bucket,
+      bucket: s3.bucket,
       objectKey,
       contentType: input.contentType,
       filename,
@@ -190,7 +191,7 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
         content_type: null,
         size: input.size,
         sha256: null,
-        bucket: config.bucket,
+        bucket: s3.bucket,
         object_key: objectKey,
         etag: null,
         status: 'pending',
@@ -226,7 +227,7 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
         uploaded_size: 0,
         status: 'initialized',
         expire_timestamp: new Date(
-          now.getTime() + config.sessionExpiresSeconds * 1000,
+          now.getTime() + documentsConfig.upload.sessionExpiresSeconds * 1000,
         ),
         completed_timestamp: null,
         error_code: null,
@@ -240,7 +241,7 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
   } catch (error) {
     if (uploadId) {
       await abortMultipartUpload({
-        bucket: config.bucket,
+        bucket: s3.bucket,
         objectKey,
         uploadId,
       }).catch(() => undefined);

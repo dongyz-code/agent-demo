@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
-import { ROOT, ROOT_ERROR } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
+import { documentsConfig } from '../config.js';
 import { db, schemas } from '@/database/index.js';
 import {
   abortMultipartUpload,
@@ -35,7 +36,7 @@ export async function signDocumentUploadParts(
   const uniqueParts = [...new Set(input.partNumbers)];
   if (
     !uniqueParts.length ||
-    uniqueParts.length > ROOT.upload.maxSignedParts ||
+    uniqueParts.length > documentsConfig.upload.maxSignedParts ||
     uniqueParts.some(
       (partNumber) =>
         !Number.isInteger(partNumber) ||

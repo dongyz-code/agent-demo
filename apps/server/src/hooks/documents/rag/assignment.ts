@@ -1,4 +1,4 @@
-import { ROOT } from '@/configs/index.js';
+import { documentsConfig } from '../config.js';
 import { createDocumentContentTask } from '../document/content/task.js';
 import { getDocumentDetail } from '../document/read.js';
 import { updateDocumentDatasetRelations } from './relations.js';
@@ -37,7 +37,7 @@ export async function applyDocumentDatasetAssignment(
 ): Promise<void> {
   await updateDocumentDatasetRelations(input);
   if (
-    ROOT.fileProcessing.enabled &&
+    documentsConfig.fileProcessing.enabled &&
     input.mode !== 'remove' &&
     input.datasetIds.length
   ) {
