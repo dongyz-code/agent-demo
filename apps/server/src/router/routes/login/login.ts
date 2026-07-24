@@ -3,7 +3,7 @@ import { authentication } from '@/router/authentication.js';
 import { ROOT } from '@/configs/env.js';
 import { ROOT_ERROR } from '@/configs/error.js';
 import { db, schemas } from '@/database/index.js';
-import { getSha256Hex } from '@/utils/index.js';
+import { getSha256Hex } from '@/utils/hash.js';
 import { addUserLog } from '@/hooks/user-log/index.js';
 import { getAdminPermissionContext } from '@/router/permission.js';
 import { and, eq } from 'drizzle-orm';

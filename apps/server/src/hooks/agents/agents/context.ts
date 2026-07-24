@@ -1,4 +1,5 @@
 import { and, eq, desc } from 'drizzle-orm';
+import { ModelMessage } from 'ai';
 import { db, schemas } from '@/database/index.js';
 
 /** 查找消息记录 */
@@ -19,5 +20,8 @@ export async function getMessages({
     limit: 100,
   });
 
-  return list;
+  return list.map((item) => ({
+    role: item.role,
+    content: item.content,
+  })) as ModelMessage[];
 }
