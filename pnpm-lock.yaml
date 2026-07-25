@@ -75,6 +75,9 @@ importers:
       '@iconify/json':
         specifier: ^2.2.464
         version: 2.2.464
+      '@repo/eslint-config':
+        specifier: workspace:^
+        version: link:../../packages/eslint-config
       '@repo/types':
         specifier: workspace:^
         version: link:../../packages/types
@@ -281,6 +284,9 @@ importers:
       '@faker-js/faker':
         specifier: ^10.4.0
         version: 10.4.0
+      '@repo/eslint-config':
+        specifier: workspace:^
+        version: link:../../packages/eslint-config
       '@repo/typescript-config':
         specifier: workspace:^
         version: link:../../packages/typescript-config

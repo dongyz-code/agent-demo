@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@iconify/json": "^2.2.464",
+    "@repo/eslint-config": "workspace:^",
     "@repo/types": "workspace:^",
     "@tailwindcss/vite": "^4.2.3",
     "@types/node": "^20.19.39",
