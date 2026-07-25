@@ -1,7 +1,7 @@
 import { index, text, uuid } from 'drizzle-orm/pg-core';
 
-import { timestamptz, varchar255 } from './common-columns.js';
-import { pgTable } from '../structure/index.js';
+import { timestamptz, varchar255 } from '../declaration/common-columns.js';
+import { pgTable } from '../declaration/declaration.js';
 
 import type {
   TableStructureOpStatus,

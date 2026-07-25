@@ -6,8 +6,8 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-import { baseCols, timestamptz, varchar255 } from './common-columns.js';
-import { pgTable } from '../structure/index.js';
+import { baseCols, timestamptz, varchar255 } from '../declaration/common-columns.js';
+import { pgTable } from '../declaration/declaration.js';
 
 export const sys_conf = pgTable('sys_conf', {
   /** 配置ID */

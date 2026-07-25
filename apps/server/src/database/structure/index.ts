@@ -1,22 +1,13 @@
 /**
- * 数据库结构子模块公共出口。
+ * 数据库迁移层出口：目标态描述、live catalog 读取、结构差异比较、DDL 生成和启动期结构自检。
  *
- * 统一收口表声明捕获、目标态描述、live catalog 读取、结构差异比较、DDL 生成和启动期
- * 结构自检。具体表定义见 ../tables。
+ * 表定义层 primitives（pgTable / timestampsTrigger / declaration / presets）已移至 tables/，
+ * 本桶只导出迁移/管理层模块。表定义不 import 本桶，从结构上断开"表定义 ↔ 迁移"循环依赖。
  */
-
-export {
-  pgTable,
-  trigger,
-  triggerFunction,
-  getTableSchemaObjects,
-} from './declaration.js';
-
 export {
   defaultDatabaseSchema,
   describeTableTarget,
   getTableDdlTarget,
-  validateSqlIdentifier,
 } from './descriptor.js';
 export type { DescribeTableOptions } from './descriptor.js';
 
@@ -29,9 +20,6 @@ export {
   quoteIdent,
   quoteQualified,
 } from './ddl.js';
-
-export { timestampsTrigger } from './presets.js';
-export type { TimestampsTriggerOptions } from './presets.js';
 
 export {
   createCatalogFingerprint,
@@ -60,14 +48,7 @@ export type {
   CreateTriggerSqlOptions,
   DrizzleIndexConfig,
   TargetIndexDescriptor,
-  PgTableExtraConfig,
-  PgTableExtraConfigValue,
-  SchemaTrigger,
-  SchemaTriggerConfig,
-  SchemaTriggerEvent,
-  SchemaTriggerFunction,
   TableDdlTarget,
   TableTargetDescriptor,
-  TableSchemaObjects,
   TableTargetOptions,
 } from './types.js';

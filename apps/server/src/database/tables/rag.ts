@@ -1,7 +1,8 @@
 import { index, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
-import { baseCols, varchar255 } from './common-columns.js';
-import { pgTable, timestampsTrigger } from '../structure/index.js';
+import { baseCols, varchar255 } from '../declaration/common-columns.js';
+import { pgTable } from '../declaration/declaration.js';
+import { timestampsTrigger } from '../declaration/presets.js';
 
 import type { RagDatasetDocumentStatus, RagDatasetStatus } from '@repo/types';
 

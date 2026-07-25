@@ -2,7 +2,8 @@ import { ROOT } from '@/configs/index.js';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { SQL, sql } from 'drizzle-orm';
 
-import { getTableSchemaObjects } from './declaration.js';
+import { getTableSchemaObjects } from '../declaration/declaration.js';
+import { validateSqlIdentifier } from '../declaration/sql-identifier.js';
 
 import type {
   TargetColumnDescriptor,
@@ -90,13 +91,6 @@ export function describeTableTarget(
     triggers,
     triggerFunctions,
   };
-}
-
-/** 校验受控配置里的 SQL 标识符片段，避免拼接索引方法等关键字时引入任意 SQL。 */
-export function validateSqlIdentifier(value: string, label: string) {
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
-    throw new Error(`${label}格式不合法`);
-  }
 }
 
 /** 将 Drizzle 表索引统一转换为 DDL 和展示都能消费的结构。 */

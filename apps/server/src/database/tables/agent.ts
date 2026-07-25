@@ -1,12 +1,15 @@
 import { index, integer, jsonb, uuid } from 'drizzle-orm/pg-core';
 
-import { timestamptz, varchar255 } from './common-columns.js';
-import { pgTable, timestampsTrigger } from '../structure/index.js';
+import { timestamptz, varchar255 } from '../declaration/common-columns.js';
+import { pgTable } from '../declaration/declaration.js';
+import { timestampsTrigger } from '../declaration/presets.js';
 
 import type {
   AgentConversationStatus,
+  AgentMessageMetadata,
   AgentMessagePart,
   AgentMessageRole,
+  AgentMessageStatus,
   AgentScenario,
 } from '@repo/types';
 
@@ -71,6 +74,13 @@ export const agent_messages = pgTable(
     content: jsonb('content').$type<AgentMessagePart[]>().notNull(),
     /** 本条消息的 token 长度估算，用于上下文窗口预算；未估算为 null 时降级按条数 */
     tokens: integer('tokens'),
+    /** 消息元数据，按 role 存不同形状（模型信息/执行信息/来源），见 AgentMessageMetadata */
+    metadata: jsonb('metadata').$type<AgentMessageMetadata>(),
+    /** 消息状态：active 正常 / error 失败 / partial 中断；默认 active */
+    status: varchar255('status')
+      .$type<AgentMessageStatus>()
+      .notNull()
+      .default('active'),
     /** 消息创建时间 */
     create_timestamp: timestamptz('create_timestamp').notNull(),
   },

@@ -7,6 +7,44 @@ export type AgentMessageRole = 'user' | 'assistant' | 'system' | 'tool';
 /** 会话状态：active 进行中 / archived 归档 / deleted 软删。 */
 export type AgentConversationStatus = 'active' | 'archived' | 'deleted';
 
+/** 单条消息状态：active 正常 / error 产出失败（工具报错或模型 finishReason=error）/ partial 中断的部分输出。 */
+export type AgentMessageStatus = 'active' | 'error' | 'partial';
+
+/**
+ * assistant 消息元数据：模型产出信息（步号/模型/token/耗时）。
+ * 只有 role=assistant 的行用此形状。
+ */
+export interface AgentAssistantMeta {
+  stepNumber: number;
+  model: { provider: string; modelId: string };
+  finishReason: 'stop' | 'tool-calls' | 'length' | 'content-filter' | 'error' | 'other';
+  usage: { inputTokens: number; outputTokens: number };
+  performance?: { stepTimeMs?: number };
+}
+
+/**
+ * tool 消息元数据：工具执行信息（非模型产出，仅记步号与执行耗时）。
+ * 只有 role=tool 的行用此形状——与 assistant 的模型元数据刻意区分。
+ */
+export interface AgentToolMeta {
+  stepNumber: number;
+  durationMs?: number;
+}
+
+/** user 消息元数据：来源标记，可空。 */
+export interface AgentUserMeta {
+  source?: string;
+}
+
+/**
+ * 消息元数据：按 role 区分形状。assistant 记模型/token信息，tool 记执行信息，user 记来源。
+ * 存 jsonb，运行时松散；类型仅用于约束构造期，强调三种消息的元数据语义不同。
+ */
+export type AgentMessageMetadata =
+  | AgentAssistantMeta
+  | AgentToolMeta
+  | AgentUserMeta;
+
 /**
  * 消息内容片段，对齐 AI SDK v7 的 message parts 形状（text / tool-call / tool-result）。
  *

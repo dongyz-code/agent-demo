@@ -1,5 +1,5 @@
 import { trigger, triggerFunction } from './declaration.js';
-import { validateSqlIdentifier } from './descriptor.js';
+import { validateSqlIdentifier } from './sql-identifier.js';
 
 import type { SchemaTriggerFunction } from './types.js';
 

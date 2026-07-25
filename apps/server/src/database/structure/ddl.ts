@@ -5,16 +5,15 @@ import {
   defaultDatabaseSchema,
   describeTableTarget,
   getTableDdlTarget,
-  validateSqlIdentifier,
 } from './descriptor.js';
+import { validateSqlIdentifier } from '../declaration/sql-identifier.js';
 
 import type {
   CreateIndexSqlOptions,
   CreateTableSqlOptions,
   CreateTriggerSqlOptions,
-  SchemaTrigger,
-  SchemaTriggerFunction,
 } from './types.js';
+import type { SchemaTrigger, SchemaTriggerFunction } from '../declaration/types.js';
 
 /* ------------------------------------------------------------------ */
 /* schema / table / index                                              */
