@@ -7,6 +7,7 @@ import {
   PORT,
 } from '@/configs/index.js';
 import { startupTableStructureSync } from '@/database/structure/index.js';
+import { ensureDocumentSegmentsCollection } from '@/vector/client.js';
 import { getRoutes, callback } from '@/router/index.js';
 import { checkUploadBucket } from '@/hooks/documents/storage/objects.js';
 import { startFileProcessingWorker } from '@/hooks/documents/tasks/worker.js';
@@ -23,6 +24,15 @@ async function createServer() {
   await checkUploadBucket();
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
   await startupTableStructureSync();
+  // 启动期确保 Qdrant document_segments 集合就绪；Qdrant 不可用时仅告警，不阻塞启动（任务级重试兜底）。
+  try {
+    await ensureDocumentSegmentsCollection();
+  } catch (error) {
+    logger.warn(
+      { event: 'qdrant.not_ready', err: error },
+      'Qdrant 不可用，服务继续启动但 RAG 索引将失败重试',
+    );
+  }
   try {
     await startFileProcessingWorker();
   } catch (error) {

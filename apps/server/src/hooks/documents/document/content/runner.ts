@@ -6,6 +6,7 @@ import {
   markDocumentRagRelationsProcessing,
   publishDocumentRagRelationsForTask,
 } from '../../rag/relations.js';
+import { embedAndIndexSegments } from '../../rag/indexing.js';
 import { getReadableDocumentSource } from '../../storage/source.js';
 import { getErrorCode } from '../../tasks/errors.js';
 import {
@@ -71,6 +72,13 @@ export async function runDocumentContentTask(
       segments,
       segmentProfileVersion: profile.version,
     });
+    await runTaskStage(context, lease, 'embedding', async () =>
+      embedAndIndexSegments({
+        documentId: context.documentId,
+        documentVersionId: context.documentVersionId,
+        segments,
+      }),
+    );
     const publishedRelationCount = await runTaskStage(
       context,
       lease,

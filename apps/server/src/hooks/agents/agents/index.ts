@@ -5,6 +5,7 @@ import { db, schemas } from '@/database/index.js';
 import { uuidv7 } from '@/utils/index.js';
 import { getMessages } from './context.js';
 import { getModel } from '../providers/providers.js';
+import { createSearchKnowledgeBaseTool } from '../tools/rag-tool/index.js';
 
 import type {
   AgentAssistantMeta,
@@ -20,6 +21,8 @@ export const chatAgent = async (input: {
   userId: string;
   abortSignal?: AbortSignal;
   now: Date;
+  /** 绑定的知识库 ID；提供则注册检索 tool，agent 可在回答前检索知识库片段。 */
+  dataset_id?: string;
 }) => {
   const isNewConversation = !input.conversation_id;
   const conversation_id = input.conversation_id || uuidv7();
@@ -54,6 +57,15 @@ export const chatAgent = async (input: {
     create_timestamp: input.now,
   });
 
+  // 绑定知识库时注册检索 tool；闭包捕获 datasetId，模型只决定 query。
+  const tools = input.dataset_id
+    ? {
+        searchKnowledgeBase: createSearchKnowledgeBaseTool({
+          datasetId: input.dataset_id,
+        }),
+      }
+    : undefined;
+
   const stream = streamText({
     model,
     messages: [
@@ -66,6 +78,7 @@ export const chatAgent = async (input: {
     system: input.system,
     providerOptions,
     abortSignal: input.abortSignal,
+    tools,
     stopWhen: stepCountIs(10),
     onStepEnd: async ({
       stepNumber,

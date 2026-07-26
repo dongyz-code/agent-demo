@@ -26,6 +26,7 @@ export type FileProcessingStage =
   | 'parsing'
   | 'normalizing'
   | 'segmenting'
+  | 'embedding'
   | 'content-publishing'
   | 'preview-converting'
   | 'preview-publishing'
