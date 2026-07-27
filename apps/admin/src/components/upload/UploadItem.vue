@@ -3,11 +3,16 @@
     <div class="flex items-center justify-between gap-3">
       <div class="min-w-0 flex-1">
         <div class="truncate text-sm font-medium">{{ item.name }}</div>
-        <el-progress :percentage="item.progress" :status="progressStatus" />
+        <el-progress
+          v-if="item.started || item.complete"
+          :percentage="item.progress"
+          :status="progressStatus"
+        />
+        <div v-else-if="!item.error" class="mt-1 text-xs text-gray-400">等待上传</div>
         <div v-if="item.error" class="mt-1 text-xs text-red-500">{{ item.error }}</div>
       </div>
       <div class="flex shrink-0 gap-1">
-        <el-button v-if="!item.complete && !item.error" link @click="$emit('pause-resume')">
+        <el-button v-if="item.uploading && !item.error" link @click="$emit('pause-resume')">
           {{ item.paused ? '继续' : '暂停' }}
         </el-button>
         <el-button v-if="item.error" link type="primary" @click="$emit('retry')">重试</el-button>

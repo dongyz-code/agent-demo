@@ -40,6 +40,10 @@ export interface UploadQueueItem {
   size: number;
   /** 0 到 100 的上传进度。 */
   progress: number;
+  /** 是否已经开始当前批次的上传流程。 */
+  started: boolean;
+  /** 是否仍处于可暂停或继续的文件传输阶段。 */
+  uploading: boolean;
   /** 是否处于暂停状态。 */
   paused: boolean;
   /** 是否完成对象上传和服务端验证。 */

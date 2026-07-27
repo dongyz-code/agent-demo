@@ -19,8 +19,19 @@ export interface AiProviderSecret {
  */
 export type AiProvider = 'bailian' | 'volcengine' | 'awsBedrock' | 'google';
 
-/** 根配置文件中 `AI` 节点支持的供应商配置；键由 `AiProvider` 派生，避免重复声明。 */
-export type AiConf = { [P in AiProvider]?: AiProviderSecret };
+/** TextIn 文档解析服务连接配置。 */
+export interface TextInSecret {
+  /** 调用 TextIn 代理时使用的 Bearer Token。 */
+  apiKey: string;
+  /** TextIn 文档解析完整接口地址。 */
+  baseUrl: string;
+}
+
+/** 根配置文件中 `AI` 节点支持的模型供应商与文档解析服务配置。 */
+export type AiConf = { [P in AiProvider]?: AiProviderSecret } & {
+  /** TextIn 文档解析独立连接配置，不参与语言模型供应商派发。 */
+  textIn?: TextInSecret;
+};
 
 /** S3 兼容对象存储连接配置，当前用于 MinIO 私有文件存储。 */
 export interface S3StorageConf {
@@ -39,10 +50,7 @@ export interface S3StorageConf {
 }
 
 /**
- * 额外补充的配置：仅基础设施连接（数据库/对象存储/AI）。
- *
- * 域与特性配置（日志、上传、文档处理、文件处理等）不在此声明，由各消费方自行定义切片
- * 类型并从 `ROOT` 按约定读取——`ROOT` 是 conf.json 的运行期载体，类型只保证连接契约。
+ * 额外补充的服务端配置，包括基础设施连接与需要按部署环境切换的外部服务地址。
  */
 export type ConfExtra = {
   pg: {
@@ -58,7 +66,7 @@ export type ConfExtra = {
     /** S3 兼容存储配置。 */
     s3: S3StorageConf;
   };
-  /** AI 供应商配置，密钥和代理地址统一放在本地 conf.json 的 `AI` 节点。 */
+  /** AI 模型与文档解析服务配置，密钥和代理地址统一放在本地 conf.json 的 `AI` 节点。 */
   AI?: AiConf;
 };
 

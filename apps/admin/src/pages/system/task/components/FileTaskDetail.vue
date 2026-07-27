@@ -103,6 +103,7 @@ const stageLabels: Record<FileProcessingStage, string> = {
   parsing: '解析内容',
   normalizing: '整理内容',
   segmenting: '生成知识片段',
+  embedding: '生成向量',
   'content-publishing': '发布内容结果',
   'preview-converting': '生成预览页面',
   'preview-publishing': '发布预览页面',

@@ -12,10 +12,7 @@ export function getDocumentParser(contentType: string) {
     item.contentTypes.includes(contentType),
   );
   if (!parser) {
-    throw new ROOT_ERROR(
-      '非法参数',
-      `DOCUMENT_PARSER_NOT_SUPPORTED: 不支持解析文件类型：${contentType}`,
-    );
+    throw new ROOT_ERROR('文件处理: 不支持的文件类型', `: ${contentType}`);
   }
   return parser;
 }

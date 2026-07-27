@@ -1,9 +1,10 @@
 /**
  * documents 域运行期配置。
  *
- * 全部为域内直接常量，不再读 ROOT/conf.json——这些属域内调参，无需全局静态配置覆盖。
- * 外部服务地址（officePreviewEndpoint / parserEndpoint）留空时为 undefined，消费方按缺失安全降级。
+ * 域内调参使用直接常量；TextIn 等外部服务地址从根配置读取，避免部署地址进入源码。
  */
+
+import { ROOT } from '@/configs/env.js';
 
 /** 去尾斜杠归一化 endpoint：外部解析/预览请求依赖 Host/Path 一致。 */
 function normalizeEndpoint(value: string): string {
@@ -12,8 +13,6 @@ function normalizeEndpoint(value: string): string {
 
 /** Office 预览服务地址；留空则预览按缺失处理。 */
 const OFFICE_PREVIEW_ENDPOINT: string = '';
-/** 文档解析服务地址；留空则解析按缺失处理。 */
-const PARSER_ENDPOINT: string = '';
 /** 文件处理总开关。 */
 const FILE_PROCESSING_ENABLED = true;
 
@@ -32,8 +31,8 @@ export const documentsConfig = {
       : undefined,
   },
   document: {
-    parserEndpoint: PARSER_ENDPOINT
-      ? normalizeEndpoint(PARSER_ENDPOINT)
+    parserEndpoint: ROOT.AI?.textIn?.baseUrl
+      ? normalizeEndpoint(ROOT.AI.textIn.baseUrl)
       : undefined,
     parserTimeoutMs: 2 * 60 * 1000,
     segmentSizeTokens: 600,

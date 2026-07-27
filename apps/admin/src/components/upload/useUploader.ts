@@ -17,6 +17,10 @@ export function useUploader(options: UploaderOptions) {
       name: file.name,
       size: file.size ?? 0,
       progress: Math.round(file.progress.percentage ?? 0),
+      started: typeof file.progress.uploadStarted === 'number',
+      uploading:
+        typeof file.progress.uploadStarted === 'number' &&
+        file.progress.uploadComplete !== true,
       paused: file.isPaused === true,
       complete: file.progress.uploadComplete === true && Boolean(file.response?.body?.file),
       error: file.error ?? null,

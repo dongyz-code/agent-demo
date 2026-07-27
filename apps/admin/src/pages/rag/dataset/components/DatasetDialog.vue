@@ -9,7 +9,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { ref } from 'vue';
 import { ElButton } from 'element-plus';
 import { VDialog, VSchemaForm } from '@repo/ui';
 
@@ -30,7 +30,9 @@ type DatasetForm = {
 const emit = defineEmits<{ /** 保存成功。 */ saved: [] }>();
 const visible = ref(false);
 const submitting = ref(false);
-const form = reactive<DatasetForm>({ name: '', description: '' });
+// 用 ref 而非 reactive：VSchemaForm 经 update:modelValue 回写整个对象，
+// v-model 编译为 form = $event，const reactive 无法重赋值会导致输入写不回；ref 走 .value 重赋值即可。
+const form = ref<DatasetForm>({ name: '', description: '' });
 
 const columns: SchemaFormColumn<DatasetForm>[] = [
   { dataIndex: 'name', title: '名称', valueType: 'text', formItemProps: { required: true } },
@@ -39,26 +41,28 @@ const columns: SchemaFormColumn<DatasetForm>[] = [
 
 /** 打开新建或编辑弹窗。 */
 function open(dataset?: RagDatasetInfo) {
-  form.datasetId = dataset?.datasetId;
-  form.name = dataset?.name ?? '';
-  form.description = dataset?.description ?? '';
+  form.value = {
+    datasetId: dataset?.datasetId,
+    name: dataset?.name ?? '',
+    description: dataset?.description ?? '',
+  };
   visible.value = true;
 }
 
 /** 提交知识库基础信息。 */
 async function submit() {
-  if (!form.name.trim()) return;
+  if (!form.value.name.trim()) return;
   submitting.value = true;
   try {
-    if (form.datasetId) {
+    if (form.value.datasetId) {
       await api('/documents/dataset-update', {
-        datasetId: form.datasetId,
-        update: { name: form.name, description: form.description },
+        datasetId: form.value.datasetId,
+        update: { name: form.value.name, description: form.value.description },
       });
     } else {
       await api('/documents/dataset-create', {
-        name: form.name,
-        description: form.description,
+        name: form.value.name,
+        description: form.value.description,
       });
     }
     visible.value = false;

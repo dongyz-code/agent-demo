@@ -126,8 +126,8 @@ async function open(options?: {
     datasetIds.value = (options?.datasetIds ?? []).filter((datasetId) =>
       result.list.some((dataset) => dataset.datasetId === datasetId),
     );
-    enterRag.value =
-      options?.enterRag ?? (result.list.length > 0);
+    // 新文档没有预选知识库时默认关闭 RAG，避免文件已选择但上传按钮仍被禁用。
+    enterRag.value = options?.enterRag ?? datasetIds.value.length > 0;
   }
   visible.value = true;
 }
