@@ -1,10 +1,9 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
-import { ROOT_ERROR } from '@/configs/index.js';
+import { logger, ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
 import { createDocumentVersionFromFile } from '../document/version.js';
 import { createDocumentPreviewTask } from '../preview/task.js';
-import { applyDocumentDatasetAssignment } from '../rag/assignment.js';
 import {
   completeMultipartUpload,
   headStoredObject,
@@ -16,7 +15,6 @@ import {
   assertTransferableUploadSession,
   getOwnedUploadSession,
   getUploadSourceFile,
-  parseUploadDatasetIds,
 } from './session.js';
 import {
   calculateSha256Stream,
@@ -46,32 +44,48 @@ export async function completeDocumentUpload(
       fileId: file.file_id,
       documentId: session.document_id ?? undefined,
       name: session.document_name ?? file.filename,
-      ragEnabled: true,
+      ragEnabled: false,
     },
     userId,
   );
   if (getUploadPolicy(session.policy_key).previewEnabled) {
-    await createDocumentPreviewTask(
-      {
-        documentId: binding.document.documentId,
-        documentVersionId: binding.documentVersionId,
-        triggerSource: 'upload',
-      },
-      userId,
-    );
-  }
-  const datasetIds = parseUploadDatasetIds(session.dataset_ids);
-  if (session.enter_rag && datasetIds.length) {
-    await applyDocumentDatasetAssignment({
-      documentId: binding.document.documentId,
-      documentVersionId: binding.documentVersionId,
-      datasetIds,
-      mode: 'add',
-      userId,
-      processingConfigVersion:
-        session.processing_config_version ?? undefined,
-      triggerSource: 'upload',
-    });
+    try {
+      await createDocumentPreviewTask(
+        {
+          documentId: binding.document.documentId,
+          documentVersionId: binding.documentVersionId,
+          triggerSource: 'upload',
+        },
+        userId,
+      );
+    } catch (error) {
+      let message = '预览任务创建失败';
+      if (error instanceof Error) message = error.message;
+      await db
+        .update(schemas.document_versions)
+        .set({
+          preview_status: 'failed',
+          preview_error: message,
+          last_update_user_id: userId,
+          last_update_timestamp: new Date(),
+        })
+        .where(
+          eq(
+            schemas.document_versions.document_version_id,
+            binding.documentVersionId,
+          ),
+        )
+        .catch(() => undefined);
+      logger.error(
+        {
+          event: 'documents.upload.preview_schedule_failed',
+          documentId: binding.document.documentId,
+          documentVersionId: binding.documentVersionId,
+          error,
+        },
+        '文档已入库，但预览任务创建失败',
+      );
+    }
   }
   return {
     documentId: binding.document.documentId,
@@ -89,6 +103,9 @@ async function finishUpload(
 ) {
   if (session.status === 'completed') {
     return await getUploadSourceFile(session.file_id);
+  }
+  if (session.status === 'completing') {
+    throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
   }
   assertTransferableUploadSession(session);
 
@@ -188,7 +205,7 @@ async function validateStoredFile(
       objectKey: file.object_key,
     });
     if (head.ContentLength !== file.size) {
-      throw new ROOT_ERROR('非法参数');
+      throw new ROOT_ERROR('文件上传: 对象大小不匹配');
     }
 
     const prefix = await readObjectPrefix({
@@ -205,7 +222,7 @@ async function validateStoredFile(
       !trustedContentType ||
       !policy.allowedContentTypes.includes(trustedContentType)
     ) {
-      throw new ROOT_ERROR('非法参数');
+      throw new ROOT_ERROR('文件上传: 文件内容与声明类型不匹配');
     }
 
     const sha256 = await calculateObjectSha256({

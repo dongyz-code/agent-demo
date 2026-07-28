@@ -39,7 +39,7 @@ export const documentsConfig = {
     segmentOverlapTokens: 80,
   },
   fileProcessing: {
-    defaultEnterRag: true,
+    defaultEnterRag: false,
     workerConcurrency: 4,
     staleTaskSeconds: 5 * 60,
     enabled: FILE_PROCESSING_ENABLED,

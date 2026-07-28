@@ -2,6 +2,10 @@ import type { DocumentUploadResult, UploadMode, UploadPolicyKey } from '@/types'
 
 /** Uppy 文件上保存的通用上传会话元数据。 */
 export interface UploadFileMeta extends Record<string, unknown> {
+  /** 当前浏览器选择生成的上传尝试标识；新选择和终态重传必须不同。 */
+  uploadAttemptId?: string;
+  /** 初始化会话时绑定的目标文档；空值表示创建新文档。 */
+  documentId?: string | null;
   /** 服务端上传会话标识。 */
   sessionId?: string;
   /** 初始化得到的文件标识。 */
@@ -18,9 +22,27 @@ export interface UploadFileMeta extends Record<string, unknown> {
   uploadHeaders?: Record<string, string>;
   /** 刷新后可复用的稳定文件指纹。 */
   fingerprint?: string;
+  /** 当前文件在管理端展示的上传阶段。 */
+  stage?: UploadQueueStage;
+  /** 当前错误是否允许在不重新选择文件的情况下重试。 */
+  retryable?: boolean;
+  /** 重试前是否必须丢弃终态服务端会话并生成新的上传尝试。 */
+  restartRequired?: boolean;
+  /** 是否由浏览器持久化数据恢复。 */
+  restored?: boolean;
   /** 对象已完成验证并绑定文档后保存的业务结果。 */
   storedFile?: DocumentUploadResult;
 }
+
+/** 管理端上传队列的用户可见阶段。 */
+export type UploadQueueStage =
+  | 'waiting'
+  | 'initializing'
+  | 'uploading'
+  | 'paused'
+  | 'confirming'
+  | 'complete'
+  | 'failed';
 
 /** 管理端上传完成响应体。 */
 export interface UploadResponseBody extends Record<string, unknown> {
@@ -40,14 +62,12 @@ export interface UploadQueueItem {
   size: number;
   /** 0 到 100 的上传进度。 */
   progress: number;
-  /** 是否已经开始当前批次的上传流程。 */
-  started: boolean;
-  /** 是否仍处于可暂停或继续的文件传输阶段。 */
-  uploading: boolean;
-  /** 是否处于暂停状态。 */
-  paused: boolean;
-  /** 是否完成对象上传和服务端验证。 */
-  complete: boolean;
+  /** 当前真实上传阶段。 */
+  stage: UploadQueueStage;
+  /** 是否为刷新后恢复的服务端上传任务。 */
+  restored: boolean;
+  /** 当前错误是否允许直接重试。 */
+  retryable: boolean;
   /** 上传或验证错误。 */
   error: string | null;
   /** 完成后的文档版本绑定结果。 */
@@ -56,6 +76,8 @@ export interface UploadQueueItem {
 
 /** 通用上传器创建参数。 */
 export interface UploaderOptions {
+  /** 上传器持久化空间的稳定用途键，不得只使用文件策略区分。 */
+  instanceKey: string;
   /** 服务端注册的上传策略。 */
   policyKey: UploadPolicyKey;
   /** 单次队列最多允许加入的文件数。 */

@@ -104,6 +104,38 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       key: '文件上传: 文件分片校验不匹配，请重新上传',
       code: ROOT_ERROR_CODE_BAD_REQUEST,
     },
+    {
+      key: '文件上传: 文件不能为空',
+      code: ROOT_ERROR_CODE_BAD_REQUEST,
+    },
+    {
+      key: '文件上传: 文件大小超过限制',
+      code: ROOT_ERROR_CODE_BAD_REQUEST,
+    },
+    {
+      key: '文件上传: 文件类型不受支持',
+      code: ROOT_ERROR_CODE_BAD_REQUEST,
+    },
+    {
+      key: '文件上传: 上传会话已过期，请重新选择文件',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
+      key: '文件上传: 上传会话已结束，请重新选择文件',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
+      key: '文件上传: 上传会话正在确认，请稍后重试',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
+      key: '文件上传: 对象大小不匹配',
+      code: ROOT_ERROR_CODE_BAD_REQUEST,
+    },
+    {
+      key: '文件上传: 文件内容与声明类型不匹配',
+      code: ROOT_ERROR_CODE_BAD_REQUEST,
+    },
 
     {
       key: '数据异常',

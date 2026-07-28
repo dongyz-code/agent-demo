@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
@@ -18,6 +18,7 @@ import {
 } from './object-key.js';
 import { getUploadPolicy } from './policies.js';
 import { getUploadSourceFile, parseUploadDatasetIds } from './session.js';
+import { resolveExistingUploadInitDisposition } from './state.js';
 
 import type { Upload, UploadSessionInfo } from '@repo/types';
 
@@ -42,38 +43,26 @@ export async function initializeDocumentUpload(
   input: UploadInitBody,
   userId: string,
 ): Promise<Upload['init']['resp']> {
-  const targetDocument = input.documentId
-    ? await getUploadTargetDocument(input.documentId, userId)
-    : undefined;
-  const defaultEnterRag =
-    input.policyKey === 'rag-document' && documentsConfig.fileProcessing.enabled
-      ? (targetDocument?.ragEnabled ?? documentsConfig.fileProcessing.defaultEnterRag)
-      : false;
-  const enterRag = input.enterRag ?? defaultEnterRag;
-  const datasetIds = [
-    ...new Set(
-      enterRag
-        ? (input.datasetIds ?? targetDocument?.datasetIds ?? [])
-        : [],
-    ),
-  ];
-  await assertActiveDatasets(datasetIds);
+  if (input.documentId) {
+    await assertUploadTargetDocument(input.documentId, userId);
+  }
   return await initUpload(
     {
       ...input,
-      enterRag,
-      datasetIds: enterRag ? datasetIds : [],
+      enterRag: false,
+      datasetIds: [],
     },
     userId,
   );
 }
 
-/** 查询上传新版本所需的最小文档默认配置与知识库集合。 */
-async function getUploadTargetDocument(documentId: string, userId: string) {
+/** 校验上传新版本的目标文档存在且属于当前用户。 */
+async function assertUploadTargetDocument(
+  documentId: string,
+  userId: string,
+): Promise<void> {
   const [document] = await db
-    .select({
-      ragEnabled: schemas.documents.rag_enabled,
-    })
+    .select({ id: schemas.documents.document_id })
     .from(schemas.documents)
     .where(
       and(
@@ -86,36 +75,6 @@ async function getUploadTargetDocument(documentId: string, userId: string) {
   if (!document) {
     throw new ROOT_ERROR('相关文件不存在');
   }
-  const relations = await db
-    .select({ datasetId: schemas.rag_dataset_documents.dataset_id })
-    .from(schemas.rag_dataset_documents)
-    .where(eq(schemas.rag_dataset_documents.document_id, documentId));
-  return {
-    ragEnabled: document.ragEnabled,
-    datasetIds: relations.map((relation) => relation.datasetId),
-  };
-}
-
-/** 校验上传选择的所有知识库存在且处于启用状态。 */
-async function assertActiveDatasets(datasetIds: string[]): Promise<void> {
-  if (!datasetIds.length) return;
-  const rows = await db
-    .select({
-      id: schemas.rag_datasets.dataset_id,
-      status: schemas.rag_datasets.status,
-    })
-    .from(schemas.rag_datasets)
-    .where(inArray(schemas.rag_datasets.dataset_id, datasetIds));
-  const datasets = new Map(rows.map((row) => [row.id, row.status]));
-  for (const datasetId of datasetIds) {
-    const status = datasets.get(datasetId);
-    if (!status) {
-      throw new ROOT_ERROR('相关文件不存在');
-    }
-    if (status !== 'active') {
-      throw new ROOT_ERROR('数据异常');
-    }
-  }
 }
 
 /** 初始化已完成文档意图规范化的上传会话。 */
@@ -124,16 +83,16 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
   const filename = sanitizeUploadFilename(input.filename);
   const extension = normalizeExtension(filename);
   if (!Number.isSafeInteger(input.size) || input.size <= 0) {
-    throw new ROOT_ERROR('非法参数');
+    throw new ROOT_ERROR('文件上传: 文件不能为空');
   }
   if (input.size > policy.maxFileSizeBytes) {
-    throw new ROOT_ERROR('非法参数');
+    throw new ROOT_ERROR('文件上传: 文件大小超过限制');
   }
   if (
     !policy.allowedContentTypes.includes(input.contentType) ||
     !policy.allowedExtensions.includes(extension)
   ) {
-    throw new ROOT_ERROR('非法参数');
+    throw new ROOT_ERROR('文件上传: 文件类型不受支持');
   }
 
   const fingerprint = createFileFingerprint({
@@ -156,7 +115,20 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
       ),
     )
     .limit(1);
-  if (existing && !['failed', 'canceled', 'expired'].includes(existing.status)) {
+  if (existing) {
+    const disposition = resolveExistingUploadInitDisposition({
+      status: existing.status,
+      expiresAt: existing.expire_timestamp,
+    });
+    if (disposition === 'expired') {
+      throw new ROOT_ERROR('文件上传: 上传会话已过期，请重新选择文件');
+    }
+    if (disposition === 'completing') {
+      throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
+    }
+    if (disposition === 'terminal') {
+      throw new ROOT_ERROR('文件上传: 上传会话已结束，请重新选择文件');
+    }
     return await buildInitResponse(existing);
   }
 
@@ -262,6 +234,25 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
 async function buildInitResponse(
   session: typeof schemas.file_upload_sessions.$inferSelect,
 ): Promise<Upload['init']['resp']> {
+  const disposition = resolveExistingUploadInitDisposition({
+    status: session.status,
+    expiresAt: session.expire_timestamp,
+  });
+  if (disposition === 'completed') {
+    return {
+      mode: 'completed',
+      session: toUploadSessionInfo(session),
+    };
+  }
+  if (disposition === 'expired') {
+    throw new ROOT_ERROR('文件上传: 上传会话已过期，请重新选择文件');
+  }
+  if (disposition === 'completing') {
+    throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
+  }
+  if (disposition === 'terminal') {
+    throw new ROOT_ERROR('文件上传: 上传会话已结束，请重新选择文件');
+  }
   const file = await getUploadSourceFile(session.file_id);
   if (session.mode === 'single') {
     const signed = await presignPutObject({

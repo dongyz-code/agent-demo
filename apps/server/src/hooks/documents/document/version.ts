@@ -98,7 +98,7 @@ export async function createDocumentVersionFromFile(
         document_id: documentId,
         name,
         active_version_id: documentVersionId,
-        rag_enabled: input.ragEnabled ?? true,
+        rag_enabled: input.ragEnabled ?? false,
         status: 'active',
         create_user_id: userId,
         create_timestamp: now,

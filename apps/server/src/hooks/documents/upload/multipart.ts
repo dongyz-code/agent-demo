@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { documentsConfig } from '../config.js';
@@ -123,6 +123,27 @@ export async function abortDocumentUpload(
   if (['completed'].includes(session.status)) {
     throw new ROOT_ERROR('数据异常');
   }
+  const [claimed] = await db
+    .update(schemas.file_upload_sessions)
+    .set({
+      status: 'canceled',
+      last_update_user_id: userId,
+      last_update_timestamp: new Date(),
+    })
+    .where(
+      and(
+        eq(schemas.file_upload_sessions.session_id, sessionId),
+        inArray(schemas.file_upload_sessions.status, [
+          'initialized',
+          'uploading',
+          'failed',
+        ]),
+      ),
+    )
+    .returning({ id: schemas.file_upload_sessions.session_id });
+  if (!claimed) {
+    throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
+  }
   const file = await getUploadSourceFile(session.file_id);
   if (session.mode === 'multipart' && session.upload_id) {
     await abortMultipartUpload({
@@ -131,13 +152,5 @@ export async function abortDocumentUpload(
       uploadId: session.upload_id,
     });
   }
-  await db
-    .update(schemas.file_upload_sessions)
-    .set({
-      status: 'canceled',
-      last_update_user_id: userId,
-      last_update_timestamp: new Date(),
-    })
-    .where(eq(schemas.file_upload_sessions.session_id, sessionId));
   return 'ok';
 }

@@ -66,13 +66,13 @@ export function assertTransferableUploadSession(
   session: typeof schemas.file_upload_sessions.$inferSelect,
 ): void {
   if (session.expire_timestamp.getTime() <= Date.now()) {
-    throw new ROOT_ERROR('非法参数');
+    throw new ROOT_ERROR('文件上传: 上传会话已过期，请重新选择文件');
   }
   if (!transferableStatuses.has(session.status)) {
-    throw new ROOT_ERROR(
-      '数据异常',
-      `UPLOAD_SESSION_STATE_CONFLICT: 当前状态不允许上传：${session.status}`,
-    );
+    if (session.status === 'completing') {
+      throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
+    }
+    throw new ROOT_ERROR('文件上传: 上传会话已结束，请重新选择文件');
   }
 }
 

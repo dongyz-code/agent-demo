@@ -75,14 +75,14 @@
     </v-table>
     <upload-dialog
       ref="uploadRef"
-      policy-key="rag-document"
-      enable-rag
+      instance-key="document-new"
+      policy-key="default-attachment"
       @uploaded="handleUploaded"
     />
     <upload-dialog
       ref="versionUploadRef"
-      policy-key="rag-document"
-      enable-rag
+      instance-key="document-version"
+      policy-key="default-attachment"
       :max-number-of-files="1"
       @uploaded="handleUploaded"
     />
@@ -226,12 +226,10 @@ async function handleUploaded(result: {
   await loadDocuments(true);
 }
 
-/** 打开单文件的新版本上传流程并继承文档 RAG 默认值。 */
+/** 打开单文件的新版本上传流程，知识库关系在文档入库后独立管理。 */
 async function uploadVersion(document: DocumentInfo) {
   await versionUploadRef.value?.open({
     documentId: document.documentId,
-    enterRag: document.ragEnabled,
-    datasetIds: document.datasets.map((dataset) => dataset.datasetId),
   });
 }
 

@@ -28,7 +28,7 @@ export const documents = pgTable(
     /** 当前生效文档版本。 */
     active_version_id: uuid('active_version_id'),
     /** 后续版本默认是否进入已关联知识库。 */
-    rag_enabled: boolean('rag_enabled').notNull().default(true),
+    rag_enabled: boolean('rag_enabled').notNull().default(false),
     /** 文档生命周期状态，不表达预览或 RAG 结果。 */
     status: varchar255('status')
       .$type<DocumentStatus>()

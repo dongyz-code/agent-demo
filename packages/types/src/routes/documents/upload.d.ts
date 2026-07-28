@@ -157,6 +157,12 @@ export type Upload = ApiMultAction<{
     };
     resp:
       | {
+          /** 既有会话已完成，只允许客户端取回文档版本结果。 */
+          mode: 'completed';
+          /** 不包含任何对象存储写凭证的终态会话。 */
+          session: UploadSessionInfo;
+        }
+      | {
           mode: 'single';
           session: UploadSessionInfo;
           uploadUrl: string;
