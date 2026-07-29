@@ -1,11 +1,10 @@
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import {
   enrichFileTaskList,
   findFileProcessingTaskIds,
 } from '@/hooks/documents/tasks/task-center.js';
 import { routerHandler } from '@/router/utils.js';
 import {
-  and,
   count as countSql,
   desc,
   eq,
@@ -16,80 +15,79 @@ import {
 } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
 
-import type { SQL } from 'drizzle-orm';
-
 const { api } = routerHandler({
   url: '/sys/task/list',
   method: 'POST',
   permission: adminPermissionKey('pages.sys.sys.task'),
   handler: async ({ body }) => {
     const form = body.form ?? {};
-    const filters: SQL[] = [];
-
-    if (form.category?.length) {
-      filters.push(
-        Array.isArray(form.category)
-          ? inArray(schemas.tasks.task_category, form.category)
-          : eq(schemas.tasks.task_category, form.category),
-      );
-    }
-    if (form.status?.length) {
-      filters.push(
-        Array.isArray(form.status)
-          ? inArray(schemas.tasks.status, form.status)
-          : eq(schemas.tasks.status, form.status),
-      );
-    }
-    if (form.search?.trim()) {
-      filters.push(
-        ilike(schemas.tasks.search_key, `%${form.search.trim()}%`),
-      );
-    }
-    if (form.key?.length) {
-      filters.push(
-        Array.isArray(form.key)
-          ? inArray(schemas.tasks.task_key, form.key)
-          : eq(schemas.tasks.task_key, form.key),
-      );
-    }
-    if (form.trigger_method) {
-      filters.push(eq(schemas.tasks.trigger_method, form.trigger_method));
-    }
-    if (form.current_stage?.length) {
-      filters.push(
-        Array.isArray(form.current_stage)
-          ? inArray(schemas.tasks.current_stage, form.current_stage)
-          : eq(schemas.tasks.current_stage, form.current_stage),
-      );
-    }
-    if (form.business_id) {
-      filters.push(eq(schemas.tasks.business_id, form.business_id));
-    }
-    if (form.execution_user_id) {
-      filters.push(
-        eq(schemas.tasks.execution_user_id, form.execution_user_id),
-      );
-    }
-    if (form.create_timestamp?.[0]) {
-      filters.push(
-        gte(schemas.tasks.create_timestamp, form.create_timestamp[0]),
-      );
-    }
-    if (form.create_timestamp?.[1]) {
-      filters.push(
-        lte(schemas.tasks.create_timestamp, form.create_timestamp[1]),
-      );
-    }
-
+    let fileTaskIds: string[] | undefined;
     if (form.file_name?.trim()) {
       const taskIds = await findFileProcessingTaskIds({
         file_name: form.file_name,
       });
       if (!taskIds.length) return { list: [], count: 0 };
-      filters.push(inArray(schemas.tasks.task_id, taskIds));
+      fileTaskIds = taskIds;
     }
 
-    const where = and(...filters);
+    const where = buildWhere((filter) => {
+      if (form.category?.length) {
+        if (Array.isArray(form.category)) {
+          filter.push(inArray(schemas.tasks.task_category, form.category));
+        } else {
+          filter.push(eq(schemas.tasks.task_category, form.category));
+        }
+      }
+      if (form.status?.length) {
+        if (Array.isArray(form.status)) {
+          filter.push(inArray(schemas.tasks.status, form.status));
+        } else {
+          filter.push(eq(schemas.tasks.status, form.status));
+        }
+      }
+      const search = form.search?.trim();
+      if (search) {
+        filter.push(ilike(schemas.tasks.search_key, `%${search}%`));
+      }
+      if (form.key?.length) {
+        if (Array.isArray(form.key)) {
+          filter.push(inArray(schemas.tasks.task_key, form.key));
+        } else {
+          filter.push(eq(schemas.tasks.task_key, form.key));
+        }
+      }
+      if (form.trigger_method) {
+        filter.push(eq(schemas.tasks.trigger_method, form.trigger_method));
+      }
+      if (form.current_stage?.length) {
+        if (Array.isArray(form.current_stage)) {
+          filter.push(inArray(schemas.tasks.current_stage, form.current_stage));
+        } else {
+          filter.push(eq(schemas.tasks.current_stage, form.current_stage));
+        }
+      }
+      if (form.business_id) {
+        filter.push(eq(schemas.tasks.business_id, form.business_id));
+      }
+      if (form.execution_user_id) {
+        filter.push(
+          eq(schemas.tasks.execution_user_id, form.execution_user_id),
+        );
+      }
+      if (form.create_timestamp?.[0]) {
+        filter.push(
+          gte(schemas.tasks.create_timestamp, form.create_timestamp[0]),
+        );
+      }
+      if (form.create_timestamp?.[1]) {
+        filter.push(
+          lte(schemas.tasks.create_timestamp, form.create_timestamp[1]),
+        );
+      }
+      if (fileTaskIds) {
+        filter.push(inArray(schemas.tasks.task_id, fileTaskIds));
+      }
+    });
     const limit = body.limit ?? [0, 10];
     const listPromise = db
       .select({
@@ -121,10 +119,7 @@ const { api } = routerHandler({
       .offset(limit[0])
       .limit(limit[1] - limit[0]);
     const countPromise = body.withCount
-      ? db
-          .select({ value: countSql() })
-          .from(schemas.tasks)
-          .where(where)
+      ? db.select({ value: countSql() }).from(schemas.tasks).where(where)
       : Promise.resolve([]);
     const [list, countRows] = await Promise.all([listPromise, countPromise]);
     const count = countRows[0]?.value ?? 0;

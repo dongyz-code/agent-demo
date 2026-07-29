@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 
 import type { UploadSessionStatus } from '@repo/types';
 
@@ -18,19 +18,17 @@ const transferableStatuses = new Set<UploadSessionStatus>([
  * @param userId 当前操作用户，用于限制会话所有权。
  * @returns 上传会话数据库行。
  */
-export async function getOwnedUploadSession(
-  sessionId: string,
-  userId: string,
-) {
+export async function getOwnedUploadSession(sessionId: string, userId: string) {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.file_upload_sessions.session_id, sessionId),
+      eq(schemas.file_upload_sessions.create_user_id, userId),
+    );
+  });
   const [session] = await db
     .select()
     .from(schemas.file_upload_sessions)
-    .where(
-      and(
-        eq(schemas.file_upload_sessions.session_id, sessionId),
-        eq(schemas.file_upload_sessions.create_user_id, userId),
-      ),
-    )
+    .where(where)
     .limit(1);
   if (!session) {
     throw new ROOT_ERROR('相关文件不存在');

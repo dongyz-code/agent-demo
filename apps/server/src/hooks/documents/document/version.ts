@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, max, ne, sql } from 'drizzle-orm';
+import { eq, max, ne, sql } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { documentsConfig } from '../config.js';
 import { getDocumentSourceFile } from '../storage/source.js';
 import { createDocumentContentTask } from './content/task.js';
@@ -127,19 +127,21 @@ export async function createDocumentVersionFromFile(
       };
     }
 
+    const targetDocumentId = input.documentId;
     await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${`document-version:${input.documentId}`}))`,
+      sql`select pg_advisory_xact_lock(hashtext(${`document-version:${targetDocumentId}`}))`,
     );
+    const where = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.documents.document_id, targetDocumentId),
+        eq(schemas.documents.create_user_id, userId),
+        ne(schemas.documents.status, 'deleted'),
+      );
+    });
     const [document] = await tx
       .select()
       .from(schemas.documents)
-      .where(
-        and(
-          eq(schemas.documents.document_id, input.documentId),
-          eq(schemas.documents.create_user_id, userId),
-          ne(schemas.documents.status, 'deleted'),
-        ),
-      )
+      .where(where)
       .limit(1);
     if (!document) {
       throw new ROOT_ERROR('相关文件不存在');
@@ -147,12 +149,12 @@ export async function createDocumentVersionFromFile(
     const [latest] = await tx
       .select({ version: max(schemas.document_versions.version) })
       .from(schemas.document_versions)
-      .where(eq(schemas.document_versions.document_id, input.documentId));
+      .where(eq(schemas.document_versions.document_id, targetDocumentId));
     const version = (latest?.version ?? 0) + 1;
     const documentVersionId = randomUUID();
     await tx.insert(schemas.document_versions).values({
       document_version_id: documentVersionId,
-      document_id: input.documentId,
+      document_id: targetDocumentId,
       version,
       source_file_id: input.fileId,
       preview_status: 'pending',
@@ -171,7 +173,7 @@ export async function createDocumentVersionFromFile(
         last_update_user_id: userId,
         last_update_timestamp: now,
       })
-      .where(eq(schemas.documents.document_id, input.documentId));
+      .where(eq(schemas.documents.document_id, targetDocumentId));
     return {
       document: {
         documentId: document.document_id,
@@ -203,6 +205,13 @@ export async function setActiveDocumentVersion(
       sql`select pg_advisory_xact_lock(hashtext(${`document-active:${documentId}`}))`,
     );
     const now = new Date();
+    const where = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.documents.document_id, documentId),
+        eq(schemas.documents.create_user_id, userId),
+        ne(schemas.documents.status, 'deleted'),
+      );
+    });
     const [updated] = await tx
       .update(schemas.documents)
       .set({
@@ -210,13 +219,7 @@ export async function setActiveDocumentVersion(
         last_update_user_id: userId,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          eq(schemas.documents.document_id, documentId),
-          eq(schemas.documents.create_user_id, userId),
-          ne(schemas.documents.status, 'deleted'),
-        ),
-      )
+      .where(where)
       .returning({ id: schemas.documents.document_id });
     if (!updated) {
       throw new ROOT_ERROR('相关文件不存在');

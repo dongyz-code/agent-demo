@@ -2,11 +2,11 @@ import { routerHandler } from '@/router/utils.js';
 import { authentication } from '@/router/authentication.js';
 import { ROOT } from '@/configs/env.js';
 import { ROOT_ERROR } from '@/configs/error.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { getSha256Hex } from '@/utils/hash.js';
 import { addUserLog } from '@/hooks/user-log/index.js';
 import { getAdminPermissionContext } from '@/router/permission.js';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import type { ApiLogin } from '@/types/index.js';
 
@@ -49,18 +49,19 @@ async function getUserItem(
       sys_admin: true,
     };
   }
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.user.username, username),
+      eq(schemas.user.password, password),
+    );
+  });
   const [item] = await db
     .select({
       user_id: schemas.user.user_id,
       nickname: schemas.user.nickname,
     })
     .from(schemas.user)
-    .where(
-      and(
-        eq(schemas.user.username, username),
-        eq(schemas.user.password, password),
-      ),
-    )
+    .where(where)
     .limit(1);
   if (item) {
     return {

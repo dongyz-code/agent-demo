@@ -1,8 +1,8 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { documentsConfig } from '../config.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import {
   abortMultipartUpload,
   listMultipartParts,
@@ -29,7 +29,11 @@ export async function signDocumentUploadParts(
 ): Promise<Upload['sign-parts']['resp']> {
   const session = await getOwnedUploadSession(input.sessionId, userId);
   assertTransferableUploadSession(session);
-  if (session.mode !== 'multipart' || !session.upload_id || !session.part_count) {
+  if (
+    session.mode !== 'multipart' ||
+    !session.upload_id ||
+    !session.part_count
+  ) {
     throw new ROOT_ERROR('非法参数');
   }
   const uniqueParts = [...new Set(input.partNumbers)];
@@ -77,7 +81,11 @@ export async function syncDocumentUploadParts(
 ): Promise<Upload['list-parts']['resp']> {
   const session = await getOwnedUploadSession(sessionId, userId);
   assertTransferableUploadSession(session);
-  if (session.mode !== 'multipart' || !session.upload_id || !session.part_count) {
+  if (
+    session.mode !== 'multipart' ||
+    !session.upload_id ||
+    !session.part_count
+  ) {
     return { parts: [], uploadedSize: 0, missingPartNumbers: [] };
   }
   const file = await getUploadSourceFile(session.file_id);
@@ -123,6 +131,16 @@ export async function abortDocumentUpload(
   if (['completed'].includes(session.status)) {
     throw new ROOT_ERROR('数据异常');
   }
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.file_upload_sessions.session_id, sessionId),
+      inArray(schemas.file_upload_sessions.status, [
+        'initialized',
+        'uploading',
+        'failed',
+      ]),
+    );
+  });
   const [claimed] = await db
     .update(schemas.file_upload_sessions)
     .set({
@@ -130,16 +148,7 @@ export async function abortDocumentUpload(
       last_update_user_id: userId,
       last_update_timestamp: new Date(),
     })
-    .where(
-      and(
-        eq(schemas.file_upload_sessions.session_id, sessionId),
-        inArray(schemas.file_upload_sessions.status, [
-          'initialized',
-          'uploading',
-          'failed',
-        ]),
-      ),
-    )
+    .where(where)
     .returning({ id: schemas.file_upload_sessions.session_id });
   if (!claimed) {
     throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');

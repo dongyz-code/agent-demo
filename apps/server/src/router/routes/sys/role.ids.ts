@@ -1,6 +1,6 @@
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
-import { and, desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
+import { desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
@@ -10,23 +10,25 @@ const { api } = routerHandler({
   handler: async ({ body: { form, limit = [0, 10], withCount } }) => {
     const search = form?.search?.trim();
     const [updatedAfter, updatedBefore] = form?.last_update_timestamp ?? [];
-    const where = and(
-      search
-        ? or(
+    const where = buildWhere((filter) => {
+      if (search) {
+        filter.push(
+          or(
             ilike(schemas.role.name, `%${search}%`),
             ilike(schemas.role.desc, `%${search}%`),
-          )
-        : undefined,
-      form?.available === undefined
-        ? undefined
-        : eq(schemas.role.available, form.available),
-      updatedAfter
-        ? gte(schemas.role.last_update_timestamp, updatedAfter)
-        : undefined,
-      updatedBefore
-        ? lte(schemas.role.last_update_timestamp, updatedBefore)
-        : undefined,
-    );
+          ),
+        );
+      }
+      if (form?.available !== undefined) {
+        filter.push(eq(schemas.role.available, form.available));
+      }
+      if (updatedAfter) {
+        filter.push(gte(schemas.role.last_update_timestamp, updatedAfter));
+      }
+      if (updatedBefore) {
+        filter.push(lte(schemas.role.last_update_timestamp, updatedBefore));
+      }
+    });
 
     const getIds = async () => {
       const list = await db

@@ -17,9 +17,9 @@ import type {
 export async function getFileProcessingTask(
   taskId: string,
 ): Promise<FileProcessingTaskDetail> {
-  const [row] = await selectTaskRows(
-    and(eq(schemas.tasks.task_id, taskId)),
-  ).limit(1);
+  const [row] = await selectTaskRows(eq(schemas.tasks.task_id, taskId)).limit(
+    1,
+  );
   if (!row) {
     throw new ROOT_ERROR('相关文件不存在');
   }

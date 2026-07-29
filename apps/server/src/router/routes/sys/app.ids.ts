@@ -1,6 +1,6 @@
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
-import { and, desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
+import { desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
 
 const { api } = routerHandler({
@@ -11,29 +11,31 @@ const { api } = routerHandler({
     const search = form?.search?.trim();
     const [updatedAfter, updatedBefore] = form?.last_update_timestamp ?? [];
     const [loginAfter, loginBefore] = form?.last_login_timestamp ?? [];
-    const where = and(
-      search
-        ? or(
+    const where = buildWhere((filter) => {
+      if (search) {
+        filter.push(
+          or(
             ilike(schemas.apps.name, `%${search}%`),
             ilike(schemas.apps.desc, `%${search}%`),
-          )
-        : undefined,
-      form?.available === undefined
-        ? undefined
-        : eq(schemas.apps.available, form.available),
-      updatedAfter
-        ? gte(schemas.apps.last_update_timestamp, updatedAfter)
-        : undefined,
-      updatedBefore
-        ? lte(schemas.apps.last_update_timestamp, updatedBefore)
-        : undefined,
-      loginAfter
-        ? gte(schemas.apps.last_login_timestamp, loginAfter)
-        : undefined,
-      loginBefore
-        ? lte(schemas.apps.last_login_timestamp, loginBefore)
-        : undefined,
-    );
+          ),
+        );
+      }
+      if (form?.available !== undefined) {
+        filter.push(eq(schemas.apps.available, form.available));
+      }
+      if (updatedAfter) {
+        filter.push(gte(schemas.apps.last_update_timestamp, updatedAfter));
+      }
+      if (updatedBefore) {
+        filter.push(lte(schemas.apps.last_update_timestamp, updatedBefore));
+      }
+      if (loginAfter) {
+        filter.push(gte(schemas.apps.last_login_timestamp, loginAfter));
+      }
+      if (loginBefore) {
+        filter.push(lte(schemas.apps.last_login_timestamp, loginBefore));
+      }
+    });
 
     const getIds = async () => {
       const list = await db

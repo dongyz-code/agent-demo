@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -10,15 +10,19 @@ const { api } = routerHandler({
   permission: adminPermissionKey('actions.documents.upload'),
   handler: async ({ body, __token }) => {
     const [start = 0, end = 20] = body.limit ?? [];
-    const where = and(
-      eq(schemas.file_upload_sessions.create_user_id, __token.user_id),
-      body.status?.length
-        ? inArray(schemas.file_upload_sessions.status, body.status)
-        : undefined,
-      body.policyKey?.length
-        ? inArray(schemas.file_upload_sessions.policy_key, body.policyKey)
-        : undefined,
-    );
+    const where = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.file_upload_sessions.create_user_id, __token.user_id),
+      );
+      if (body.status?.length) {
+        filter.push(inArray(schemas.file_upload_sessions.status, body.status));
+      }
+      if (body.policyKey?.length) {
+        filter.push(
+          inArray(schemas.file_upload_sessions.policy_key, body.policyKey),
+        );
+      }
+    });
     const [list, count] = await Promise.all([
       db
         .select({
@@ -29,7 +33,9 @@ const { api } = routerHandler({
           documentIntent: schemas.file_upload_sessions.document_intent,
           documentId: schemas.file_upload_sessions.document_id,
           documentName: schemas.file_upload_sessions.document_name,
-          datasetIds: sql<string[]>`${schemas.file_upload_sessions.dataset_ids}::jsonb`,
+          datasetIds: sql<
+            string[]
+          >`${schemas.file_upload_sessions.dataset_ids}::jsonb`,
           processingConfigVersion:
             schemas.file_upload_sessions.processing_config_version,
           mode: schemas.file_upload_sessions.mode,

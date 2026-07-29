@@ -1,7 +1,7 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { logger, ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { createDocumentVersionFromFile } from '../document/version.js';
 import { createDocumentPreviewTask } from '../preview/task.js';
 import {
@@ -109,6 +109,15 @@ async function finishUpload(
   }
   assertTransferableUploadSession(session);
 
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.file_upload_sessions.session_id, session.session_id),
+      inArray(schemas.file_upload_sessions.status, [
+        'initialized',
+        'uploading',
+      ]),
+    );
+  });
   const [claimed] = await db
     .update(schemas.file_upload_sessions)
     .set({
@@ -116,15 +125,7 @@ async function finishUpload(
       last_update_user_id: userId,
       last_update_timestamp: new Date(),
     })
-    .where(
-      and(
-        eq(schemas.file_upload_sessions.session_id, session.session_id),
-        inArray(schemas.file_upload_sessions.status, [
-          'initialized',
-          'uploading',
-        ]),
-      ),
-    )
+    .where(where)
     .returning();
   if (!claimed) {
     throw new ROOT_ERROR('数据异常');
@@ -162,9 +163,7 @@ async function finishUpload(
         last_update_user_id: userId,
         last_update_timestamp: new Date(),
       })
-      .where(
-        eq(schemas.file_upload_sessions.session_id, session.session_id),
-      );
+      .where(eq(schemas.file_upload_sessions.session_id, session.session_id));
     return verified;
   } catch (error) {
     await db
@@ -176,9 +175,7 @@ async function finishUpload(
         last_update_user_id: userId,
         last_update_timestamp: new Date(),
       })
-      .where(
-        eq(schemas.file_upload_sessions.session_id, session.session_id),
-      );
+      .where(eq(schemas.file_upload_sessions.session_id, session.session_id));
     throw error;
   }
 }

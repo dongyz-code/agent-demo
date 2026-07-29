@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray, max, sql } from 'drizzle-orm';
+import { eq, inArray, max, sql } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { documentsConfig } from '../../config.js';
 import { getFileProcessingTask } from '../../tasks/detail.js';
 import { FILE_PROCESSING_TASK_KEY } from '../../tasks/definition.js';
@@ -76,6 +76,20 @@ export async function createDocumentContentTask(
 
   const result = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
+    const activeWhere = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.file_processing_tasks.task_type, 'content'),
+        eq(
+          schemas.file_processing_tasks.document_version_id,
+          documentVersionId,
+        ),
+        eq(
+          schemas.file_processing_tasks.processing_config_version,
+          processingConfigVersion,
+        ),
+        inArray(schemas.tasks.status, [...ACTIVE_TASK_STATUSES]),
+      );
+    });
     const [active] = await tx
       .select({
         taskId: schemas.tasks.task_id,
@@ -86,20 +100,7 @@ export async function createDocumentContentTask(
         schemas.tasks,
         eq(schemas.tasks.task_id, schemas.file_processing_tasks.task_id),
       )
-      .where(
-        and(
-          eq(schemas.file_processing_tasks.task_type, 'content'),
-          eq(
-            schemas.file_processing_tasks.document_version_id,
-            documentVersionId,
-          ),
-          eq(
-            schemas.file_processing_tasks.processing_config_version,
-            processingConfigVersion,
-          ),
-          inArray(schemas.tasks.status, [...ACTIVE_TASK_STATUSES]),
-        ),
-      )
+      .where(activeWhere)
       .limit(1);
     if (active) {
       return {
@@ -110,6 +111,20 @@ export async function createDocumentContentTask(
     }
 
     if (!forceNewTask) {
+      const completedWhere = buildWhere((filter) => {
+        filter.push(
+          eq(schemas.file_processing_tasks.task_type, 'content'),
+          eq(
+            schemas.file_processing_tasks.document_version_id,
+            documentVersionId,
+          ),
+          eq(
+            schemas.file_processing_tasks.processing_config_version,
+            processingConfigVersion,
+          ),
+          eq(schemas.tasks.status, 'completed'),
+        );
+      });
       const [completed] = await tx
         .select({ taskId: schemas.tasks.task_id })
         .from(schemas.file_processing_tasks)
@@ -117,20 +132,7 @@ export async function createDocumentContentTask(
           schemas.tasks,
           eq(schemas.tasks.task_id, schemas.file_processing_tasks.task_id),
         )
-        .where(
-          and(
-            eq(schemas.file_processing_tasks.task_type, 'content'),
-            eq(
-              schemas.file_processing_tasks.document_version_id,
-              documentVersionId,
-            ),
-            eq(
-              schemas.file_processing_tasks.processing_config_version,
-              processingConfigVersion,
-            ),
-            eq(schemas.tasks.status, 'completed'),
-          ),
-        )
+        .where(completedWhere)
         .limit(1);
       if (completed) {
         return {

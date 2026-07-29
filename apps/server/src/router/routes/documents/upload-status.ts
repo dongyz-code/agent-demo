@@ -1,7 +1,7 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -10,6 +10,12 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.documents.upload'),
   handler: async ({ body, __token }) => {
+    const where = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.file_upload_sessions.session_id, body.sessionId),
+        eq(schemas.file_upload_sessions.create_user_id, __token.user_id),
+      );
+    });
     const [session] = await db
       .select({
         sessionId: schemas.file_upload_sessions.session_id,
@@ -19,7 +25,9 @@ const { api } = routerHandler({
         documentIntent: schemas.file_upload_sessions.document_intent,
         documentId: schemas.file_upload_sessions.document_id,
         documentName: schemas.file_upload_sessions.document_name,
-        datasetIds: sql<string[]>`${schemas.file_upload_sessions.dataset_ids}::jsonb`,
+        datasetIds: sql<
+          string[]
+        >`${schemas.file_upload_sessions.dataset_ids}::jsonb`,
         processingConfigVersion:
           schemas.file_upload_sessions.processing_config_version,
         mode: schemas.file_upload_sessions.mode,
@@ -34,15 +42,7 @@ const { api } = routerHandler({
         errorMessage: schemas.file_upload_sessions.error_message,
       })
       .from(schemas.file_upload_sessions)
-      .where(
-        and(
-          eq(schemas.file_upload_sessions.session_id, body.sessionId),
-          eq(
-            schemas.file_upload_sessions.create_user_id,
-            __token.user_id,
-          ),
-        ),
-      )
+      .where(where)
       .limit(1);
     if (!session) {
       throw new ROOT_ERROR('相关文件不存在');

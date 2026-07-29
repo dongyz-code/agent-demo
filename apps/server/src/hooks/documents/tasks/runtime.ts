@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { FILE_PROCESSING_STAGE_PROGRESS } from './definition.js';
 import { getErrorCode } from './errors.js';
 
@@ -59,13 +59,23 @@ export async function runTaskStage<T>(
   action: () => Promise<T> | T,
 ) {
   await lease.assertActive();
+  const stageCountWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.file_processing_task_stage_runs.task_id, context.taskId),
+      eq(schemas.file_processing_task_stage_runs.stage, stage),
+    );
+  });
+  const taskWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, context.taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, lease.leaseId),
+    );
+  });
   const attempt =
     (await db.$count(
       schemas.file_processing_task_stage_runs,
-      and(
-        eq(schemas.file_processing_task_stage_runs.task_id, context.taskId),
-        eq(schemas.file_processing_task_stage_runs.stage, stage),
-      ),
+      stageCountWhere,
     )) + 1;
   const stageRunId = randomUUID();
   const start = new Date();
@@ -77,13 +87,7 @@ export async function runTaskStage<T>(
         progress: FILE_PROCESSING_STAGE_PROGRESS[stage],
         last_update_timestamp: start,
       })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, context.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, lease.leaseId),
-        ),
-      )
+      .where(taskWhere)
       .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     await tx.insert(schemas.file_processing_task_stage_runs).values({
@@ -109,13 +113,7 @@ export async function runTaskStage<T>(
       const [owned] = await tx
         .update(schemas.tasks)
         .set({ last_update_timestamp: new Date() })
-        .where(
-          and(
-            eq(schemas.tasks.task_id, context.taskId),
-            eq(schemas.tasks.status, 'pending'),
-            eq(schemas.tasks.pending_uuid, lease.leaseId),
-          ),
-        )
+        .where(taskWhere)
         .returning({ taskId: schemas.tasks.task_id });
       if (!owned) throw new FileProcessingLeaseLostError();
       await tx
@@ -137,13 +135,7 @@ export async function runTaskStage<T>(
           total_items: processedItems,
           last_update_timestamp: new Date(),
         })
-        .where(
-          and(
-            eq(schemas.tasks.task_id, context.taskId),
-            eq(schemas.tasks.status, 'pending'),
-            eq(schemas.tasks.pending_uuid, lease.leaseId),
-          ),
-        );
+        .where(taskWhere);
     });
     return result;
   } catch (error) {
@@ -180,6 +172,13 @@ export async function completeTask(
 ) {
   await lease.assertActive();
   const now = new Date();
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, context.taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, lease.leaseId),
+    );
+  });
   await db.transaction(async (tx) => {
     const [completed] = await tx
       .update(schemas.tasks)
@@ -194,13 +193,7 @@ export async function completeTask(
         error_message: null,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, context.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, lease.leaseId),
-        ),
-      )
+      .where(where)
       .returning({ taskId: schemas.tasks.task_id });
     if (!completed) throw new FileProcessingLeaseLostError();
     await tx
@@ -221,6 +214,13 @@ export async function failTask(
   errorCode: string,
   message: string,
 ) {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, leaseId),
+    );
+  });
   const [failed] = await db
     .update(schemas.tasks)
     .set({
@@ -230,19 +230,19 @@ export async function failTask(
       end_timestamp: new Date(),
       last_update_timestamp: new Date(),
     })
-    .where(
-      and(
-        eq(schemas.tasks.task_id, taskId),
-        eq(schemas.tasks.status, 'pending'),
-        eq(schemas.tasks.pending_uuid, leaseId),
-      ),
-    )
+    .where(where)
     .returning({ taskId: schemas.tasks.task_id });
   return Boolean(failed);
 }
 
 /** 将取消期间仍为 pending 的当前阶段记录终结为 killed。 */
 async function finishCanceledStageRun(stageRunId: string) {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
+      eq(schemas.file_processing_task_stage_runs.status, 'pending'),
+    );
+  });
   await db
     .update(schemas.file_processing_task_stage_runs)
     .set({
@@ -251,12 +251,7 @@ async function finishCanceledStageRun(stageRunId: string) {
       error_message: '文件处理任务已取消',
       end_timestamp: new Date(),
     })
-    .where(
-      and(
-        eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
-        eq(schemas.file_processing_task_stage_runs.status, 'pending'),
-      ),
-    );
+    .where(where);
 }
 
 /** 查询任务是否已被取消。 */

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, eq, inArray, lt } from 'drizzle-orm';
+import { asc, eq, inArray, lt } from 'drizzle-orm';
 
 import { logger } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { documentsConfig } from '../config.js';
 import { FileProcessingLeaseLostError } from './runtime.js';
 import {
@@ -137,21 +137,34 @@ async function recoverStaleFileProcessingTasks(): Promise<void> {
   const staleBefore = new Date(
     now.getTime() - documentsConfig.fileProcessing.staleTaskSeconds * 1000,
   );
+  const staleWhere = buildWhere((filter) => {
+    filter.push(
+      inArray(schemas.tasks.task_key, getWorkerTaskKeys()),
+      eq(schemas.tasks.status, 'pending'),
+      lt(schemas.tasks.last_update_timestamp, staleBefore),
+    );
+  });
   await db.transaction(async (tx) => {
     const staleTasks = await tx
       .select({ taskId: schemas.tasks.task_id })
       .from(schemas.tasks)
-      .where(
-        and(
-          inArray(schemas.tasks.task_key, getWorkerTaskKeys()),
-          eq(schemas.tasks.status, 'pending'),
-          lt(schemas.tasks.last_update_timestamp, staleBefore),
-        ),
-      )
+      .where(staleWhere)
       .for('update', { skipLocked: true });
     if (!staleTasks.length) return;
 
     const taskIds = staleTasks.map((task) => task.taskId);
+    const stageRunWhere = buildWhere((filter) => {
+      filter.push(
+        inArray(schemas.file_processing_task_stage_runs.task_id, taskIds),
+        eq(schemas.file_processing_task_stage_runs.status, 'pending'),
+      );
+    });
+    const taskWhere = buildWhere((filter) => {
+      filter.push(
+        inArray(schemas.tasks.task_id, taskIds),
+        eq(schemas.tasks.status, 'pending'),
+      );
+    });
     await tx
       .update(schemas.file_processing_task_stage_runs)
       .set({
@@ -160,12 +173,7 @@ async function recoverStaleFileProcessingTasks(): Promise<void> {
         error_message: '上一个 worker 失去 lease，任务将从 reading 重新执行',
         end_timestamp: now,
       })
-      .where(
-        and(
-          inArray(schemas.file_processing_task_stage_runs.task_id, taskIds),
-          eq(schemas.file_processing_task_stage_runs.status, 'pending'),
-        ),
-      );
+      .where(stageRunWhere);
     await tx
       .update(schemas.tasks)
       .set({
@@ -181,12 +189,7 @@ async function recoverStaleFileProcessingTasks(): Promise<void> {
         end_timestamp: null,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          inArray(schemas.tasks.task_id, taskIds),
-          eq(schemas.tasks.status, 'pending'),
-        ),
-      );
+      .where(taskWhere);
   });
 }
 
@@ -198,18 +201,19 @@ async function drainFileProcessingTasks(): Promise<void> {
     const available =
       documentsConfig.fileProcessing.workerConcurrency - activeTaskIds.size;
     if (available <= 0) return;
+    const where = buildWhere((filter) => {
+      filter.push(
+        inArray(schemas.tasks.task_key, getWorkerTaskKeys()),
+        eq(schemas.tasks.status, 'to-be-started'),
+      );
+    });
     const tasks = await db
       .select({
         taskId: schemas.tasks.task_id,
         taskKey: schemas.tasks.task_key,
       })
       .from(schemas.tasks)
-      .where(
-        and(
-          inArray(schemas.tasks.task_key, getWorkerTaskKeys()),
-          eq(schemas.tasks.status, 'to-be-started'),
-        ),
-      )
+      .where(where)
       .orderBy(asc(schemas.tasks.create_timestamp))
       .limit(available);
     for (const task of tasks) {
@@ -251,8 +255,7 @@ async function runClaimedFileProcessingTask(
         renew: async () =>
           await renewFileProcessingLease(taskId, claimed.leaseId),
       });
-      const { runDocumentCleanupTask } =
-        await import('../document/cleanup.js');
+      const { runDocumentCleanupTask } = await import('../document/cleanup.js');
       await runDocumentCleanupTask(claimed.context, heartbeat.lease);
       return;
     }
@@ -260,7 +263,9 @@ async function runClaimedFileProcessingTask(
     if (!claimed) return;
     heartbeat = startFileProcessingHeartbeat({
       leaseId: claimed.leaseId,
-      intervalMs: getHeartbeatIntervalMs(documentsConfig.fileProcessing.staleTaskSeconds),
+      intervalMs: getHeartbeatIntervalMs(
+        documentsConfig.fileProcessing.staleTaskSeconds,
+      ),
       renew: async () =>
         await renewFileProcessingLease(taskId, claimed.leaseId),
     });
@@ -358,6 +363,12 @@ async function claimDocumentCleanupTask(taskId: string) {
 async function claimTaskLease(taskId: string, currentStage: string) {
   const now = new Date();
   const leaseId = randomUUID();
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, taskId),
+      eq(schemas.tasks.status, 'to-be-started'),
+    );
+  });
   const [claimed] = await db
     .update(schemas.tasks)
     .set({
@@ -376,12 +387,7 @@ async function claimTaskLease(taskId: string, currentStage: string) {
       error_message: null,
       last_update_timestamp: now,
     })
-    .where(
-      and(
-        eq(schemas.tasks.task_id, taskId),
-        eq(schemas.tasks.status, 'to-be-started'),
-      ),
-    )
+    .where(where)
     .returning({
       taskId: schemas.tasks.task_id,
       taskKey: schemas.tasks.task_key,
@@ -421,16 +427,17 @@ async function renewFileProcessingLease(
   taskId: string,
   leaseId: string,
 ): Promise<boolean> {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, leaseId),
+    );
+  });
   const [renewed] = await db
     .update(schemas.tasks)
     .set({ last_update_timestamp: new Date() })
-    .where(
-      and(
-        eq(schemas.tasks.task_id, taskId),
-        eq(schemas.tasks.status, 'pending'),
-        eq(schemas.tasks.pending_uuid, leaseId),
-      ),
-    )
+    .where(where)
     .returning({ taskId: schemas.tasks.task_id });
   return Boolean(renewed);
 }
@@ -440,6 +447,13 @@ async function failInvalidClaimedTask(
   taskId: string,
   leaseId: string,
 ): Promise<void> {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, leaseId),
+    );
+  });
   await db
     .update(schemas.tasks)
     .set({
@@ -449,11 +463,5 @@ async function failInvalidClaimedTask(
       end_timestamp: new Date(),
       last_update_timestamp: new Date(),
     })
-    .where(
-      and(
-        eq(schemas.tasks.task_id, taskId),
-        eq(schemas.tasks.status, 'pending'),
-        eq(schemas.tasks.pending_uuid, leaseId),
-      ),
-    );
+    .where(where);
 }

@@ -1,6 +1,6 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { getErrorCode } from '../tasks/errors.js';
 import {
   failTask,
@@ -158,6 +158,13 @@ async function deleteDocumentDatabaseRows(
   await lease.assertActive();
   await db.transaction(async (tx) => {
     const now = new Date();
+    const where = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.tasks.task_id, context.taskId),
+        eq(schemas.tasks.status, 'pending'),
+        eq(schemas.tasks.pending_uuid, lease.leaseId),
+      );
+    });
     const [owned] = await tx
       .update(schemas.tasks)
       .set({
@@ -165,13 +172,7 @@ async function deleteDocumentDatabaseRows(
         progress: 80,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, context.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, lease.leaseId),
-        ),
-      )
+      .where(where)
       .returning({ id: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
 
@@ -270,13 +271,7 @@ async function deleteDocumentDatabaseRows(
         end_timestamp: now,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, context.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, lease.leaseId),
-        ),
-      )
+      .where(where)
       .returning({ id: schemas.tasks.task_id });
     if (!completed) throw new FileProcessingLeaseLostError();
   });

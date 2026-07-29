@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, ne } from 'drizzle-orm';
+import { eq, ne } from 'drizzle-orm';
 
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { documentsConfig } from '../config.js';
 import {
   abortMultipartUpload,
@@ -61,16 +61,17 @@ async function assertUploadTargetDocument(
   documentId: string,
   userId: string,
 ): Promise<void> {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.documents.document_id, documentId),
+      eq(schemas.documents.create_user_id, userId),
+      ne(schemas.documents.status, 'deleted'),
+    );
+  });
   const [document] = await db
     .select({ id: schemas.documents.document_id })
     .from(schemas.documents)
-    .where(
-      and(
-        eq(schemas.documents.document_id, documentId),
-        eq(schemas.documents.create_user_id, userId),
-        ne(schemas.documents.status, 'deleted'),
-      ),
-    )
+    .where(where)
     .limit(1);
   if (!document) {
     throw new ROOT_ERROR('相关文件不存在');
@@ -102,18 +103,19 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
     clientFingerprint: input.fingerprint,
   });
   const documentScope = input.documentId ?? 'new';
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.file_upload_sessions.create_user_id, userId),
+      eq(schemas.file_upload_sessions.policy_key, input.policyKey),
+      eq(schemas.file_upload_sessions.document_scope, documentScope),
+      eq(schemas.file_upload_sessions.fingerprint, fingerprint),
+      eq(schemas.file_upload_sessions.idempotency_key, input.idempotencyKey),
+    );
+  });
   const [existing] = await db
     .select()
     .from(schemas.file_upload_sessions)
-    .where(
-      and(
-        eq(schemas.file_upload_sessions.create_user_id, userId),
-        eq(schemas.file_upload_sessions.policy_key, input.policyKey),
-        eq(schemas.file_upload_sessions.document_scope, documentScope),
-        eq(schemas.file_upload_sessions.fingerprint, fingerprint),
-        eq(schemas.file_upload_sessions.idempotency_key, input.idempotencyKey),
-      ),
-    )
+    .where(where)
     .limit(1);
   if (existing) {
     const disposition = resolveExistingUploadInitDisposition({

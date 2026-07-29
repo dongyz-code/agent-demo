@@ -1,16 +1,7 @@
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
-import {
-  and,
-  desc,
-  eq,
-  gte,
-  ilike,
-  inArray,
-  isNull,
-  lte,
-} from 'drizzle-orm';
+import { desc, eq, gte, ilike, inArray, isNull, lte } from 'drizzle-orm';
 
 const { api } = routerHandler({
   url: '/sys/user-log/list',
@@ -21,28 +12,32 @@ const { api } = routerHandler({
     const [timestampAfter, timestampBefore] = form?.timestamp ?? [];
     const userIds = form?.user_id;
     const keys = form?.key;
-    const where = and(
-      search ? ilike(schemas.user_logs.search_key, `%${search}%`) : undefined,
-      timestampAfter
-        ? gte(schemas.user_logs.timestamp, timestampAfter)
-        : undefined,
-      timestampBefore
-        ? lte(schemas.user_logs.timestamp, timestampBefore)
-        : undefined,
-      userIds === undefined
-        ? undefined
-        : userIds === null
-          ? isNull(schemas.user_logs.user_id)
-          : Array.isArray(userIds)
-            ? inArray(schemas.user_logs.user_id, userIds)
-            : eq(schemas.user_logs.user_id, userIds),
-      keys === undefined
-        ? undefined
-        : Array.isArray(keys)
-          ? inArray(schemas.user_logs.key, keys)
-          : eq(schemas.user_logs.key, keys),
-      form?.ip ? eq(schemas.user_logs.ip, form.ip) : undefined,
-    );
+    const where = buildWhere((filter) => {
+      if (search) {
+        filter.push(ilike(schemas.user_logs.search_key, `%${search}%`));
+      }
+      if (timestampAfter) {
+        filter.push(gte(schemas.user_logs.timestamp, timestampAfter));
+      }
+      if (timestampBefore) {
+        filter.push(lte(schemas.user_logs.timestamp, timestampBefore));
+      }
+      if (userIds === null) {
+        filter.push(isNull(schemas.user_logs.user_id));
+      } else if (Array.isArray(userIds)) {
+        filter.push(inArray(schemas.user_logs.user_id, userIds));
+      } else if (userIds !== undefined) {
+        filter.push(eq(schemas.user_logs.user_id, userIds));
+      }
+      if (Array.isArray(keys)) {
+        filter.push(inArray(schemas.user_logs.key, keys));
+      } else if (keys !== undefined) {
+        filter.push(eq(schemas.user_logs.key, keys));
+      }
+      if (form?.ip) {
+        filter.push(eq(schemas.user_logs.ip, form.ip));
+      }
+    });
 
     const getList = async () => {
       const list = await db

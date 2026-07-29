@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray, max, sql } from 'drizzle-orm';
+import { eq, inArray, max, sql } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { resolveDocumentVersion } from '../document/read.js';
 import { FILE_PROCESSING_TASK_KEY } from '../tasks/definition.js';
 import {
@@ -57,15 +57,11 @@ export async function createDocumentPreviewTask(
     const [version] = await tx
       .select({
         status: schemas.document_versions.preview_status,
-        converterVersion:
-          schemas.document_versions.preview_converter_version,
+        converterVersion: schemas.document_versions.preview_converter_version,
       })
       .from(schemas.document_versions)
       .where(
-        eq(
-          schemas.document_versions.document_version_id,
-          documentVersionId,
-        ),
+        eq(schemas.document_versions.document_version_id, documentVersionId),
       )
       .limit(1);
     if (
@@ -74,6 +70,20 @@ export async function createDocumentPreviewTask(
     ) {
       return null;
     }
+    const where = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.file_processing_tasks.task_type, 'preview'),
+        eq(
+          schemas.file_processing_tasks.document_version_id,
+          documentVersionId,
+        ),
+        eq(
+          schemas.file_processing_tasks.processing_config_version,
+          DOCUMENT_PREVIEW_CONVERTER_VERSION,
+        ),
+        inArray(schemas.tasks.status, [...ACTIVE_TASK_STATUSES]),
+      );
+    });
     const [active] = await tx
       .select({ taskId: schemas.tasks.task_id })
       .from(schemas.file_processing_tasks)
@@ -81,20 +91,7 @@ export async function createDocumentPreviewTask(
         schemas.tasks,
         eq(schemas.tasks.task_id, schemas.file_processing_tasks.task_id),
       )
-      .where(
-        and(
-          eq(schemas.file_processing_tasks.task_type, 'preview'),
-          eq(
-            schemas.file_processing_tasks.document_version_id,
-            documentVersionId,
-          ),
-          eq(
-            schemas.file_processing_tasks.processing_config_version,
-            DOCUMENT_PREVIEW_CONVERTER_VERSION,
-          ),
-          inArray(schemas.tasks.status, [...ACTIVE_TASK_STATUSES]),
-        ),
-      )
+      .where(where)
       .limit(1);
     if (active) return active.taskId;
 
@@ -122,10 +119,7 @@ export async function createDocumentPreviewTask(
         last_update_timestamp: now,
       })
       .where(
-        eq(
-          schemas.document_versions.document_version_id,
-          documentVersionId,
-        ),
+        eq(schemas.document_versions.document_version_id, documentVersionId),
       );
     await tx.insert(schemas.tasks).values({
       task_id: nextTaskId,

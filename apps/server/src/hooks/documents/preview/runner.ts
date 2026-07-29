@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { logger, ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { getDocumentSourceFile } from '../storage/source.js';
 import { getErrorCode } from '../tasks/errors.js';
 import {
@@ -16,7 +16,10 @@ import {
   openStoredObject,
   putStoredObject,
 } from '../storage/objects.js';
-import { DOCUMENT_PREVIEW_CONVERTER_VERSION, documentPageConverter } from './converter.js';
+import {
+  DOCUMENT_PREVIEW_CONVERTER_VERSION,
+  documentPageConverter,
+} from './converter.js';
 
 import type {
   FileProcessingTaskContext,
@@ -55,16 +58,11 @@ export async function runDocumentPreviewTask(
   const uploadedPages: UploadedPreviewPage[] = [];
   let published = false;
   try {
-    await runTaskStage(
-      context,
-      lease,
-      'preview-converting',
-      async () => {
-        await markPreviewProcessing(context, lease);
-        await generateAndUploadPages(context, lease, uploadedPages);
-        return uploadedPages;
-      },
-    );
+    await runTaskStage(context, lease, 'preview-converting', async () => {
+      await markPreviewProcessing(context, lease);
+      await generateAndUploadPages(context, lease, uploadedPages);
+      return uploadedPages;
+    });
     const oldPages = await runTaskStage(
       context,
       lease,
@@ -121,28 +119,39 @@ async function markPreviewProcessing(
   lease: FileProcessingTaskLease,
 ): Promise<void> {
   await lease.assertActive();
+  const taskWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, context.taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, lease.leaseId),
+    );
+  });
+  const documentWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.documents.document_id, context.documentId),
+      eq(schemas.documents.status, 'active'),
+    );
+  });
+  const versionWhere = buildWhere((filter) => {
+    filter.push(
+      eq(
+        schemas.document_versions.document_version_id,
+        context.documentVersionId,
+      ),
+      eq(schemas.document_versions.document_id, context.documentId),
+    );
+  });
   await db.transaction(async (tx) => {
     const [owned] = await tx
       .update(schemas.tasks)
       .set({ last_update_timestamp: new Date() })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, context.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, lease.leaseId),
-        ),
-      )
+      .where(taskWhere)
       .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     const [document] = await tx
       .select({ id: schemas.documents.document_id })
       .from(schemas.documents)
-      .where(
-        and(
-          eq(schemas.documents.document_id, context.documentId),
-          eq(schemas.documents.status, 'active'),
-        ),
-      )
+      .where(documentWhere)
       .limit(1);
     if (!document) {
       throw new Error(
@@ -157,15 +166,7 @@ async function markPreviewProcessing(
         last_update_user_id: context.userId,
         last_update_timestamp: new Date(),
       })
-      .where(
-        and(
-          eq(
-            schemas.document_versions.document_version_id,
-            context.documentVersionId,
-          ),
-          eq(schemas.document_versions.document_id, context.documentId),
-        ),
-      );
+      .where(versionWhere);
   });
 }
 
@@ -220,9 +221,7 @@ async function generateAndUploadPages(
     expectedPage++;
   }
   if (!pages.length) {
-    throw new Error(
-      'DOCUMENT_PREVIEW_EMPTY: 转换器没有生成任何页面',
-    );
+    throw new Error('DOCUMENT_PREVIEW_EMPTY: 转换器没有生成任何页面');
   }
   await lease.assertActive();
 }
@@ -234,28 +233,39 @@ async function publishPreviewPages(
   pages: UploadedPreviewPage[],
 ) {
   await lease.assertActive();
+  const taskWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, context.taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, lease.leaseId),
+    );
+  });
+  const documentWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.documents.document_id, context.documentId),
+      eq(schemas.documents.status, 'active'),
+    );
+  });
+  const versionWhere = buildWhere((filter) => {
+    filter.push(
+      eq(
+        schemas.document_versions.document_version_id,
+        context.documentVersionId,
+      ),
+      eq(schemas.document_versions.document_id, context.documentId),
+    );
+  });
   return await db.transaction(async (tx) => {
     const [owned] = await tx
       .update(schemas.tasks)
       .set({ last_update_timestamp: new Date() })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, context.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, lease.leaseId),
-        ),
-      )
+      .where(taskWhere)
       .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     const [document] = await tx
       .select({ id: schemas.documents.document_id })
       .from(schemas.documents)
-      .where(
-        and(
-          eq(schemas.documents.document_id, context.documentId),
-          eq(schemas.documents.status, 'active'),
-        ),
-      )
+      .where(documentWhere)
       .limit(1);
     if (!document) {
       throw new Error(
@@ -304,20 +314,10 @@ async function publishPreviewPages(
         last_update_user_id: context.userId,
         last_update_timestamp: new Date(),
       })
-      .where(
-        and(
-          eq(
-            schemas.document_versions.document_version_id,
-            context.documentVersionId,
-          ),
-          eq(schemas.document_versions.document_id, context.documentId),
-        ),
-      )
+      .where(versionWhere)
       .returning({ id: schemas.document_versions.document_version_id });
     if (!updated) {
-      throw new Error(
-        'DOCUMENT_PREVIEW_VERSION_NOT_FOUND: 文档版本不存在',
-      );
+      throw new Error('DOCUMENT_PREVIEW_VERSION_NOT_FOUND: 文档版本不存在');
     }
     return oldPages;
   });
@@ -341,7 +341,9 @@ function buildPreviewObjectKey(
 }
 
 /** 发布前失败时删除本任务已经上传的临时页面对象。 */
-async function deleteUploadedPages(pages: UploadedPreviewPage[]): Promise<void> {
+async function deleteUploadedPages(
+  pages: UploadedPreviewPage[],
+): Promise<void> {
   await Promise.allSettled(
     pages.map(
       async (page) =>

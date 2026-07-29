@@ -1,7 +1,7 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 
 /**
  * 取消活动文档任务，并同步收敛预览或知识库关系状态。
@@ -22,8 +22,7 @@ export async function cancelDocumentProcessingTask(
       .select({
         taskType: schemas.file_processing_tasks.task_type,
         documentId: schemas.file_processing_tasks.document_id,
-        documentVersionId:
-          schemas.file_processing_tasks.document_version_id,
+        documentVersionId: schemas.file_processing_tasks.document_version_id,
       })
       .from(schemas.file_processing_tasks)
       .where(eq(schemas.file_processing_tasks.task_id, taskId))
@@ -34,6 +33,12 @@ export async function cancelDocumentProcessingTask(
 
     const now = new Date();
     const message = '文件处理任务已取消';
+    const taskWhere = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.tasks.task_id, taskId),
+        inArray(schemas.tasks.status, ['to-be-started', 'pending']),
+      );
+    });
     const [updated] = await tx
       .update(schemas.tasks)
       .set({
@@ -43,17 +48,18 @@ export async function cancelDocumentProcessingTask(
         end_timestamp: now,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, taskId),
-          inArray(schemas.tasks.status, ['to-be-started', 'pending']),
-        ),
-      )
+      .where(taskWhere)
       .returning({ taskId: schemas.tasks.task_id });
     if (!updated) {
       throw new ROOT_ERROR('数据异常');
     }
 
+    const stageRunWhere = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.file_processing_task_stage_runs.task_id, taskId),
+        eq(schemas.file_processing_task_stage_runs.status, 'pending'),
+      );
+    });
     await tx
       .update(schemas.file_processing_task_stage_runs)
       .set({
@@ -62,14 +68,21 @@ export async function cancelDocumentProcessingTask(
         error_message: message,
         end_timestamp: now,
       })
-      .where(
-        and(
-          eq(schemas.file_processing_task_stage_runs.task_id, taskId),
-          eq(schemas.file_processing_task_stage_runs.status, 'pending'),
-        ),
-      );
+      .where(stageRunWhere);
 
     if (fileTask.taskType === 'preview') {
+      const versionWhere = buildWhere((filter) => {
+        filter.push(
+          eq(
+            schemas.document_versions.document_version_id,
+            fileTask.documentVersionId,
+          ),
+          inArray(schemas.document_versions.preview_status, [
+            'pending',
+            'processing',
+          ]),
+        );
+      });
       await tx
         .update(schemas.document_versions)
         .set({
@@ -78,21 +91,23 @@ export async function cancelDocumentProcessingTask(
           last_update_user_id: userId,
           last_update_timestamp: now,
         })
-        .where(
-          and(
-            eq(
-              schemas.document_versions.document_version_id,
-              fileTask.documentVersionId,
-            ),
-            inArray(schemas.document_versions.preview_status, [
-              'pending',
-              'processing',
-            ]),
-          ),
-        );
+        .where(versionWhere);
       return;
     }
 
+    const relationWhere = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.rag_dataset_documents.document_id, fileTask.documentId),
+        eq(
+          schemas.rag_dataset_documents.pending_version_id,
+          fileTask.documentVersionId,
+        ),
+        inArray(schemas.rag_dataset_documents.rag_status, [
+          'pending',
+          'processing',
+        ]),
+      );
+    });
     await tx
       .update(schemas.rag_dataset_documents)
       .set({
@@ -101,21 +116,6 @@ export async function cancelDocumentProcessingTask(
         last_update_user_id: userId,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          eq(
-            schemas.rag_dataset_documents.document_id,
-            fileTask.documentId,
-          ),
-          eq(
-            schemas.rag_dataset_documents.pending_version_id,
-            fileTask.documentVersionId,
-          ),
-          inArray(schemas.rag_dataset_documents.rag_status, [
-            'pending',
-            'processing',
-          ]),
-        ),
-      );
+      .where(relationWhere);
   });
 }

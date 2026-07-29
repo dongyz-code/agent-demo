@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
+import { eq, inArray, ne, or, sql } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { FileProcessingLeaseLostError } from '../tasks/runtime.js';
 
 /** 校验文档存在、未删除且属于当前操作用户。 */
@@ -10,16 +10,17 @@ async function assertOwnedDocument(
   documentId: string,
   userId: string,
 ): Promise<void> {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.documents.document_id, documentId),
+      eq(schemas.documents.create_user_id, userId),
+      ne(schemas.documents.status, 'deleted'),
+    );
+  });
   const [document] = await db
     .select({ id: schemas.documents.document_id })
     .from(schemas.documents)
-    .where(
-      and(
-        eq(schemas.documents.document_id, documentId),
-        eq(schemas.documents.create_user_id, userId),
-        ne(schemas.documents.status, 'deleted'),
-      ),
-    )
+    .where(where)
     .limit(1);
   if (!document) {
     throw new ROOT_ERROR('相关文件不存在');
@@ -137,6 +138,15 @@ export async function updateDocumentDatasetRelations(
           ? requestedDatasetIds
           : [];
     if (processingDatasetIds.length) {
+      const where = buildWhere((filter) => {
+        filter.push(
+          eq(schemas.rag_dataset_documents.document_id, input.documentId),
+          inArray(
+            schemas.rag_dataset_documents.dataset_id,
+            processingDatasetIds,
+          ),
+        );
+      });
       await tx
         .update(schemas.rag_dataset_documents)
         .set({
@@ -146,18 +156,7 @@ export async function updateDocumentDatasetRelations(
           last_update_user_id: input.userId,
           last_update_timestamp: now,
         })
-        .where(
-          and(
-            eq(
-              schemas.rag_dataset_documents.document_id,
-              input.documentId,
-            ),
-            inArray(
-              schemas.rag_dataset_documents.dataset_id,
-              processingDatasetIds,
-            ),
-          ),
-        );
+        .where(where);
     }
     return { addedDatasetIds, removedDatasetIds };
   });
@@ -177,6 +176,21 @@ export async function prepareDocumentRagRelationsForReprocessing(input: {
   /** 当前操作用户。 */
   userId: string;
 }): Promise<number> {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.rag_dataset_documents.document_id, input.documentId),
+      or(
+        eq(
+          schemas.rag_dataset_documents.pending_version_id,
+          input.documentVersionId,
+        ),
+        eq(
+          schemas.rag_dataset_documents.active_version_id,
+          input.documentVersionId,
+        ),
+      ),
+    );
+  });
   const rows = await db
     .update(schemas.rag_dataset_documents)
     .set({
@@ -186,21 +200,7 @@ export async function prepareDocumentRagRelationsForReprocessing(input: {
       last_update_user_id: input.userId,
       last_update_timestamp: new Date(),
     })
-    .where(
-      and(
-        eq(schemas.rag_dataset_documents.document_id, input.documentId),
-        or(
-          eq(
-            schemas.rag_dataset_documents.pending_version_id,
-            input.documentVersionId,
-          ),
-          eq(
-            schemas.rag_dataset_documents.active_version_id,
-            input.documentVersionId,
-          ),
-        ),
-      ),
-    )
+    .where(where)
     .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
   return rows.length;
 }
@@ -218,18 +218,28 @@ export async function markDocumentRagRelationsProcessing(input: {
   /** 当前操作用户。 */
   userId: string;
 }): Promise<number> {
+  const taskWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, input.taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, input.leaseId),
+    );
+  });
+  const relationWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.rag_dataset_documents.document_id, input.documentId),
+      eq(
+        schemas.rag_dataset_documents.pending_version_id,
+        input.documentVersionId,
+      ),
+    );
+  });
   return await db.transaction(async (tx) => {
     const now = new Date();
     const [owned] = await tx
       .update(schemas.tasks)
       .set({ last_update_timestamp: now })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, input.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, input.leaseId),
-        ),
-      )
+      .where(taskWhere)
       .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     const rows = await tx
@@ -240,15 +250,7 @@ export async function markDocumentRagRelationsProcessing(input: {
         last_update_user_id: input.userId,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          eq(schemas.rag_dataset_documents.document_id, input.documentId),
-          eq(
-            schemas.rag_dataset_documents.pending_version_id,
-            input.documentVersionId,
-          ),
-        ),
-      )
+      .where(relationWhere)
       .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
     return rows.length;
   });
@@ -272,18 +274,28 @@ export async function publishDocumentRagRelationsForTask(input: {
   /** 当前操作用户。 */
   userId: string;
 }): Promise<number> {
+  const taskWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.tasks.task_id, input.taskId),
+      eq(schemas.tasks.status, 'pending'),
+      eq(schemas.tasks.pending_uuid, input.leaseId),
+    );
+  });
+  const relationWhere = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.rag_dataset_documents.document_id, input.documentId),
+      eq(
+        schemas.rag_dataset_documents.pending_version_id,
+        input.documentVersionId,
+      ),
+    );
+  });
   return await db.transaction(async (tx) => {
     const now = new Date();
     const [owned] = await tx
       .update(schemas.tasks)
       .set({ last_update_timestamp: now })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, input.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, input.leaseId),
-        ),
-      )
+      .where(taskWhere)
       .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     const rows = await tx
@@ -296,15 +308,7 @@ export async function publishDocumentRagRelationsForTask(input: {
         last_update_user_id: input.userId,
         last_update_timestamp: now,
       })
-      .where(
-        and(
-          eq(schemas.rag_dataset_documents.document_id, input.documentId),
-          eq(
-            schemas.rag_dataset_documents.pending_version_id,
-            input.documentVersionId,
-          ),
-        ),
-      )
+      .where(relationWhere)
       .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
     return rows.length;
   });
@@ -324,6 +328,15 @@ export async function publishDocumentRagRelations(input: {
   /** 当前操作用户。 */
   userId: string;
 }): Promise<number> {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.rag_dataset_documents.document_id, input.documentId),
+      eq(
+        schemas.rag_dataset_documents.pending_version_id,
+        input.documentVersionId,
+      ),
+    );
+  });
   const rows = await db
     .update(schemas.rag_dataset_documents)
     .set({
@@ -334,15 +347,7 @@ export async function publishDocumentRagRelations(input: {
       last_update_user_id: input.userId,
       last_update_timestamp: new Date(),
     })
-    .where(
-      and(
-        eq(schemas.rag_dataset_documents.document_id, input.documentId),
-        eq(
-          schemas.rag_dataset_documents.pending_version_id,
-          input.documentVersionId,
-        ),
-      ),
-    )
+    .where(where)
     .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
   return rows.length;
 }
@@ -358,6 +363,15 @@ export async function failDocumentRagRelations(input: {
   /** 当前操作用户。 */
   userId: string;
 }): Promise<void> {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.rag_dataset_documents.document_id, input.documentId),
+      eq(
+        schemas.rag_dataset_documents.pending_version_id,
+        input.documentVersionId,
+      ),
+    );
+  });
   await db
     .update(schemas.rag_dataset_documents)
     .set({
@@ -366,13 +380,5 @@ export async function failDocumentRagRelations(input: {
       last_update_user_id: input.userId,
       last_update_timestamp: new Date(),
     })
-    .where(
-      and(
-        eq(schemas.rag_dataset_documents.document_id, input.documentId),
-        eq(
-          schemas.rag_dataset_documents.pending_version_id,
-          input.documentVersionId,
-        ),
-      ),
-    );
+    .where(where);
 }

@@ -1,8 +1,14 @@
-import { db, schemas } from '@/database/index.js';
-import { compareTableStructure, getTableCatalogSnapshot } from '@/database/structure/index.js';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { buildWhere, db, schemas } from '@/database/index.js';
+import {
+  compareTableStructure,
+  getTableCatalogSnapshot,
+} from '@/database/structure/index.js';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 
-import { getManagedTableSchemaByKey, listManagedTableSchemas } from './schema.js';
+import {
+  getManagedTableSchemaByKey,
+  listManagedTableSchemas,
+} from './schema.js';
 import { isSensitiveColumn } from './sensitive.js';
 import { getAuthorizedTableState } from './state.js';
 
@@ -86,7 +92,9 @@ export async function getVisibleTableDetail({
   /** managedTableRegistry 中的表 key。 */
   table: string;
 }): Promise<TableDetail> {
-  const { schemaTable, catalogTable } = await getAuthorizedTableState({ table });
+  const { schemaTable, catalogTable } = await getAuthorizedTableState({
+    table,
+  });
   const diff = compareTableStructure(schemaTable, catalogTable);
 
   return {
@@ -133,12 +141,20 @@ export async function listTableOperations({
   /** 是否返回总数。 */
   withCount?: boolean;
 }) {
-  const where = and(
-    table ? eq(schemas.table_structure_ops.table_key, table) : undefined,
-    tables?.length ? inArray(schemas.table_structure_ops.table_key, tables) : undefined,
-    type ? eq(schemas.table_structure_ops.type, type) : undefined,
-    status ? eq(schemas.table_structure_ops.status, status) : undefined,
-  );
+  const where = buildWhere((filter) => {
+    if (table) {
+      filter.push(eq(schemas.table_structure_ops.table_key, table));
+    }
+    if (tables?.length) {
+      filter.push(inArray(schemas.table_structure_ops.table_key, tables));
+    }
+    if (type) {
+      filter.push(eq(schemas.table_structure_ops.type, type));
+    }
+    if (status) {
+      filter.push(eq(schemas.table_structure_ops.status, status));
+    }
+  });
 
   const getList = async () => {
     return await db

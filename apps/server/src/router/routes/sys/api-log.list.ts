@@ -1,16 +1,7 @@
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
-import {
-  and,
-  desc,
-  eq,
-  gte,
-  ilike,
-  inArray,
-  isNull,
-  lte,
-} from 'drizzle-orm';
+import { desc, eq, gte, ilike, inArray, isNull, lte } from 'drizzle-orm';
 
 const { api } = routerHandler({
   url: '/sys/api-log/list',
@@ -30,48 +21,54 @@ const { api } = routerHandler({
       | undefined;
     const clientIds = form?.client_id;
     const clientMarks = form?.client_mark;
-    const where = and(
-      search ? ilike(schemas.api_logs.search_key, `%${search}%`) : undefined,
-      startedAfter
-        ? gte(schemas.api_logs.start_timestamp, startedAfter)
-        : undefined,
-      startedBefore
-        ? lte(schemas.api_logs.start_timestamp, startedBefore)
-        : undefined,
-      userIds === undefined
-        ? undefined
-        : userIds === null
-          ? isNull(schemas.api_logs.user_id)
-          : Array.isArray(userIds)
-            ? inArray(schemas.api_logs.user_id, userIds)
-            : eq(schemas.api_logs.user_id, userIds),
-      form?.url ? eq(schemas.api_logs.url, form.url) : undefined,
-      form?.ip ? eq(schemas.api_logs.ip, form.ip) : undefined,
-      statuses === undefined
-        ? undefined
-        : Array.isArray(statuses)
-          ? inArray(schemas.api_logs.status, statuses)
-          : eq(schemas.api_logs.status, statuses),
-      modes === undefined
-        ? undefined
-        : Array.isArray(modes)
-          ? inArray(schemas.api_logs.mode, modes)
-          : eq(schemas.api_logs.mode, modes),
-      clientIds === undefined
-        ? undefined
-        : clientIds === null
-          ? isNull(schemas.api_logs.client_id)
-          : Array.isArray(clientIds)
-            ? inArray(schemas.api_logs.client_id, clientIds)
-            : eq(schemas.api_logs.client_id, clientIds),
-      clientMarks === undefined
-        ? undefined
-        : clientMarks === null
-          ? isNull(schemas.api_logs.client_mark)
-          : Array.isArray(clientMarks)
-            ? inArray(schemas.api_logs.client_mark, clientMarks)
-            : eq(schemas.api_logs.client_mark, clientMarks),
-    );
+    const where = buildWhere((filter) => {
+      if (search) {
+        filter.push(ilike(schemas.api_logs.search_key, `%${search}%`));
+      }
+      if (startedAfter) {
+        filter.push(gte(schemas.api_logs.start_timestamp, startedAfter));
+      }
+      if (startedBefore) {
+        filter.push(lte(schemas.api_logs.start_timestamp, startedBefore));
+      }
+      if (userIds === null) {
+        filter.push(isNull(schemas.api_logs.user_id));
+      } else if (Array.isArray(userIds)) {
+        filter.push(inArray(schemas.api_logs.user_id, userIds));
+      } else if (userIds !== undefined) {
+        filter.push(eq(schemas.api_logs.user_id, userIds));
+      }
+      if (form?.url) {
+        filter.push(eq(schemas.api_logs.url, form.url));
+      }
+      if (form?.ip) {
+        filter.push(eq(schemas.api_logs.ip, form.ip));
+      }
+      if (Array.isArray(statuses)) {
+        filter.push(inArray(schemas.api_logs.status, statuses));
+      } else if (statuses !== undefined) {
+        filter.push(eq(schemas.api_logs.status, statuses));
+      }
+      if (Array.isArray(modes)) {
+        filter.push(inArray(schemas.api_logs.mode, modes));
+      } else if (modes !== undefined) {
+        filter.push(eq(schemas.api_logs.mode, modes));
+      }
+      if (clientIds === null) {
+        filter.push(isNull(schemas.api_logs.client_id));
+      } else if (Array.isArray(clientIds)) {
+        filter.push(inArray(schemas.api_logs.client_id, clientIds));
+      } else if (clientIds !== undefined) {
+        filter.push(eq(schemas.api_logs.client_id, clientIds));
+      }
+      if (clientMarks === null) {
+        filter.push(isNull(schemas.api_logs.client_mark));
+      } else if (Array.isArray(clientMarks)) {
+        filter.push(inArray(schemas.api_logs.client_mark, clientMarks));
+      } else if (clientMarks !== undefined) {
+        filter.push(eq(schemas.api_logs.client_mark, clientMarks));
+      }
+    });
 
     const getList = async () => {
       const list = await db

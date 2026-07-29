@@ -1,7 +1,7 @@
 import { initAuthentication } from '@repo/utils-node';
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
-import { and, eq } from 'drizzle-orm';
+import { buildWhere, db, schemas } from '@/database/index.js';
+import { eq } from 'drizzle-orm';
 
 import type { CookieData, TokenData } from '@/types/index.js';
 
@@ -40,13 +40,13 @@ export const authentication = initAuthentication<{
     async basicAuth({ id, secret, request }) {
       if (request.url.startsWith(interfaceRoutePrefix) && id.length === 36) {
         // TODO: 优化
-        const count = await db.$count(
-          schemas.apps,
-          and(
+        const where = buildWhere((filter) => {
+          filter.push(
             eq(schemas.apps.client_id, id),
             eq(schemas.apps.client_secret, secret),
-          ),
-        );
+          );
+        });
+        const count = await db.$count(schemas.apps, where);
 
         if (count) {
           /** 更新最后登录时间 */

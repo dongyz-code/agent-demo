@@ -1,8 +1,8 @@
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { embed, tool } from 'ai';
 import { z } from 'zod/v4';
 
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { getEmbeddingModel } from '@/hooks/agents/providers/providers.js';
 import { DOCUMENT_SEGMENTS_COLLECTION, qdrantClient } from '@/vector/client.js';
 import { searchPoints } from '@repo/utils-qdrant';
@@ -47,23 +47,27 @@ export function createSearchKnowledgeBaseTool(input: { datasetId: string }) {
       const limit = top_k ?? DEFAULT_TOP_K;
 
       // 1) 该知识库当前 ready 且有 active 版本的 document_version_id
+      const where = buildWhere((filter) => {
+        filter.push(
+          eq(schemas.rag_dataset_documents.dataset_id, input.datasetId),
+          eq(schemas.rag_dataset_documents.rag_status, 'ready'),
+          isNotNull(schemas.rag_dataset_documents.active_version_id),
+        );
+      });
       const versionRows = await db
         .select({
           active_version_id: schemas.rag_dataset_documents.active_version_id,
         })
         .from(schemas.rag_dataset_documents)
-        .where(
-          and(
-            eq(schemas.rag_dataset_documents.dataset_id, input.datasetId),
-            eq(schemas.rag_dataset_documents.rag_status, 'ready'),
-            isNotNull(schemas.rag_dataset_documents.active_version_id),
-          ),
-        );
+        .where(where);
       const versionIds = versionRows
         .map((row) => row.active_version_id)
         .filter((v): v is string => v !== null);
       if (versionIds.length === 0) {
-        return { chunks: [] as KnowledgeChunk[], note: '知识库暂无可检索的已就绪文档' };
+        return {
+          chunks: [] as KnowledgeChunk[],
+          note: '知识库暂无可检索的已就绪文档',
+        };
       }
 
       // 2) embed query
@@ -85,9 +89,7 @@ export function createSearchKnowledgeBaseTool(input: { datasetId: string }) {
         collection: DOCUMENT_SEGMENTS_COLLECTION,
         vector: embedding,
         filter: {
-          must: [
-            { key: 'document_version_id', match: { any: versionIds } },
-          ],
+          must: [{ key: 'document_version_id', match: { any: versionIds } }],
         },
         limit,
       });

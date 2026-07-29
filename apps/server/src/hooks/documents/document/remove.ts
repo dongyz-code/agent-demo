@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { DOCUMENT_CLEANUP_TASK_KEY } from '../tasks/definition.js';
 
 /**
@@ -18,18 +18,19 @@ export async function removeDocument(
   const shouldNotifyWorker = await db.transaction(async (tx) => {
     const lockKey = `document-cleanup:${documentId}`;
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
+    const documentWhere = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.documents.document_id, documentId),
+        eq(schemas.documents.create_user_id, userId),
+      );
+    });
     const [document] = await tx
       .select({
         name: schemas.documents.name,
         status: schemas.documents.status,
       })
       .from(schemas.documents)
-      .where(
-        and(
-          eq(schemas.documents.document_id, documentId),
-          eq(schemas.documents.create_user_id, userId),
-        ),
-      )
+      .where(documentWhere)
       .limit(1);
     if (!document) return false;
     const versionRows = await tx
@@ -63,6 +64,12 @@ export async function removeDocument(
         );
       const taskIds = taskRows.map((row) => row.id);
       if (taskIds.length) {
+        const taskWhere = buildWhere((filter) => {
+          filter.push(
+            inArray(schemas.tasks.task_id, taskIds),
+            inArray(schemas.tasks.status, ['to-be-started', 'pending']),
+          );
+        });
         await tx
           .update(schemas.tasks)
           .set({
@@ -70,27 +77,23 @@ export async function removeDocument(
             end_timestamp: now,
             last_update_timestamp: now,
           })
-          .where(
-            and(
-              inArray(schemas.tasks.task_id, taskIds),
-              inArray(schemas.tasks.status, ['to-be-started', 'pending']),
-            ),
-          );
+          .where(taskWhere);
       }
     }
+    const cleanupTaskWhere = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.tasks.task_key, DOCUMENT_CLEANUP_TASK_KEY),
+        eq(schemas.tasks.business_type, 'document'),
+        eq(schemas.tasks.business_id, documentId),
+      );
+    });
     const [cleanupTask] = await tx
       .select({
         id: schemas.tasks.task_id,
         status: schemas.tasks.status,
       })
       .from(schemas.tasks)
-      .where(
-        and(
-          eq(schemas.tasks.task_key, DOCUMENT_CLEANUP_TASK_KEY),
-          eq(schemas.tasks.business_type, 'document'),
-          eq(schemas.tasks.business_id, documentId),
-        ),
-      )
+      .where(cleanupTaskWhere)
       .limit(1);
     if (cleanupTask) {
       if (

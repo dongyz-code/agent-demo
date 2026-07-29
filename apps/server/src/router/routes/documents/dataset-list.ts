@@ -1,6 +1,6 @@
-import { and, desc, ilike, inArray } from 'drizzle-orm';
+import { desc, ilike, inArray } from 'drizzle-orm';
 
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -10,14 +10,15 @@ const { api } = routerHandler({
   permission: adminPermissionKey('pages.documents.dataset'),
   handler: async ({ body }) => {
     const [start = 0, end = 20] = body.limit ?? [];
-    const where = and(
-      body.search?.trim()
-        ? ilike(schemas.rag_datasets.name, `%${body.search.trim()}%`)
-        : undefined,
-      body.status?.length
-        ? inArray(schemas.rag_datasets.status, body.status)
-        : undefined,
-    );
+    const where = buildWhere((filter) => {
+      const search = body.search?.trim();
+      if (search) {
+        filter.push(ilike(schemas.rag_datasets.name, `%${search}%`));
+      }
+      if (body.status?.length) {
+        filter.push(inArray(schemas.rag_datasets.status, body.status));
+      }
+    });
     const [list, count] = await Promise.all([
       db
         .select({

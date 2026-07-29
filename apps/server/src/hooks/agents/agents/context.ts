@@ -1,4 +1,4 @@
-import { and, eq, desc } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { ModelMessage } from 'ai';
 import { db, schemas } from '@/database/index.js';
 
@@ -17,7 +17,7 @@ export async function getMessages({
       role: true,
       content: true,
     },
-    where: and(eq(schemas.agent_messages.conversation_id, conversation_id)),
+    where: eq(schemas.agent_messages.conversation_id, conversation_id),
     orderBy: desc(schemas.agent_messages.message_id),
     limit: 100,
   });

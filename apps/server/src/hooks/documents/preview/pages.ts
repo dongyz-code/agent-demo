@@ -1,7 +1,7 @@
-import { and, asc, eq, gte, lt } from 'drizzle-orm';
+import { asc, eq, gte, lt } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { resolveDocumentVersion } from '../document/read.js';
 import { presignGetObject } from '../storage/presign.js';
 import { createDocumentPreviewTask } from './task.js';
@@ -61,22 +61,20 @@ export async function getDocumentPreviewPages(
       pages: [],
     };
   }
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(
+        schemas.document_preview_pages.document_version_id,
+        version.document_version_id,
+      ),
+      gte(schemas.document_preview_pages.page_number, startPage),
+      lt(schemas.document_preview_pages.page_number, startPage + pageSize),
+    );
+  });
   const rows = await db
     .select()
     .from(schemas.document_preview_pages)
-    .where(
-      and(
-        eq(
-          schemas.document_preview_pages.document_version_id,
-          version.document_version_id,
-        ),
-        gte(schemas.document_preview_pages.page_number, startPage),
-        lt(
-          schemas.document_preview_pages.page_number,
-          startPage + pageSize,
-        ),
-      ),
-    )
+    .where(where)
     .orderBy(asc(schemas.document_preview_pages.page_number));
   const pages = await Promise.all(
     rows.map(
@@ -104,10 +102,7 @@ export async function getDocumentPreviewPages(
  * @returns pending、processing 或原 ready 状态的页面窗口。
  */
 export async function retryDocumentPreview(
-  input: Pick<
-    GetDocumentPreviewPagesInput,
-    'documentId' | 'documentVersionId'
-  >,
+  input: Pick<GetDocumentPreviewPagesInput, 'documentId' | 'documentVersionId'>,
   userId: string,
 ): Promise<DocumentPreviewWindow> {
   const resolved = await resolveDocumentVersion(

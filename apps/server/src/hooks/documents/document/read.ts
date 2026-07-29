@@ -14,7 +14,7 @@ import {
 } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import { presignGetObject } from '../storage/presign.js';
 
 import type {
@@ -63,35 +63,43 @@ export async function searchDocuments(
 ): Promise<{ list: DocumentInfo[]; count: number }> {
   const [start = 0, end = 20] = input.limit ?? [];
   const [createdStart, createdEnd] = input.createdAt ?? [];
-  const datasetFilter = input.datasetId
-    ? sql`exists (
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.documents.create_user_id, userId),
+      ne(schemas.documents.status, 'deleted'),
+    );
+    const search = input.search?.trim();
+    if (search) {
+      filter.push(
+        or(
+          ilike(schemas.documents.name, `%${search}%`),
+          ilike(schemas.files.filename, `%${search}%`),
+        ),
+      );
+    }
+    if (input.status?.length) {
+      filter.push(inArray(schemas.documents.status, input.status));
+    }
+    if (input.previewStatus?.length) {
+      filter.push(
+        inArray(schemas.document_versions.preview_status, input.previewStatus),
+      );
+    }
+    if (createdStart) {
+      filter.push(gte(schemas.documents.create_timestamp, createdStart));
+    }
+    if (createdEnd) {
+      filter.push(lte(schemas.documents.create_timestamp, createdEnd));
+    }
+    if (input.datasetId) {
+      filter.push(sql`exists (
         select 1
         from rag_dataset_documents rdd
         where rdd.document_id = ${schemas.documents.document_id}
           and rdd.dataset_id = ${input.datasetId}
-      )`
-    : undefined;
-  const where = and(
-    eq(schemas.documents.create_user_id, userId),
-    ne(schemas.documents.status, 'deleted'),
-    input.search?.trim()
-      ? or(
-          ilike(schemas.documents.name, `%${input.search.trim()}%`),
-          ilike(schemas.files.filename, `%${input.search.trim()}%`),
-        )
-      : undefined,
-    input.status?.length
-      ? inArray(schemas.documents.status, input.status)
-      : undefined,
-    input.previewStatus?.length
-      ? inArray(schemas.document_versions.preview_status, input.previewStatus)
-      : undefined,
-    createdStart
-      ? gte(schemas.documents.create_timestamp, createdStart)
-      : undefined,
-    createdEnd ? lte(schemas.documents.create_timestamp, createdEnd) : undefined,
-    datasetFilter,
-  );
+      )`);
+    }
+  });
   const baseQuery = db
     .select({
       document: schemas.documents,
@@ -157,13 +165,14 @@ export async function getDocumentDetail(
   documentId: string,
   userId: string,
 ): Promise<DocumentDetail> {
-  const [current] = await selectCurrentDocumentRows(
-    and(
+  const where = buildWhere((filter) => {
+    filter.push(
       eq(schemas.documents.document_id, documentId),
       eq(schemas.documents.create_user_id, userId),
       ne(schemas.documents.status, 'deleted'),
-    ),
-  ).limit(1);
+    );
+  });
+  const [current] = await selectCurrentDocumentRows(where).limit(1);
   if (!current) {
     throw new ROOT_ERROR('相关文件不存在');
   }
@@ -196,6 +205,13 @@ export async function resolveDocumentVersion(
   documentVersionId: string | undefined,
   userId: string,
 ) {
+  const where = buildWhere((filter) => {
+    filter.push(
+      eq(schemas.documents.document_id, documentId),
+      eq(schemas.documents.create_user_id, userId),
+      ne(schemas.documents.status, 'deleted'),
+    );
+  });
   const [row] = await db
     .select({
       document: schemas.documents,
@@ -211,10 +227,7 @@ export async function resolveDocumentVersion(
           schemas.documents.document_id,
         ),
         documentVersionId
-          ? eq(
-              schemas.document_versions.document_version_id,
-              documentVersionId,
-            )
+          ? eq(schemas.document_versions.document_version_id, documentVersionId)
           : eq(
               schemas.document_versions.document_version_id,
               schemas.documents.active_version_id,
@@ -225,13 +238,7 @@ export async function resolveDocumentVersion(
       schemas.files,
       eq(schemas.files.file_id, schemas.document_versions.source_file_id),
     )
-    .where(
-      and(
-        eq(schemas.documents.document_id, documentId),
-        eq(schemas.documents.create_user_id, userId),
-        ne(schemas.documents.status, 'deleted'),
-      ),
-    )
+    .where(where)
     .limit(1);
   if (!row) {
     throw new ROOT_ERROR('相关文件不存在');
@@ -260,8 +267,7 @@ export async function getDocumentDownload(
   const signed = await presignGetObject({
     bucket: row.file.bucket,
     objectKey: row.file.object_key,
-    contentType:
-      row.file.content_type ?? 'application/octet-stream',
+    contentType: row.file.content_type ?? 'application/octet-stream',
     filename: row.file.filename,
     disposition: 'attachment',
   });
@@ -314,6 +320,12 @@ async function loadDocumentAggregates(
 ): Promise<DocumentAggregates> {
   const documentIds = rows.map((row) => row.document.document_id);
   const versionIds = rows.map((row) => row.version.document_version_id);
+  const coverWhere = buildWhere((filter) => {
+    filter.push(
+      inArray(schemas.document_preview_pages.document_version_id, versionIds),
+      eq(schemas.document_preview_pages.page_number, 1),
+    );
+  });
   const [versionCounts, datasetRows, coverRows] = await Promise.all([
     db
       .select({
@@ -338,23 +350,9 @@ async function loadDocumentAggregates(
         ),
       )
       .where(inArray(schemas.rag_dataset_documents.document_id, documentIds)),
-    db
-      .select()
-      .from(schemas.document_preview_pages)
-      .where(
-        and(
-          inArray(
-            schemas.document_preview_pages.document_version_id,
-            versionIds,
-          ),
-          eq(schemas.document_preview_pages.page_number, 1),
-        ),
-      ),
+    db.select().from(schemas.document_preview_pages).where(coverWhere),
   ]);
-  const datasetsByDocument = new Map<
-    string,
-    RagDatasetDocumentSummary[]
-  >();
+  const datasetsByDocument = new Map<string, RagDatasetDocumentSummary[]>();
   for (const row of datasetRows) {
     const list = datasetsByDocument.get(row.documentId) ?? [];
     list.push({
@@ -383,9 +381,7 @@ async function toDocumentInfo(
   row: CurrentDocumentRow,
   aggregates: DocumentAggregates,
 ): Promise<DocumentInfo> {
-  const cover = aggregates.coverByVersion.get(
-    row.version.document_version_id,
-  );
+  const cover = aggregates.coverByVersion.get(row.version.document_version_id);
   return {
     documentId: row.document.document_id,
     name: row.document.name,
@@ -400,8 +396,7 @@ async function toDocumentInfo(
     cover: cover
       ? await toPreviewPageInfo(cover, `${row.document.name}-page-1.webp`)
       : null,
-    datasets:
-      aggregates.datasetsByDocument.get(row.document.document_id) ?? [],
+    datasets: aggregates.datasetsByDocument.get(row.document.document_id) ?? [],
     createdAt: row.document.create_timestamp,
   };
 }
@@ -416,8 +411,7 @@ function toDocumentVersionInfo(row: {
     version: row.version.version,
     filename: row.file.filename,
     extension: row.file.extension,
-    contentType:
-      row.file.content_type ?? row.file.declared_content_type,
+    contentType: row.file.content_type ?? row.file.declared_content_type,
     size: row.file.size,
     previewStatus: row.version.preview_status,
     previewPageCount: row.version.preview_page_count,

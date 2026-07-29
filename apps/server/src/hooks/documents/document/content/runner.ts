@@ -1,6 +1,6 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
-import { db, schemas } from '@/database/index.js';
+import { buildWhere, db, schemas } from '@/database/index.js';
 import {
   failDocumentRagRelations,
   markDocumentRagRelationsProcessing,
@@ -143,16 +143,17 @@ async function persistContentResult(
         context.documentVersionId,
       ].join(':')}))`,
     );
+    const where = buildWhere((filter) => {
+      filter.push(
+        eq(schemas.tasks.task_id, context.taskId),
+        eq(schemas.tasks.status, 'pending'),
+        eq(schemas.tasks.pending_uuid, lease.leaseId),
+      );
+    });
     const [owned] = await tx
       .update(schemas.tasks)
       .set({ last_update_timestamp: new Date() })
-      .where(
-        and(
-          eq(schemas.tasks.task_id, context.taskId),
-          eq(schemas.tasks.status, 'pending'),
-          eq(schemas.tasks.pending_uuid, lease.leaseId),
-        ),
-      )
+      .where(where)
       .returning({ taskId: schemas.tasks.task_id });
     if (!owned) throw new FileProcessingLeaseLostError();
     await tx
