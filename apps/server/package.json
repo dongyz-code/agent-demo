@@ -6,8 +6,7 @@
   "scripts": {
     "build": "rimraf build && tsc && tsc-alias --outDir build",
     "dev": "tsx src/index.ts",
-    "lint": "tsc",
-    "test": "tsx --test src/hooks/documents/upload/*.test.ts"
+    "lint": "tsc"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.2",

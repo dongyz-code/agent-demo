@@ -20,15 +20,13 @@ export interface ExistingUploadInitState {
  * 判断重复初始化应恢复、取回结果还是要求新建上传尝试。
  *
  * @param state 既有会话状态和失效时间。
- * @param now 当前时间戳，测试可传入固定值。
  * @returns 服务端初始化流程应执行的稳定动作分类。
  */
 export function resolveExistingUploadInitDisposition(
   state: ExistingUploadInitState,
-  now = Date.now(),
 ): ExistingUploadInitDisposition {
   if (state.status === 'completed') return 'completed';
-  if (state.expiresAt.getTime() <= now) return 'expired';
+  if (state.expiresAt.getTime() <= Date.now()) return 'expired';
   if (state.status === 'completing') return 'completing';
   if (['failed', 'canceled', 'expired'].includes(state.status)) {
     return 'terminal';

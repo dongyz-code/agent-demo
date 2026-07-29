@@ -4,7 +4,7 @@
 
 这是一个 pnpm/Turbo monorepo。应用放在 `apps/`：`apps/client` 是 React/Vite 客户端，`apps/admin` 是 Vue/Vite 管理端，`apps/server` 是 TypeScript Node 服务。共享包放在 `packages/`，包括 `types`、`ui`、`configs`、`openid`、`scripts`，以及 `packages/utils/*` 下的工具包。各包源码放在自己的 `src/` 下；资源文件放在 `src/assets`、`src/static` 或 `apps/server/static`。不要编辑生成目录 `dist/`、`build/`、`.turbo/` 或 `node_modules/`。
 
-## 构建、测试与开发命令
+## 构建与开发命令
 
 使用 Node `>=20.19` 和 pnpm `11.7.0`。
 
@@ -14,7 +14,6 @@
 - `pnpm --filter @repo/deploy-client dev` 启动 React 客户端。
 - `pnpm --filter @repo/deploy-admin dev` 启动 Vue 管理端。
 - `pnpm --filter @repo/deploy-server dev` 使用 `tsx` 启动服务端。
-- `pnpm --filter @repo/deploy-client test` 运行 Vitest。
 - 服务端无独立迁移命令：启动时自动建缺失表并报漂移；已有表的索引/trigger 同步走前端 sync 操作，列结构变更走 reset。
 - 修改依赖后运行 `pnpm pkg:sort` 排序工作区 `package.json`。
 
@@ -33,10 +32,6 @@
 - 多个组件复用的展示文案、纯计算函数、类型别名和静态选项，应放在邻近的 `utils.ts` 或 `types.ts` 中；通用工具只承载可复用逻辑，不隐藏页面专属流程。
 - 拆分以边界清晰和可维护为目标，避免为了单行模板、一次性静态片段或没有独立状态的内容过度抽象。
 - `apps/admin` 中的搜索表单优先使用 `VSchemaForm` 的 `mode="search"`，字段通过 `columns` schema 声明，搜索、重置、展开收起和额外动作优先走 schema-form 内置能力；只有 schema-form 明确无法覆盖场景时，才使用自定义表单或旧 `useFormItems`，并在代码中保持原因清晰。
-
-## 测试规范
-
-当前启用的测试配置在 `apps/client`，使用 Vitest、jsdom、Testing Library 和 `apps/client/src/test/setup.ts`。测试文件放在被覆盖代码附近，命名为 `*.test.ts` 或 `*.test.tsx`。客户端测试运行 `pnpm --filter @repo/deploy-client test`，交付前运行 `pnpm turbo lint`。仓库没有强制覆盖率目标；对变更行为和边界情况添加聚焦测试。
 
 ## 提交与 Pull Request 规范
 
