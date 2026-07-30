@@ -1,15 +1,24 @@
 import { createHash } from 'node:crypto';
 import { fileTypeFromBuffer } from 'file-type';
+import {
+  contentTypesByExtension,
+  getFileExtension,
+} from '@repo/shared';
 
 import type { Readable } from 'node:stream';
+import type { SupportedFileExtension } from '@repo/shared';
 
 /** 文件内容验证器输入。 */
 export interface FileValidationInput {
   /** 文件前缀字节。 */
   prefix: Buffer;
+  /** 用户上传时提供的文件名，用于约束签名识别范围。 */
+  filename: string;
   /** 初始化时声明的 MIME。 */
   declaredContentType: string;
 }
+
+const TEXT_EXTENSIONS: readonly SupportedFileExtension[] = ['txt', 'md', 'csv'];
 
 /** 流式计算 SHA-256，调用后输入流会被完整消费。 */
 export async function calculateSha256Stream(stream: Readable) {
@@ -29,14 +38,19 @@ export async function calculateSha256Stream(stream: Readable) {
  * @returns 二进制签名识别结果、允许的文本回退或空。
  */
 export async function detectTrustedContentType(input: FileValidationInput) {
+  const extension = getFileExtension(input.filename);
+  if (!extension) return undefined;
+  const compatibleContentTypes: readonly string[] =
+    contentTypesByExtension[extension];
+
   const detected = await fileTypeFromBuffer(input.prefix);
-  if (detected?.mime) return detected.mime;
-  if (
-    ['text/plain', 'text/markdown', 'text/csv'].includes(
-      input.declaredContentType,
-    )
-  ) {
-    return input.declaredContentType;
+  if (detected?.mime) {
+    if (!compatibleContentTypes.includes(detected.mime)) return undefined;
+    return compatibleContentTypes[0];
   }
-  return undefined;
+  if (!TEXT_EXTENSIONS.includes(extension)) return undefined;
+  if (!compatibleContentTypes.includes(input.declaredContentType)) {
+    return undefined;
+  }
+  return compatibleContentTypes[0];
 }

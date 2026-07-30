@@ -212,6 +212,7 @@ async function validateStoredFile(
     });
     const trustedContentType = await detectTrustedContentType({
       prefix,
+      filename: file.filename,
       declaredContentType: file.declared_content_type,
     });
     const policy = getUploadPolicy(session.policy_key);

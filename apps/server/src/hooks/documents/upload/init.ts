@@ -3,6 +3,7 @@ import { eq, ne } from 'drizzle-orm';
 
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
+import { getFileExtension } from '@repo/shared';
 import { documentsConfig } from '../config.js';
 import {
   abortMultipartUpload,
@@ -13,7 +14,6 @@ import {
   buildObjectKey,
   calculateMultipartPlan,
   createFileFingerprint,
-  normalizeExtension,
   sanitizeUploadFilename,
 } from './object-key.js';
 import { getUploadPolicy } from './policies.js';
@@ -82,7 +82,7 @@ async function assertUploadTargetDocument(
 async function initUpload(input: NormalizedUploadInitBody, userId: string) {
   const policy = getUploadPolicy(input.policyKey);
   const filename = sanitizeUploadFilename(input.filename);
-  const extension = normalizeExtension(filename);
+  const extension = getFileExtension(filename);
   if (!Number.isSafeInteger(input.size) || input.size <= 0) {
     throw new ROOT_ERROR('文件上传: 文件不能为空');
   }
@@ -90,6 +90,7 @@ async function initUpload(input: NormalizedUploadInitBody, userId: string) {
     throw new ROOT_ERROR('文件上传: 文件大小超过限制');
   }
   if (
+    !extension ||
     !policy.allowedContentTypes.includes(input.contentType) ||
     !policy.allowedExtensions.includes(extension)
   ) {

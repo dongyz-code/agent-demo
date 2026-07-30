@@ -4,6 +4,10 @@ import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import sharp from 'sharp';
 
+import {
+  collectContentTypes,
+  getFileExtension,
+} from '@repo/shared';
 import { documentsConfig } from '../config.js';
 import { presignGetObject } from '../storage/presign.js';
 
@@ -13,14 +17,14 @@ Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const OFFICE_TYPES = new Set([
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-]);
-const TEXT_TYPES = new Set(['text/plain', 'text/markdown', 'text/csv']);
-const PDF_TYPE = 'application/pdf';
+const IMAGE_TYPES = new Set(
+  collectContentTypes(['jpg', 'jpeg', 'png', 'webp']),
+);
+const PDF_TYPES = new Set(collectContentTypes(['pdf']));
+const OFFICE_TYPES = new Set(
+  collectContentTypes(['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx']),
+);
+const TEXT_TYPES = new Set(collectContentTypes(['txt', 'md', 'csv']));
 const MAX_SOURCE_BYTES = 200 * 1024 * 1024;
 const MAX_PAGE_COUNT = 1_000;
 const MAX_PAGE_PIXELS = 24_000_000;
@@ -84,7 +88,7 @@ export interface DocumentPageConverter {
 /** 判断上传策略允许的内容是否具备统一页面转换能力。 */
 function supportsDocumentPagePreview(contentType: string): boolean {
   return (
-    contentType === PDF_TYPE ||
+    PDF_TYPES.has(contentType) ||
     IMAGE_TYPES.has(contentType) ||
     OFFICE_TYPES.has(contentType) ||
     TEXT_TYPES.has(contentType)
@@ -111,7 +115,7 @@ export const documentPageConverter: DocumentPageConverter = {
     }
 
     const pdf =
-      source.contentType === PDF_TYPE
+      PDF_TYPES.has(source.contentType)
         ? await readSourceBuffer(source, MAX_SOURCE_BYTES)
         : await convertOfficeToPdf(source);
     yield* convertPdf(pdf);
@@ -248,7 +252,7 @@ async function* convertText(
   );
   const raw = content.toString('utf8').replaceAll('\u0000', '');
   const safeText =
-    source.contentType === 'text/markdown'
+    getFileExtension(source.filename) === 'md'
       ? await markdownToSafeText(raw)
       : raw;
   const lines = wrapTextLines(safeText);

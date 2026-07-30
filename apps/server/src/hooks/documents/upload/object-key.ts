@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
+
+import type { SupportedFileExtension } from '@repo/shared';
 
 /** S3 Multipart 最小分片大小。 */
 const MIN_PART_SIZE = 5 * 1024 * 1024;
@@ -26,17 +27,6 @@ export function sanitizeUploadFilename(filename: string): string {
 }
 
 /**
- * 提取并规范化文件扩展名。
- *
- * @param filename 已清洗或原始文件名。
- * @returns 小写且不包含点的扩展名；没有扩展名时返回 bin。
- */
-export function normalizeExtension(filename: string): string {
-  const extension = extname(filename).slice(1).toLowerCase();
-  return /^[a-z0-9]{1,16}$/.test(extension) ? extension : 'bin';
-}
-
-/**
  * 构造服务端控制的不可猜测对象路径。
  *
  * @param fileId 通用文件标识。
@@ -50,7 +40,7 @@ export function buildObjectKey({
   now,
 }: {
   fileId: string;
-  extension: string;
+  extension: SupportedFileExtension;
   now: Date;
 }): string {
   const year = String(now.getUTCFullYear());

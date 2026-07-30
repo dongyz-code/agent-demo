@@ -7,9 +7,14 @@
       @reset="loadDocuments(true)"
       @submit="loadDocuments(true)"
     />
-    <div class="flex items-center justify-between">
-      <el-button type="primary" @click="uploadRef?.open()">上传新文档</el-button>
-      <page-component @update:model-value="loadDocuments()" />
+    <div class="flex justify-end">
+      <el-button
+        type="primary"
+        :icon="LucideUpload"
+        @click="uploadRef?.open()"
+      >
+        上传新文档
+      </el-button>
     </div>
     <v-table
       class="min-h-0 flex-1"
@@ -59,20 +64,15 @@
       </template>
       <template #createdAt="{ row }">{{ formatDateTime(row.createdAt) }}</template>
       <template #actions="{ row }">
-        <el-button
-          link
-          :disabled="row.activeVersion.previewStatus !== 'ready'"
-          @click="previewRef?.open(row.documentId, row.activeVersion.documentVersionId)"
-        >
-          预览
-        </el-button>
-        <el-button link @click="detailRef?.open(row.documentId)">详情/版本</el-button>
-        <el-button link @click="uploadVersion(row)">上传新版本</el-button>
-        <el-button link @click="datasetsRef?.open(row)">知识库</el-button>
-        <el-button link @click="download(row.documentId)">下载</el-button>
-        <el-button link type="danger" @click="remove(row.documentId)">删除</el-button>
+        <v-action-button-group
+          :actions="getDocumentActions(row)"
+          :max-visible="3"
+        />
       </template>
     </v-table>
+    <div class="flex justify-end pt-1">
+      <page-component @update:model-value="loadDocuments()" />
+    </div>
     <upload-dialog
       ref="uploadRef"
       instance-key="document-new"
@@ -95,7 +95,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { ElButton, ElTag } from 'element-plus';
-import { VSchemaForm, VTable, usePage } from '@repo/ui';
+import {
+  VActionButtonGroup,
+  VSchemaForm,
+  VTable,
+  usePage,
+} from '@repo/ui';
 
 import DocumentPreviewDialog from '@/components/document-viewer/DocumentPreviewDialog.vue';
 import UploadDialog from '@/components/upload/UploadDialog.vue';
@@ -104,12 +109,23 @@ import DocumentDatasetsDialog from './DocumentDatasetsDialog.vue';
 import DocumentDetailDialog from './DocumentDetailDialog.vue';
 import { formatDateTime, formatFileSize } from '../utils';
 
+import LucideDatabase from '~icons/lucide/database';
+import LucideDownload from '~icons/lucide/download';
+import LucideEye from '~icons/lucide/eye';
+import LucideHistory from '~icons/lucide/history';
+import LucideTrash2 from '~icons/lucide/trash-2';
+import LucideUpload from '~icons/lucide/upload';
+
 import type {
   DocumentInfo,
   DocumentPreviewStatus,
   RagDatasetDocumentStatus,
 } from '@/types';
-import type { SchemaFormColumn, TableRow } from '@repo/ui';
+import type {
+  ActionButtonItem,
+  SchemaFormColumn,
+  TableRow,
+} from '@repo/ui';
 
 /** 文档列表搜索表单。 */
 interface SearchForm extends Record<string, unknown> {
@@ -183,8 +199,61 @@ const rows: TableRow[] = [
   { label: '预览', value: 'preview', slot: 'preview', width: 110 },
   { label: '知识库 / RAG', value: 'datasets', slot: 'datasets', minWidth: 230 },
   { label: '创建时间', value: 'createdAt', slot: 'createdAt', width: 180 },
-  { label: '操作', value: 'actions', slot: 'actions', width: 440, fixed: 'right' },
+  { label: '操作', value: 'actions', slot: 'actions', width: 350, fixed: 'right' },
 ];
+
+/**
+ * 生成单行文档操作配置，前三项直接展示，其余由按钮组收纳。
+ *
+ * @param document 当前文档聚合行。
+ * @returns 按使用频率排列的操作配置。
+ */
+function getDocumentActions(document: DocumentInfo): ActionButtonItem[] {
+  return [
+    {
+      key: 'preview',
+      label: '预览',
+      icon: LucideEye,
+      disabled: document.activeVersion.previewStatus !== 'ready',
+      handler: () =>
+        previewRef.value?.open(
+          document.documentId,
+          document.activeVersion.documentVersionId,
+        ),
+    },
+    {
+      key: 'detail',
+      label: '详情/版本',
+      icon: LucideHistory,
+      handler: () => detailRef.value?.open(document.documentId),
+    },
+    {
+      key: 'upload-version',
+      label: '上传新版本',
+      icon: LucideUpload,
+      handler: () => uploadVersion(document),
+    },
+    {
+      key: 'datasets',
+      label: '知识库',
+      icon: LucideDatabase,
+      handler: () => datasetsRef.value?.open(document),
+    },
+    {
+      key: 'download',
+      label: '下载',
+      icon: LucideDownload,
+      handler: () => download(document.documentId),
+    },
+    {
+      key: 'remove',
+      label: '删除',
+      icon: LucideTrash2,
+      type: 'danger',
+      handler: () => remove(document.documentId),
+    },
+  ];
+}
 
 /** 分页加载 Document 聚合列表。 */
 async function loadDocuments(withCount = false) {

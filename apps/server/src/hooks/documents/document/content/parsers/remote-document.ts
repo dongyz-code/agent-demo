@@ -4,25 +4,46 @@ import { marked } from 'marked';
 import { ROOT } from '@/configs/index.js';
 import { documentsConfig } from '../../../config.js';
 import { hashToUuid } from '../ids.js';
+import {
+  collectContentTypes,
+  getFileExtension,
+} from '@repo/shared';
 
 import type { DocumentParsedBlock } from '@repo/types';
-import type { DocumentParser } from '../types.js';
+import type { DocumentParser, DocumentParserInput } from '../types.js';
 import type { Token, Tokens } from 'marked';
 
-const REMOTE_TYPES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-] as const;
+const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
-/** PDF 与 Office 的 TextIn 远程解析器适配器。 */
+const MAX_LOCAL_PDF_BYTES = 64 * 1024 * 1024;
+const MIN_LOCAL_PDF_SEMANTIC_CHARACTERS = 40;
+const MIN_LOCAL_PDF_SEMANTIC_CHARACTERS_PER_PAGE = 20;
+const MIN_LOCAL_PDF_PAGE_CHARACTERS = 8;
+const MIN_LOCAL_PDF_READABLE_RATIO = 0.85;
+
+const REMOTE_EXTENSIONS = [
+  'pdf',
+  'doc',
+  'docx',
+  'ppt',
+  'pptx',
+  'xls',
+  'xlsx',
+] as const;
+const REMOTE_TYPES = collectContentTypes(REMOTE_EXTENSIONS);
+
+/** PDF 优先读取本地文本层，无法可靠提取时与 Office 一并回退 TextIn。 */
 export const remoteDocumentParser: DocumentParser = {
   name: 'remote-document',
-  version: 'textin-v1',
+  version: `pdfjs-${pdfjs.version}:textin-v1`,
   contentTypes: REMOTE_TYPES,
-  /** 调用 TextIn 并把 Markdown 响应转换为仓库统一文档块。 */
+  /** 优先本地解析数字 PDF，其余情况调用 TextIn 并转换统一文档块。 */
   async parse({ file }) {
+    if (getFileExtension(file.filename) === 'pdf') {
+      const localBlocks = await tryParseLocalPdf(file);
+      if (localBlocks) return localBlocks;
+    }
+
     const config = documentsConfig.document;
     if (!config.parserEndpoint) {
       throw new Error(
@@ -54,6 +75,161 @@ export const remoteDocumentParser: DocumentParser = {
     }
   },
 };
+
+/**
+ * 尝试从 PDF 自带文本层直接生成文档块。
+ *
+ * @param file 已验证且可重复打开的 PDF 源文件。
+ * @returns 文本层质量足够时返回按页组织的块，否则返回空并交给远程解析。
+ */
+async function tryParseLocalPdf(
+  file: DocumentParserInput['file'],
+): Promise<DocumentParsedBlock[] | undefined> {
+  if (file.size > MAX_LOCAL_PDF_BYTES) return undefined;
+
+  try {
+    const source = await readLocalPdf(file);
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(source),
+      useSystemFonts: true,
+    });
+    const document = await loadingTask.promise;
+    try {
+      const pages: string[] = [];
+      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+        const page = await document.getPage(pageNumber);
+        try {
+          const textContent = await page.getTextContent();
+          pages.push(extractPdfPageText(textContent.items));
+        } finally {
+          page.cleanup();
+        }
+      }
+      if (!isReliablePdfText(pages)) return undefined;
+      return pages.flatMap((text, index) => {
+        if (!text) return [];
+        const pageNumber = index + 1;
+        return [
+          {
+            blockId: hashToUuid(
+              `${file.fileId}:pdfjs:${pageNumber}:${text}`,
+            ),
+            type: 'paragraph',
+            text,
+            headingPath: [],
+            page: pageNumber,
+            position: index,
+            metadata: { source: 'pdf-text-layer' },
+          },
+        ];
+      });
+    } finally {
+      await document.destroy();
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 把受限大小的 PDF 流读取为 PDF.js 所需的完整字节。
+ *
+ * @param file 已验证的 PDF 源文件。
+ * @returns 不超过本地解析上限的 PDF 字节。
+ */
+async function readLocalPdf(file: DocumentParserInput['file']): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  const stream = await file.openStream();
+  for await (const chunk of stream) {
+    const content = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += content.length;
+    if (totalBytes > MAX_LOCAL_PDF_BYTES) {
+      throw new Error('DOCUMENT_LOCAL_PDF_TOO_LARGE');
+    }
+    chunks.push(content);
+  }
+  return Buffer.concat(chunks, totalBytes);
+}
+
+/**
+ * 将 PDF.js 文本项按原有换行和必要的西文词间距拼成单页文本。
+ *
+ * @param items PDF.js 返回的文本项与标记项。
+ * @returns 清理多余行内空白后的单页文本。
+ */
+function extractPdfPageText(items: unknown[]): string {
+  let source = '';
+  let previous = '';
+  for (const item of items) {
+    if (!item || typeof item !== 'object' || !('str' in item)) continue;
+    if (typeof item.str !== 'string') continue;
+    if (shouldInsertPdfTextSpace(previous, item.str)) source += ' ';
+    source += item.str;
+    previous = item.str;
+    if ('hasEOL' in item && item.hasEOL === true) {
+      source += '\n';
+      previous = '';
+    }
+  }
+  return source
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * 判断相邻 PDF 文本项之间是否需要补一个西文词间空格。
+ *
+ * @param previous 前一个 PDF 文本项。
+ * @param current 当前 PDF 文本项。
+ * @returns 两端都是拉丁字母或数字且原文未携带空白时返回真。
+ */
+function shouldInsertPdfTextSpace(previous: string, current: string): boolean {
+  return (
+    /[\p{Script=Latin}\p{N}]$/u.test(previous) &&
+    /^[\p{Script=Latin}\p{N}]/u.test(current)
+  );
+}
+
+/**
+ * 判断本地文本层是否足以替代远程文档识别。
+ *
+ * @param pages 按 PDF 页码排列的本地提取文本。
+ * @returns 总体文字量、页面覆盖和字符可读性均达标时返回真。
+ */
+function isReliablePdfText(pages: string[]): boolean {
+  if (!pages.length) return false;
+  const semanticCounts = pages.map(
+    (text) => text.match(/[\p{L}\p{N}]/gu)?.length ?? 0,
+  );
+  const semanticCharacterCount = semanticCounts.reduce(
+    (total, count) => total + count,
+    0,
+  );
+  const requiredCharacterCount = Math.max(
+    MIN_LOCAL_PDF_SEMANTIC_CHARACTERS,
+    pages.length * MIN_LOCAL_PDF_SEMANTIC_CHARACTERS_PER_PAGE,
+  );
+  if (semanticCharacterCount < requiredCharacterCount) return false;
+
+  const readablePageCount = semanticCounts.filter(
+    (count) => count >= MIN_LOCAL_PDF_PAGE_CHARACTERS,
+  ).length;
+  const allowedSparsePageCount = pages.length >= 5 ? 1 : 0;
+  if (readablePageCount < pages.length - allowedSparsePageCount) return false;
+
+  const text = pages.join('');
+  const visibleCharacterCount = text.match(/\S/gu)?.length ?? 0;
+  const readableCharacterCount =
+    text.match(/[\p{L}\p{M}\p{N}\p{P}\p{S}]/gu)?.length ?? 0;
+  return (
+    visibleCharacterCount > 0 &&
+    readableCharacterCount / visibleCharacterCount >=
+      MIN_LOCAL_PDF_READABLE_RATIO
+  );
+}
 
 /**
  * 将 TextIn 响应转换为仓库统一文档块。

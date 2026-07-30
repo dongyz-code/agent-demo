@@ -1,7 +1,9 @@
 import { ROOT_ERROR } from '@/configs/index.js';
 import { documentsConfig } from '../config.js';
+import { collectContentTypes } from '@repo/shared';
 
 import type { UploadPolicyKey } from '@repo/types';
+import type { SupportedFileExtension } from '@repo/shared';
 
 /** 服务端注册的上传策略。 */
 export interface UploadPolicy {
@@ -10,7 +12,7 @@ export interface UploadPolicy {
   /** 允许的可信 MIME 集合。 */
   allowedContentTypes: readonly string[];
   /** 允许的扩展名集合，不包含点。 */
-  allowedExtensions: readonly string[];
+  allowedExtensions: readonly SupportedFileExtension[];
   /** 策略允许的最大文件字节数。 */
   maxFileSizeBytes: number;
   /** 达到该字节数后使用 Multipart。 */
@@ -23,16 +25,21 @@ export interface UploadPolicy {
   unboundRetentionDays: number;
 }
 
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
-const RAG_DOCUMENT_TYPES = [
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/plain',
-  'text/markdown',
-  'text/csv',
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'] as const;
+const RAG_DOCUMENT_EXTENSIONS = [
+  'pdf',
+  'doc',
+  'docx',
+  'ppt',
+  'pptx',
+  'xls',
+  'xlsx',
+  'txt',
+  'md',
+  'csv',
 ] as const;
+const IMAGE_TYPES = collectContentTypes(IMAGE_EXTENSIONS);
+const RAG_DOCUMENT_TYPES = collectContentTypes(RAG_DOCUMENT_EXTENSIONS);
 
 /**
  * 返回当前服务端注册的上传策略。
@@ -46,17 +53,8 @@ function listUploadPolicies(): Record<UploadPolicyKey, UploadPolicy> {
       key: 'default-attachment',
       allowedContentTypes: [...IMAGE_TYPES, ...RAG_DOCUMENT_TYPES],
       allowedExtensions: [
-        'jpg',
-        'jpeg',
-        'png',
-        'webp',
-        'pdf',
-        'docx',
-        'pptx',
-        'xlsx',
-        'txt',
-        'md',
-        'csv',
+        ...IMAGE_EXTENSIONS,
+        ...RAG_DOCUMENT_EXTENSIONS,
       ],
       maxFileSizeBytes: config.maxFileSizeBytes,
       multipartThresholdBytes: config.multipartThresholdBytes,
@@ -67,7 +65,7 @@ function listUploadPolicies(): Record<UploadPolicyKey, UploadPolicy> {
     image: {
       key: 'image',
       allowedContentTypes: IMAGE_TYPES,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+      allowedExtensions: IMAGE_EXTENSIONS,
       maxFileSizeBytes: Math.min(config.maxFileSizeBytes, 50 * 1024 * 1024),
       multipartThresholdBytes: config.multipartThresholdBytes,
       partSizeBytes: config.partSizeBytes,
@@ -77,7 +75,7 @@ function listUploadPolicies(): Record<UploadPolicyKey, UploadPolicy> {
     'rag-document': {
       key: 'rag-document',
       allowedContentTypes: RAG_DOCUMENT_TYPES,
-      allowedExtensions: ['pdf', 'docx', 'pptx', 'xlsx', 'txt', 'md', 'csv'],
+      allowedExtensions: RAG_DOCUMENT_EXTENSIONS,
       maxFileSizeBytes: config.maxFileSizeBytes,
       multipartThresholdBytes: config.multipartThresholdBytes,
       partSizeBytes: config.partSizeBytes,
