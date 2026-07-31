@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 import { buildWhere, db, schemas } from '@/database/index.js';
+import { appendTaskLog } from '../../tasks/log.js';
 import { FILE_PROCESSING_STAGE_PROGRESS } from './definition.js';
 import { getErrorCode } from './errors.js';
 
@@ -105,6 +106,7 @@ export async function runTaskStage<T>(
       end_timestamp: null,
     });
   });
+  await appendTaskLog(context.taskId, `开始阶段：${stage}`);
   try {
     const result = await action();
     await lease.assertActive();
@@ -137,6 +139,10 @@ export async function runTaskStage<T>(
         })
         .where(taskWhere);
     });
+    await appendTaskLog(
+      context.taskId,
+      `完成阶段：${stage}，处理数量：${processedItems}`,
+    );
     return result;
   } catch (error) {
     try {
@@ -159,6 +165,7 @@ export async function runTaskStage<T>(
       .where(
         eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
       );
+    await appendTaskLog(context.taskId, `阶段失败：${stage}，${message}`);
     throw error;
   }
 }
@@ -205,6 +212,7 @@ export async function completeTask(
       })
       .where(eq(schemas.file_processing_tasks.task_id, context.taskId));
   });
+  await appendTaskLog(context.taskId, `任务执行完成，处理数量：${segmentCount}`);
 }
 
 /** 将仍由当前 lease 持有的任务标记为失败并保留当前阶段。 */
@@ -232,6 +240,7 @@ export async function failTask(
     })
     .where(where)
     .returning({ taskId: schemas.tasks.task_id });
+  if (failed) await appendTaskLog(taskId, `任务执行失败：${message}`);
   return Boolean(failed);
 }
 

@@ -9,6 +9,7 @@ import { createDocumentPreviewTask } from './task.js';
 import type {
   DocumentPreviewPageInfo,
   DocumentPreviewWindow,
+  FileProcessingTriggerSource,
 } from '@repo/types';
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -95,11 +96,11 @@ export async function getDocumentPreviewPages(
 }
 
 /**
- * 幂等重试 failed 版本并返回重试后的页面状态。
+ * 幂等重新处理当前版本并返回任务创建后的页面状态。
  *
  * @param input 文档与可选历史版本。
  * @param userId 当前操作用户。
- * @returns pending、processing 或原 ready 状态的页面窗口。
+ * @returns pending、processing 或任务执行后的页面窗口。
  */
 export async function retryDocumentPreview(
   input: Pick<GetDocumentPreviewPagesInput, 'documentId' | 'documentVersionId'>,
@@ -110,16 +111,16 @@ export async function retryDocumentPreview(
     input.documentVersionId,
     userId,
   );
-  if (resolved.version.preview_status === 'failed') {
-    await createDocumentPreviewTask(
-      {
-        documentId: input.documentId,
-        documentVersionId: resolved.version.document_version_id,
-        triggerSource: 'retry',
-      },
-      userId,
-    );
-  }
+  let triggerSource: FileProcessingTriggerSource = 'rerun';
+  if (resolved.version.preview_status === 'failed') triggerSource = 'retry';
+  await createDocumentPreviewTask(
+    {
+      documentId: input.documentId,
+      documentVersionId: resolved.version.document_version_id,
+      triggerSource,
+    },
+    userId,
+  );
   return await getDocumentPreviewPages(input, userId);
 }
 

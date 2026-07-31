@@ -39,9 +39,7 @@ export const contentTypesByExtension = {
     'application/x-excel',
     compoundFileContentType,
   ],
-  xlsx: [
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  ],
+  xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
   txt: ['text/plain'],
   md: ['text/markdown', 'text/x-markdown', 'text/plain'],
   csv: ['text/csv', 'application/csv', 'text/x-csv', 'text/plain'],

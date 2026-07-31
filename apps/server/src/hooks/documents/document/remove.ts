@@ -126,7 +126,6 @@ export async function removeDocument(
       task_name: `${document.name} / 文档清理`,
       search_key: document.name,
       pending_uuid: lockKey,
-      task_category: 'file-processing',
       business_type: 'document',
       business_id: documentId,
       current_stage: 'queued',

@@ -1,5 +1,7 @@
 <template>
-  <div class="inline-flex items-center whitespace-nowrap">
+  <div
+    class="inline-flex items-center gap-1 whitespace-nowrap [&_.el-button]:ml-0 [&_.el-button]:px-1.5"
+  >
     <el-button
       v-for="(action, index) in visibleActions"
       :key="getActionKey(action, index)"

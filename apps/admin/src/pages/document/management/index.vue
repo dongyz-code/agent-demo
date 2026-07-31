@@ -1,5 +1,5 @@
 <template>
-  <section class="flex min-h-full flex-col rounded bg-white p-4 shadow">
+  <section class="flex min-h-full flex-col">
     <document-list-panel />
   </section>
 </template>

@@ -18,10 +18,10 @@
         <figure
           v-for="page in preview.pages"
           :key="`${page.documentVersionId}-${page.pageNumber}`"
-          class="mx-auto max-w-5xl overflow-hidden rounded bg-white shadow"
+          class="mx-auto w-fit max-w-full overflow-hidden rounded bg-white shadow"
         >
           <img
-            class="block h-auto w-full"
+            class="block h-auto max-w-full"
             :src="page.url"
             :alt="`第 ${page.pageNumber} 页`"
             loading="lazy"
@@ -103,7 +103,7 @@ async function load(reset: boolean) {
 }
 
 /** 为 failed 版本创建唯一预览任务并重新轮询。 */
-async function retry() {
+async function retry(): Promise<void> {
   preview.value = await api('/documents/document-preview-retry', {
     documentId: props.documentId,
     documentVersionId: props.documentVersionId,

@@ -12,10 +12,6 @@
     </div>
 
     <div class="mt-2 flex min-h-0 flex-1 flex-col rounded bg-white p-4 shadow">
-      <div class="mb-3 flex flex-wrap items-center justify-end gap-3">
-        <page-component @update:model-value="getList()" />
-      </div>
-
       <div class="min-h-0 flex-1">
         <v-table
           class="h-full"
@@ -72,6 +68,7 @@
           </template>
         </v-table>
       </div>
+      <page-component class="mt-4" @update:model-value="getList()" />
     </div>
 
     <detail-dialog

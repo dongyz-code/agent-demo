@@ -1,8 +1,4 @@
 import { buildWhere, db, schemas } from '@/database/index.js';
-import {
-  enrichFileTaskList,
-  findFileProcessingTaskIds,
-} from '@/hooks/documents/tasks/task-center.js';
 import { routerHandler } from '@/router/utils.js';
 import {
   count as countSql,
@@ -21,23 +17,7 @@ const { api } = routerHandler({
   permission: adminPermissionKey('pages.sys.sys.task'),
   handler: async ({ body }) => {
     const form = body.form ?? {};
-    let fileTaskIds: string[] | undefined;
-    if (form.file_name?.trim()) {
-      const taskIds = await findFileProcessingTaskIds({
-        file_name: form.file_name,
-      });
-      if (!taskIds.length) return { list: [], count: 0 };
-      fileTaskIds = taskIds;
-    }
-
     const where = buildWhere((filter) => {
-      if (form.category?.length) {
-        if (Array.isArray(form.category)) {
-          filter.push(inArray(schemas.tasks.task_category, form.category));
-        } else {
-          filter.push(eq(schemas.tasks.task_category, form.category));
-        }
-      }
       if (form.status?.length) {
         if (Array.isArray(form.status)) {
           filter.push(inArray(schemas.tasks.status, form.status));
@@ -84,9 +64,6 @@ const { api } = routerHandler({
           lte(schemas.tasks.create_timestamp, form.create_timestamp[1]),
         );
       }
-      if (fileTaskIds) {
-        filter.push(inArray(schemas.tasks.task_id, fileTaskIds));
-      }
     });
     const limit = body.limit ?? [0, 10];
     const listPromise = db
@@ -102,7 +79,6 @@ const { api } = routerHandler({
         task_name: schemas.tasks.task_name,
         search_key: schemas.tasks.search_key,
         pending_uuid: schemas.tasks.pending_uuid,
-        task_category: schemas.tasks.task_category,
         business_type: schemas.tasks.business_type,
         business_id: schemas.tasks.business_id,
         current_stage: schemas.tasks.current_stage,
@@ -123,15 +99,8 @@ const { api } = routerHandler({
       : Promise.resolve([]);
     const [list, countRows] = await Promise.all([listPromise, countPromise]);
     const count = countRows[0]?.value ?? 0;
-    const enriched = list.length
-      ? await enrichFileTaskList(list.map((task) => task.task_id))
-      : new Map();
     return {
-      list: list.map((task) => ({
-        ...task,
-        running: false,
-        file_task: enriched.get(task.task_id) ?? null,
-      })),
+      list,
       count,
     };
   },

@@ -10,9 +10,6 @@ export type TaskStatus = TaskBaseStatus | 'deleted' | 'killed';
 
 export type TaskTriggerMethod = 'manual' | 'auto';
 
-/** 统一任务中心使用的任务分类。 */
-export type TaskCategory = 'system' | 'file-processing';
-
 /** 统一任务关联的业务对象类型。 */
 export type TaskBusinessType = 'file' | 'document' | 'document-version';
 
@@ -103,8 +100,6 @@ export type TaskItem = {
   task_name: string | null;
   search_key: string | null;
   pending_uuid: string | null;
-  /** 任务中心一级分类。 */
-  task_category: TaskCategory;
   /** 任务关联的业务对象类型。 */
   business_type: TaskBusinessType | null;
   /** 任务关联的业务对象标识。 */

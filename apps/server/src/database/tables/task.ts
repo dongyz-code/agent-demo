@@ -5,7 +5,6 @@ import { pgTable } from '../declaration/declaration.js';
 
 import type {
   TaskBusinessType,
-  TaskCategory,
   TaskStatus,
   TaskTriggerMethod,
 } from '@repo/types';
@@ -15,7 +14,7 @@ export const tasks = pgTable(
   {
     /** 任务ID */
     task_id: uuid('task_id').primaryKey(),
-    /** 任务标识，分类 */
+    /** 任务执行器标识，用于选择具体运行逻辑。 */
     task_key: varchar255('task_key').notNull(),
     /** 可以为空，默认就是 task_key，也可根据 detail 自行生成 */
     task_name: text('task_name'),
@@ -23,11 +22,8 @@ export const tasks = pgTable(
     search_key: text('search_key'),
     /** 运行中任务唯一标识，用于避免重复执行同 pending_uuid 任务 */
     pending_uuid: varchar255('pending_uuid'),
-    /** 统一任务中心分类。 */
-    task_category: varchar255('task_category')
-      .$type<TaskCategory>()
-      .notNull()
-      .default('system'),
+    /** 历史兼容字段；任务中心不再按固定枚举分类。 */
+    task_category: varchar255('task_category').notNull().default('system'),
     /** 任务关联的业务对象类型。 */
     business_type: varchar255('business_type').$type<TaskBusinessType>(),
     /** 任务关联的业务对象标识。 */

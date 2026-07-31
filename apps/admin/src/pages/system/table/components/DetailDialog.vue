@@ -94,7 +94,7 @@
           </el-tab-pane>
 
           <el-tab-pane label="数据预览" name="preview">
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="mb-3 flex justify-end">
               <el-button
                 type="primary"
                 :loading="loadingPreview"
@@ -103,10 +103,6 @@
               >
                 刷新数据
               </el-button>
-              <preview-page-component
-                v-if="preview"
-                @update:model-value="getPreview()"
-              />
             </div>
             <el-table
               v-loading="loadingPreview"
@@ -122,6 +118,11 @@
                 min-width="160"
               />
             </el-table>
+            <preview-page-component
+              v-if="preview"
+              class="mt-3"
+              @update:model-value="getPreview()"
+            />
           </el-tab-pane>
 
           <el-tab-pane label="操作记录" name="operations">
@@ -234,7 +235,7 @@ const {
   setPageData: setPreviewPageData,
 } = usePage({
   props: {
-    align: 'right',
+    align: 'center',
     size: 'small',
   },
   page: {

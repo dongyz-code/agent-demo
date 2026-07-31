@@ -1,5 +1,5 @@
 <template>
-  <v-dialog v-model="visible" title="文档详情与版本历史" width="900px">
+  <v-dialog v-model="visible" title="文档详情与版本历史" width="1200px">
     <div v-if="document" class="space-y-4">
       <div class="rounded bg-gray-50 p-3">
         <div class="text-lg font-medium">{{ document.name }}</div>
@@ -8,10 +8,21 @@
         </div>
       </div>
       <el-table :data="document.versions" max-height="520">
-        <el-table-column label="版本" width="90">
-          <template #default="{ row }">V{{ row.version }}</template>
+        <el-table-column label="版本" width="150">
+          <template #default="{ row }">
+            <div class="flex items-center gap-2 whitespace-nowrap">
+              <span>V{{ row.version }}</span>
+              <el-tag
+                v-if="row.documentVersionId === document.activeVersion.documentVersionId"
+                size="small"
+                type="success"
+              >
+                当前版本
+              </el-tag>
+            </div>
+          </template>
         </el-table-column>
-        <el-table-column prop="filename" label="源文件" min-width="220" />
+        <el-table-column prop="filename" label="源文件" min-width="360" />
         <el-table-column label="大小" width="110">
           <template #default="{ row }">{{ formatFileSize(row.size) }}</template>
         </el-table-column>
@@ -25,7 +36,7 @@
         <el-table-column label="创建时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button link @click="previewRef?.open(document.documentId, row.documentVersionId)">
               预览
@@ -39,7 +50,6 @@
             >
               设为当前
             </el-button>
-            <el-tag v-else size="small" type="success">当前版本</el-tag>
           </template>
         </el-table-column>
       </el-table>

@@ -62,7 +62,6 @@
 
     <page-component
       class="mt-4"
-      v-if="pageData.total < pageData.size"
       @update:model-value="getListDebounce()"
     />
 
@@ -143,7 +142,7 @@ const searchColumns: SchemaFormColumn<SearchForm>[] = [
   },
 ];
 
-const { pageData, pageRange, setPageData, pageComponent } = usePage({
+const { pageRange, setPageData, pageComponent } = usePage({
   page: { size: 50 },
 });
 

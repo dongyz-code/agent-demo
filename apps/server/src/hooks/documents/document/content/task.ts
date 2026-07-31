@@ -161,7 +161,6 @@ export async function createDocumentContentTask(
       task_name: `${resolved.file.filename} / 内容处理 / 第 ${executionNo} 次`,
       search_key: `${resolved.document.name} ${resolved.file.filename}`,
       pending_uuid: lockKey,
-      task_category: 'file-processing',
       business_type: 'document-version',
       business_id: documentVersionId,
       current_stage: 'queued',

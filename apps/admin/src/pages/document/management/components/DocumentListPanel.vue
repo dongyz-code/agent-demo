@@ -1,14 +1,18 @@
 <template>
-  <section class="flex min-h-0 flex-1 flex-col gap-3">
+  <section class="flex min-h-0 flex-1 flex-col">
     <v-schema-form
       v-model="searchForm"
+      class="mb-4 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm"
       mode="search"
       :columns="searchColumns"
       @reset="loadDocuments(true)"
       @submit="loadDocuments(true)"
     />
-    <div class="flex justify-end">
+    <div
+      class="flex items-center justify-end rounded-t-xl border border-b-0 border-gray-100 bg-white px-5 py-3 shadow-sm"
+    >
       <el-button
+        class="rounded-lg"
         type="primary"
         :icon="LucideUpload"
         @click="uploadRef?.open()"
@@ -17,7 +21,7 @@
       </el-button>
     </div>
     <v-table
-      class="min-h-0 flex-1"
+      class="min-h-0 flex-1 border-x border-gray-100 [--el-table-header-bg-color:#f8fafc] [--el-table-row-hover-bg-color:#f8fafc]"
       :data="documents"
       :rows="rows"
       :loading="loading"
@@ -25,28 +29,49 @@
       <template #cover="{ row }">
         <img
           v-if="row.cover"
-          class="h-14 w-11 rounded object-cover shadow"
+          class="h-14 w-11 rounded-md object-cover shadow-sm ring-1 ring-black/5"
           :src="row.cover.url"
           :alt="`${row.name} 封面`"
           loading="lazy"
         />
-        <div v-else class="flex h-14 w-11 items-center justify-center rounded bg-gray-100 text-xs text-gray-400">
+        <div
+          v-else
+          class="flex h-14 w-11 items-center justify-center rounded-md bg-gray-50 text-xs text-gray-400 ring-1 ring-gray-100"
+        >
           无封面
         </div>
       </template>
-      <template #version="{ row }">
-        <div>V{{ row.activeVersion.version }} / {{ row.versionCount }} 个版本</div>
-        <div class="max-w-64 truncate text-xs text-gray-500">
+      <template #name="{ row }">
+        <div class="max-w-72 truncate font-medium text-gray-800">
+          {{ row.name }}
+        </div>
+        <div
+          v-if="row.activeVersion.filename !== row.name"
+          class="mt-1 max-w-72 truncate text-xs text-gray-400"
+        >
           {{ row.activeVersion.filename }}
+        </div>
+      </template>
+      <template #version="{ row }">
+        <div class="flex items-center gap-2 whitespace-nowrap">
+          <el-tag size="small" effect="plain">
+            V{{ row.activeVersion.version }}
+          </el-tag>
+          <span class="text-xs text-gray-500">共 {{ row.versionCount }} 个版本</span>
         </div>
       </template>
       <template #size="{ row }">{{ formatFileSize(row.activeVersion.size) }}</template>
       <template #preview="{ row }">
-        <el-tag :type="getPreviewTagType(row.activeVersion.previewStatus)">
-          {{ previewStatusLabels[row.activeVersion.previewStatus] }}
-        </el-tag>
-        <div v-if="row.activeVersion.previewPageCount" class="mt-1 text-xs text-gray-500">
-          {{ row.activeVersion.previewPageCount }} 页
+        <div class="flex items-center gap-2 whitespace-nowrap">
+          <el-tag :type="getPreviewTagType(row.activeVersion.previewStatus)">
+            {{ previewStatusLabels[row.activeVersion.previewStatus] }}
+          </el-tag>
+          <span
+            v-if="row.activeVersion.previewPageCount"
+            class="text-xs text-gray-500"
+          >
+            {{ row.activeVersion.previewPageCount }} 页
+          </span>
         </div>
       </template>
       <template #datasets="{ row }">
@@ -70,7 +95,9 @@
         />
       </template>
     </v-table>
-    <div class="flex justify-end pt-1">
+    <div
+      class="rounded-b-xl border border-t-0 border-gray-100 bg-white px-5 shadow-sm"
+    >
       <page-component @update:model-value="loadDocuments()" />
     </div>
     <upload-dialog
@@ -113,6 +140,7 @@ import LucideDatabase from '~icons/lucide/database';
 import LucideDownload from '~icons/lucide/download';
 import LucideEye from '~icons/lucide/eye';
 import LucideHistory from '~icons/lucide/history';
+import LucideRefreshCw from '~icons/lucide/refresh-cw';
 import LucideTrash2 from '~icons/lucide/trash-2';
 import LucideUpload from '~icons/lucide/upload';
 
@@ -193,10 +221,10 @@ const searchColumns = computed<SchemaFormColumn<SearchForm>[]>(() => [
 
 const rows: TableRow[] = [
   { label: '封面', value: 'cover', slot: 'cover', width: 76 },
-  { label: '文档名称', value: 'name', minWidth: 'normal' },
-  { label: '当前版本', value: 'activeVersion', slot: 'version', minWidth: 210 },
+  { label: '文档名称', value: 'name', slot: 'name', minWidth: 240 },
+  { label: '版本', value: 'activeVersion', slot: 'version', width: 170 },
   { label: '大小', value: 'size', slot: 'size', width: 110 },
-  { label: '预览', value: 'preview', slot: 'preview', width: 110 },
+  { label: '预览', value: 'preview', slot: 'preview', width: 160 },
   { label: '知识库 / RAG', value: 'datasets', slot: 'datasets', minWidth: 230 },
   { label: '创建时间', value: 'createdAt', slot: 'createdAt', width: 180 },
   { label: '操作', value: 'actions', slot: 'actions', width: 350, fixed: 'right' },
@@ -226,6 +254,15 @@ function getDocumentActions(document: DocumentInfo): ActionButtonItem[] {
       label: '详情/版本',
       icon: LucideHistory,
       handler: () => detailRef.value?.open(document.documentId),
+    },
+    {
+      key: 'reprocess',
+      label: '重新处理',
+      icon: LucideRefreshCw,
+      disabled:
+        document.activeVersion.previewStatus === 'pending' ||
+        document.activeVersion.previewStatus === 'processing',
+      handler: () => reprocessPreview(document),
     },
     {
       key: 'upload-version',
@@ -300,6 +337,20 @@ async function uploadVersion(document: DocumentInfo) {
   await versionUploadRef.value?.open({
     documentId: document.documentId,
   });
+}
+
+/**
+ * 为当前文档版本提交一次新的预览处理任务。
+ *
+ * @param document 当前文档聚合信息。
+ */
+async function reprocessPreview(document: DocumentInfo): Promise<void> {
+  await api('/documents/document-preview-retry', {
+    documentId: document.documentId,
+    documentVersionId: document.activeVersion.documentVersionId,
+  });
+  notify('success', '已提交重新处理任务');
+  await loadDocuments();
 }
 
 /** 下载文档当前版本。 */

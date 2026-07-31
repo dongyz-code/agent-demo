@@ -21,7 +21,7 @@ export interface CreateDocumentPreviewTaskInput {
   documentId: string;
   /** 可选历史版本；为空时使用当前版本。 */
   documentVersionId?: string;
-  /** 上传自动触发或用户手动重试。 */
+  /** 上传、重试或重新处理的任务来源。 */
   triggerSource?: FileProcessingTriggerSource;
 }
 
@@ -30,7 +30,7 @@ export interface CreateDocumentPreviewTaskInput {
  *
  * @param input 文档、可选版本及触发来源。
  * @param userId 当前操作用户，用于数据范围和审计。
- * @returns 新任务或活动任务标识；同版本页面已就绪时返回空。
+ * @returns 新任务或活动任务标识；非强制请求命中同版本就绪页面时返回空。
  */
 export async function createDocumentPreviewTask(
   input: CreateDocumentPreviewTaskInput,
@@ -47,6 +47,8 @@ export async function createDocumentPreviewTask(
     throw new ROOT_ERROR('数据异常');
   }
   const documentVersionId = resolved.version.document_version_id;
+  const triggerSource = input.triggerSource ?? 'manual';
+  const forceNewTask = triggerSource === 'retry' || triggerSource === 'rerun';
   const lockKey = [
     'preview',
     documentVersionId,
@@ -65,6 +67,7 @@ export async function createDocumentPreviewTask(
       )
       .limit(1);
     if (
+      !forceNewTask &&
       version?.status === 'ready' &&
       version.converterVersion === DOCUMENT_PREVIEW_CONVERTER_VERSION
     ) {
@@ -107,7 +110,6 @@ export async function createDocumentPreviewTask(
     const executionNo = (lastExecution?.value ?? 0) + 1;
     const nextTaskId = randomUUID();
     const now = new Date();
-    const triggerSource = input.triggerSource ?? 'manual';
     await tx
       .update(schemas.document_versions)
       .set({
@@ -127,7 +129,6 @@ export async function createDocumentPreviewTask(
       task_name: `${resolved.file.filename} / 页面预览`,
       search_key: `${resolved.document.name} ${resolved.file.filename}`,
       pending_uuid: lockKey,
-      task_category: 'file-processing',
       business_type: 'document-version',
       business_id: documentVersionId,
       current_stage: 'queued',

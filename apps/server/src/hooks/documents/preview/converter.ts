@@ -28,6 +28,8 @@ const TEXT_TYPES = new Set(collectContentTypes(['txt', 'md', 'csv']));
 const MAX_SOURCE_BYTES = 200 * 1024 * 1024;
 const MAX_PAGE_COUNT = 1_000;
 const MAX_PAGE_PIXELS = 24_000_000;
+const PDF_RENDER_SCALE = 2.5;
+const PREVIEW_WEBP_QUALITY = 92;
 const TEXT_PAGE_WIDTH = 1_191;
 const TEXT_PAGE_HEIGHT = 1_684;
 const TEXT_MARGIN = 72;
@@ -37,7 +39,7 @@ const TEXT_LINE_LENGTH = 74;
 
 /** 当前页面转换器组合版本，规则或底层渲染器变化时必须递增。 */
 export const DOCUMENT_PREVIEW_CONVERTER_VERSION = [
-  'document-pages-v1',
+  'document-pages-v2',
   `pdfjs-${pdfjs.version}`,
   `sharp-${sharp.versions.sharp}`,
   'office-pdf-v1',
@@ -135,7 +137,7 @@ async function convertImage(
       fit: 'inside',
       withoutEnlargement: true,
     })
-    .webp({ quality: 84 })
+    .webp({ quality: PREVIEW_WEBP_QUALITY })
     .toBuffer();
   const metadata = await sharp(content).metadata();
   if (!metadata.width || !metadata.height) {
@@ -170,14 +172,16 @@ async function* convertPdf(
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
       const page = await document.getPage(pageNumber);
       try {
-        const baseViewport = page.getViewport({ scale: 1.5 });
+        const baseViewport = page.getViewport({ scale: PDF_RENDER_SCALE });
         const pixelScale = Math.min(
           1,
           Math.sqrt(
             MAX_PAGE_PIXELS / (baseViewport.width * baseViewport.height),
           ),
         );
-        const viewport = page.getViewport({ scale: 1.5 * pixelScale });
+        const viewport = page.getViewport({
+          scale: PDF_RENDER_SCALE * pixelScale,
+        });
         const width = Math.max(1, Math.ceil(viewport.width));
         const height = Math.max(1, Math.ceil(viewport.height));
         const canvas = createCanvas(width, height);
@@ -190,7 +194,7 @@ async function* convertPdf(
           viewport,
         }).promise;
         const pageContent = await sharp(canvas.toBuffer('image/png'))
-          .webp({ quality: 84 })
+          .webp({ quality: PREVIEW_WEBP_QUALITY })
           .toBuffer();
         yield {
           pageNumber,
@@ -272,7 +276,7 @@ async function* convertText(
     );
     const svg = renderTextPageSvg(pageLines);
     const pageContent = await sharp(Buffer.from(svg))
-      .webp({ quality: 84 })
+      .webp({ quality: PREVIEW_WEBP_QUALITY })
       .toBuffer();
     yield {
       pageNumber: index + 1,
