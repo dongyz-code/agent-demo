@@ -7,7 +7,7 @@ import {
   FileProcessingLeaseLostError,
   isTaskCanceled,
 } from '../tasks/runtime.js';
-import { deleteStoredObject } from '../storage/objects.js';
+import { deleteStoredObject } from '../file/objects.js';
 
 import type { FileProcessingTaskLease } from '../tasks/runtime.js';
 

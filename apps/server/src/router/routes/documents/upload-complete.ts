@@ -1,4 +1,4 @@
-import { completeDocumentUpload } from '@/hooks/documents/upload/complete.js';
+import { completeDocumentUpload } from '@/hooks/documents/file/complete.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 

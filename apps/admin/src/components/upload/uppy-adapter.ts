@@ -3,12 +3,10 @@ import AwsS3 from '@uppy/aws-s3';
 import GoldenRetriever from '@uppy/golden-retriever';
 
 import { api } from '@/utils';
-import { sha256 } from '@/utils/crypto/sha256';
 import { getUploadErrorMessage } from './utils';
 import { getClientUploadPolicy, resolveDeclaredContentType } from './policies';
 
 import type { UppyFile } from '@uppy/core';
-import type { AwsS3Part } from '@uppy/aws-s3';
 import type {
   UploadFileMeta,
   UploadResponseBody,
@@ -84,7 +82,7 @@ export function createUploadUppy(options: UploaderOptions) {
       assertInitialized(file);
       return {
         key: file.meta.sessionId!,
-        uploadId: file.meta.uploadId!,
+        uploadId: file.meta.sessionId!,
       };
     },
     async listParts(_file, upload) {
@@ -100,19 +98,13 @@ export function createUploadUppy(options: UploaderOptions) {
     async signPart(_file, upload) {
       const result = await api('/documents/upload-sign-parts', {
         sessionId: upload.key,
-        partNumbers: [upload.partNumber],
+        partNumber: upload.partNumber,
       });
-      const signed = result.parts[0];
-      if (!signed) throw new Error('服务端未返回分片签名');
-      return { method: 'PUT', url: signed.uploadUrl };
+      return { method: 'PUT', url: result.uploadUrl };
     },
     async completeMultipartUpload(file, upload) {
       setFileStage(file.id, 'confirming');
-      const storedFile = await completeUploadAndNotify(
-        file,
-        upload.key,
-        upload.parts,
-      );
+      const storedFile = await completeUploadAndNotify(file, upload.key);
       return { location: '', file: storedFile };
     },
     async abortMultipartUpload(_file, upload) {
@@ -135,11 +127,7 @@ export function createUploadUppy(options: UploaderOptions) {
         }
         setFileStage(file.id, 'confirming');
         try {
-          await completeUploadAndNotify(
-            file,
-            file.meta.sessionId!,
-            undefined,
-          );
+          await completeUploadAndNotify(file, file.meta.sessionId!);
         } catch (error) {
           setFileFailure(file.id, error, '文件验证或文档入库失败');
         }
@@ -172,12 +160,9 @@ export function createUploadUppy(options: UploaderOptions) {
     if (!file || file.meta.storedFile) return true;
     setFileStage(file.id, 'initializing');
     try {
-      const fingerprint =
-        file.meta.fingerprint ?? (await createBrowserFingerprint(file));
-      const uploadAttemptId =
-        file.meta.uploadAttemptId ?? crypto.randomUUID();
-      const currentIntent = options.getProcessingIntent?.();
-      let documentId = file.meta.documentId ?? currentIntent?.documentId;
+      const uploadAttemptId = file.meta.uploadAttemptId ?? crypto.randomUUID();
+      const currentDocumentId = options.getDocumentId?.();
+      let documentId = file.meta.documentId ?? currentDocumentId;
       if (file.meta.documentId === null) documentId = undefined;
       let contentType = file.type || 'application/octet-stream';
       if (file.data instanceof File) {
@@ -186,7 +171,6 @@ export function createUploadUppy(options: UploaderOptions) {
       uppy.setFileMeta(file.id, {
         ...file.meta,
         documentId: documentId ?? null,
-        fingerprint,
         uploadAttemptId,
         retryable: false,
         restartRequired: false,
@@ -196,15 +180,12 @@ export function createUploadUppy(options: UploaderOptions) {
         filename: file.name,
         contentType,
         size: file.size ?? 0,
-        fingerprint,
         idempotencyKey: uploadAttemptId,
         documentId,
-        enterRag: false,
       });
       uppy.setFileMeta(file.id, {
         ...uppy.getFile(file.id).meta,
-        sessionId: initialized.session.sessionId,
-        fileId: initialized.session.fileId,
+        sessionId: initialized.sessionId,
       });
       if (initialized.mode === 'completed') {
         await completePendingFile(file.id);
@@ -221,7 +202,6 @@ export function createUploadUppy(options: UploaderOptions) {
         uppy.setFileMeta(file.id, {
           ...uppy.getFile(file.id).meta,
           mode: initialized.mode,
-          uploadId: initialized.uploadId,
           partSize: initialized.partSize,
         });
       }
@@ -233,14 +213,16 @@ export function createUploadUppy(options: UploaderOptions) {
     }
   }
 
-  /** 完成服务端验证、保存文档结果并独立通知页面刷新。 */
-  async function completeUploadAndNotify(
-    file: ManagedFile,
-    sessionId: string,
-    parts: AwsS3Part[] | undefined,
-  ) {
+  /**
+   * 完成服务端验证、保存文档结果并独立通知页面刷新。
+   *
+   * @param file 当前 Uppy 文件。
+   * @param sessionId 服务端上传会话标识。
+   * @returns 文档版本绑定结果。
+   */
+  async function completeUploadAndNotify(file: ManagedFile, sessionId: string) {
     const storedFile =
-      file.meta.storedFile ?? (await completeStoredUpload(sessionId, parts));
+      file.meta.storedFile ?? (await completeStoredUpload(sessionId));
     storeDocumentResult(file.id, storedFile);
     await notifyUploaded(storedFile);
     return storedFile;
@@ -364,10 +346,7 @@ export function createUploadUppy(options: UploaderOptions) {
     if (!file?.meta.sessionId) return;
     setFileStage(file.id, 'confirming');
     try {
-      const storedFile = await completeStoredUpload(
-        file.meta.sessionId,
-        undefined,
-      );
+      const storedFile = await completeStoredUpload(file.meta.sessionId);
       storeDocumentResult(file.id, storedFile);
       await notifyUploaded(storedFile);
     } catch (error) {
@@ -458,9 +437,7 @@ export function createUploadUppy(options: UploaderOptions) {
     if (!file) return;
     const {
       sessionId: _sessionId,
-      fileId: _storedFileId,
       mode: _mode,
-      uploadId: _uploadId,
       partSize: _partSize,
       uploadUrl: _uploadUrl,
       uploadHeaders: _uploadHeaders,
@@ -530,34 +507,14 @@ export function createUploadUppy(options: UploaderOptions) {
   };
 }
 
-/** 完成服务端对象合并、可信验证和文档版本绑定。 */
-async function completeStoredUpload(
-  sessionId: string,
-  parts: AwsS3Part[] | undefined,
-) {
-  const completedParts: { partNumber: number; etag: string }[] = [];
-  for (const part of parts ?? []) {
-    if (part.PartNumber && part.ETag) {
-      completedParts.push({ partNumber: part.PartNumber, etag: part.ETag });
-    }
-  }
-  const input: {
-    /** 当前上传会话标识。 */
-    sessionId: string;
-    /** Multipart 模式提交的已完成分片清单。 */
-    parts?: { partNumber: number; etag: string }[];
-  } = { sessionId };
-  if (parts) input.parts = completedParts;
-  return await api('/documents/upload-complete', input);
-}
-
-/** 生成重新选择同一文件时可复用的元数据指纹，不作为内容可信 Hash。 */
-async function createBrowserFingerprint(file: ManagedFile): Promise<string> {
-  let lastModified = 0;
-  if (file.data instanceof File) lastModified = file.data.lastModified;
-  return await sha256(
-    `${file.name}:${file.size ?? 0}:${file.type}:${lastModified}`,
-  );
+/**
+ * 完成服务端对象合并、可信验证和文档版本绑定。
+ *
+ * @param sessionId 服务端上传会话标识。
+ * @returns 文档版本绑定结果。
+ */
+async function completeStoredUpload(sessionId: string) {
+  return await api('/documents/upload-complete', { sessionId });
 }
 
 /** 断言预处理器已为文件建立可写上传会话。 */

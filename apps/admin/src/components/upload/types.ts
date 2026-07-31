@@ -8,20 +8,14 @@ export interface UploadFileMeta extends Record<string, unknown> {
   documentId?: string | null;
   /** 服务端上传会话标识。 */
   sessionId?: string;
-  /** 初始化得到的文件标识。 */
-  fileId?: string;
   /** 服务端选择的传输模式。 */
   mode?: UploadMode;
-  /** Multipart 上传标识，仅在插件内部透传。 */
-  uploadId?: string;
   /** Multipart 分片大小。 */
   partSize?: number;
   /** 普通上传预签名地址。 */
   uploadUrl?: string;
   /** 普通上传要求携带的请求头。 */
   uploadHeaders?: Record<string, string>;
-  /** 刷新后可复用的稳定文件指纹。 */
-  fingerprint?: string;
   /** 当前文件在管理端展示的上传阶段。 */
   stage?: UploadQueueStage;
   /** 当前错误是否允许在不重新选择文件的情况下重试。 */
@@ -82,17 +76,8 @@ export interface UploaderOptions {
   policyKey: UploadPolicyKey;
   /** 单次队列最多允许加入的文件数。 */
   maxNumberOfFiles?: number;
-  /** 每次初始化上传会话时读取最新的文件处理意图。 */
-  getProcessingIntent?: () => {
-    /** 已有文档标识；提供时上传新版本。 */
-    documentId?: string;
-    /** 新建文档显示名称。 */
-    documentName?: string;
-    /** 文件验证成功后是否自动进入 RAG。 */
-    enterRag: boolean;
-    /** 自动处理使用的多个目标知识库。 */
-    datasetIds?: string[];
-  };
+  /** 每次初始化上传会话时读取最新的目标文档；空值表示新建文档。 */
+  getDocumentId?: () => string | undefined;
   /** 文档版本创建后的业务回调；Promise 完成前队列项不会标记成功。 */
   onUploaded?: (result: DocumentUploadResult) => void | Promise<void>;
 }

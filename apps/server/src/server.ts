@@ -9,7 +9,7 @@ import {
 import { startupTableStructureSync } from '@/database/structure/index.js';
 import { ensureDocumentSegmentsCollection } from '@/vector/client.js';
 import { getRoutes, callback } from '@/router/index.js';
-import { checkUploadBucket } from '@/hooks/documents/storage/objects.js';
+import { checkUploadBucket } from '@/hooks/documents/file/objects.js';
 import { startFileProcessingWorker } from '@/hooks/documents/tasks/worker.js';
 
 logger.info(

@@ -15,7 +15,7 @@ import {
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import { presignGetObject } from '../storage/presign.js';
+import { presignGetObject } from '../file/objects.js';
 
 import type {
   DocumentDetail,

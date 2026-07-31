@@ -109,8 +109,8 @@ const {
   instanceKey: props.instanceKey,
   policyKey: props.policyKey,
   maxNumberOfFiles: props.maxNumberOfFiles,
-  getProcessingIntent() {
-    return { documentId: targetDocumentId.value, enterRag: false };
+  getDocumentId() {
+    return targetDocumentId.value;
   },
   onUploaded(file) {
     emit('uploaded', file);

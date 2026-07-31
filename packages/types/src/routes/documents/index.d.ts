@@ -39,8 +39,6 @@ export type DocumentsAction = ApiMultAction<{
   'upload-abort': Upload['abort'];
   /** 上传会话状态。 */
   'upload-status': Upload['status'];
-  /** 上传会话列表。 */
-  'upload-list': Upload['list'];
   /** 文件处理任务详情。 */
   'processing-detail': FileProcessingAction['detail'];
   /** 取消文件处理任务。 */

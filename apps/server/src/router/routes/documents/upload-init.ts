@@ -1,4 +1,4 @@
-import { initializeDocumentUpload } from '@/hooks/documents/upload/init.js';
+import { initializeDocumentUpload } from '@/hooks/documents/file/init.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 

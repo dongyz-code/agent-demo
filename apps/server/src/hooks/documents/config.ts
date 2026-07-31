@@ -22,9 +22,7 @@ export const documentsConfig = {
     multipartThresholdBytes: 50 * 1024 * 1024,
     partSizeBytes: 16 * 1024 * 1024,
     maxFileSizeBytes: 2 * 1024 * 1024 * 1024,
-    maxSignedParts: 20,
     sessionExpiresSeconds: 24 * 60 * 60,
-    unboundRetentionDays: 7,
     maxTextPreviewBytes: 1024 * 1024,
     officePreviewEndpoint: OFFICE_PREVIEW_ENDPOINT
       ? normalizeEndpoint(OFFICE_PREVIEW_ENDPOINT)
@@ -39,7 +37,6 @@ export const documentsConfig = {
     segmentOverlapTokens: 80,
   },
   fileProcessing: {
-    defaultEnterRag: false,
     workerConcurrency: 4,
     staleTaskSeconds: 5 * 60,
     enabled: FILE_PROCESSING_ENABLED,

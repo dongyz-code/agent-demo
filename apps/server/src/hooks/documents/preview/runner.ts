@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
 
-import { logger, ROOT_ERROR } from '@/configs/index.js';
+import { logger } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import { getDocumentSourceFile } from '../storage/source.js';
+import { getStoredFile } from '../file/source.js';
 import { getErrorCode } from '../tasks/errors.js';
 import {
   FileProcessingLeaseLostError,
@@ -15,7 +15,7 @@ import {
   deleteStoredObject,
   openStoredObject,
   putStoredObject,
-} from '../storage/objects.js';
+} from '../file/objects.js';
 import {
   DOCUMENT_PREVIEW_CONVERTER_VERSION,
   documentPageConverter,
@@ -176,7 +176,7 @@ async function generateAndUploadPages(
   lease: FileProcessingTaskLease,
   pages: UploadedPreviewPage[],
 ): Promise<void> {
-  const file = await getDocumentSourceFile(context.fileId);
+  const file = await getStoredFile(context.fileId);
   if (file.status !== 'verified') {
     throw new Error(
       'DOCUMENT_PREVIEW_SOURCE_INVALID: 只有验证成功的文件可以生成预览',

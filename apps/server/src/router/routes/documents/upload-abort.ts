@@ -1,4 +1,4 @@
-import { abortDocumentUpload } from '@/hooks/documents/upload/multipart.js';
+import { abortDocumentUpload } from '@/hooks/documents/file/multipart.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 

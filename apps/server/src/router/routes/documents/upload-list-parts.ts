@@ -1,4 +1,4 @@
-import { syncDocumentUploadParts } from '@/hooks/documents/upload/multipart.js';
+import { syncDocumentUploadParts } from '@/hooks/documents/file/multipart.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 

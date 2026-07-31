@@ -1,5 +1,5 @@
 import type { DocumentParsedBlock } from '@repo/types';
-import type { ReadableDocumentSource } from '../../storage/source.js';
+import type { ReadableDocumentSource } from '../../file/source.js';
 
 /** 文档解析器输入。 */
 export interface DocumentParserInput {

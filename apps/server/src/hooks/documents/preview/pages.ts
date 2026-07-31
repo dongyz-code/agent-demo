@@ -3,7 +3,7 @@ import { asc, eq, gte, lt } from 'drizzle-orm';
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { resolveDocumentVersion } from '../document/read.js';
-import { presignGetObject } from '../storage/presign.js';
+import { presignGetObject } from '../file/objects.js';
 import { createDocumentPreviewTask } from './task.js';
 
 import type {

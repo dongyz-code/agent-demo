@@ -7,7 +7,7 @@ import {
   publishDocumentRagRelationsForTask,
 } from '../../rag/relations.js';
 import { embedAndIndexSegments } from '../../rag/indexing.js';
-import { getReadableDocumentSource } from '../../storage/source.js';
+import { getReadableDocumentSource } from '../../file/source.js';
 import { getErrorCode } from '../../tasks/errors.js';
 import {
   completeTask,

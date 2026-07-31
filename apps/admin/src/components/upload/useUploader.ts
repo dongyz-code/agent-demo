@@ -45,7 +45,7 @@ export function useUploader(options: UploaderOptions) {
    */
   function addFiles(files: FileList | File[]): string[] {
     const errors: string[] = [];
-    const intent = options.getProcessingIntent?.();
+    const documentId = options.getDocumentId?.();
     for (const file of Array.from(files)) {
       if (
         options.maxNumberOfFiles &&
@@ -67,7 +67,7 @@ export function useUploader(options: UploaderOptions) {
           source: 'file-input',
           meta: {
             uploadAttemptId: crypto.randomUUID(),
-            documentId: intent?.documentId ?? null,
+            documentId: documentId ?? null,
             stage: 'waiting',
             retryable: false,
             restored: false,

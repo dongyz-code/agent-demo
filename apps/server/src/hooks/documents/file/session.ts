@@ -37,24 +37,6 @@ export async function getOwnedUploadSession(sessionId: string, userId: string) {
 }
 
 /**
- * 查询上传流程内部使用的源文件行。
- *
- * @param fileId 上传会话绑定的内部文件标识。
- * @returns 尚未删除的文件数据库行。
- */
-export async function getUploadSourceFile(fileId: string) {
-  const [file] = await db
-    .select()
-    .from(schemas.files)
-    .where(eq(schemas.files.file_id, fileId))
-    .limit(1);
-  if (!file || file.status === 'deleted') {
-    throw new ROOT_ERROR('相关文件不存在');
-  }
-  return file;
-}
-
-/**
  * 校验会话当前允许继续执行对象传输操作。
  *
  * @param session 上传会话数据库行。
@@ -71,26 +53,5 @@ export function assertTransferableUploadSession(
       throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
     }
     throw new ROOT_ERROR('文件上传: 上传会话已结束，请重新选择文件');
-  }
-}
-
-/**
- * 解析上传会话保存的知识库标识集合。
- *
- * @param value 数据库中保存的 JSON 字符串。
- * @returns 去重后的合法字符串标识。
- */
-export function parseUploadDatasetIds(value: string): string[] {
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed)
-      ? [
-          ...new Set(
-            parsed.filter((item): item is string => typeof item === 'string'),
-          ),
-        ]
-      : [];
-  } catch {
-    return [];
   }
 }

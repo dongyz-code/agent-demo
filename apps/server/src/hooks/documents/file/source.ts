@@ -5,27 +5,33 @@ import { db, schemas } from '@/database/index.js';
 import { openStoredObject } from './objects.js';
 
 import type { Readable } from 'node:stream';
-import type { StoredFileInfo } from '@repo/types';
-
 /** 文档处理读取已验证源文件时使用的稳定描述。 */
-export interface ReadableDocumentSource extends StoredFileInfo {
+export interface ReadableDocumentSource {
+  /** 文件稳定标识，用于生成确定性解析块。 */
+  fileId: string;
+  /** 用户上传时提供的文件名。 */
+  filename: string;
+  /** 服务端验证后的可信 MIME。 */
+  contentType: string;
+  /** 文件字节数。 */
+  size: number;
   /** 每次调用均重新打开对象流，避免重试复用已消费流。 */
   openStream: () => Promise<Readable>;
 }
 
 /**
- * 查询文档版本内部使用的源文件行。
+ * 查询文件域内部使用的存储文件行。
  *
- * @param fileId DocumentVersion 保存的内部源文件标识。
- * @returns 尚未删除的源文件数据库行。
+ * @param fileId 上传会话或 DocumentVersion 保存的内部文件标识。
+ * @returns 源文件数据库行。
  */
-export async function getDocumentSourceFile(fileId: string) {
+export async function getStoredFile(fileId: string) {
   const [file] = await db
     .select()
     .from(schemas.files)
     .where(eq(schemas.files.file_id, fileId))
     .limit(1);
-  if (!file || file.status === 'deleted') {
+  if (!file) {
     throw new ROOT_ERROR('相关文件不存在');
   }
   return file;
@@ -40,18 +46,15 @@ export async function getDocumentSourceFile(fileId: string) {
 export async function getReadableDocumentSource(
   fileId: string,
 ): Promise<ReadableDocumentSource> {
-  const file = await getDocumentSourceFile(fileId);
-  if (file.status !== 'verified') {
+  const file = await getStoredFile(fileId);
+  if (file.status !== 'verified' || !file.content_type) {
     throw new ROOT_ERROR('数据异常');
   }
   return {
     fileId: file.file_id,
     filename: file.filename,
-    contentType: file.content_type ?? file.declared_content_type,
+    contentType: file.content_type,
     size: file.size,
-    sha256: file.sha256,
-    status: file.status,
-    createdAt: file.create_timestamp,
     openStream: async () =>
       await openStoredObject({
         bucket: file.bucket,

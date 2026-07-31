@@ -1,27 +1,26 @@
 import { eq, inArray } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { documentsConfig } from '../config.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import {
   abortMultipartUpload,
   listMultipartParts,
-} from '../storage/objects.js';
-import { presignUploadPart } from '../storage/presign.js';
+  presignUploadPart,
+} from './objects.js';
 import {
   assertTransferableUploadSession,
   getOwnedUploadSession,
-  getUploadSourceFile,
 } from './session.js';
+import { getStoredFile } from './source.js';
 
 import type { Upload } from '@repo/types';
 
 /**
- * 为上传会话的一组 Multipart 分片签发短期地址。
+ * 为上传会话的指定 Multipart 分片签发短期地址。
  *
  * @param input 上传会话与需要签名的分片编号。
  * @param userId 当前操作用户，用于校验会话所有权。
- * @returns 分片编号、短期上传地址和过期时间。
+ * @returns 短期上传地址。
  */
 export async function signDocumentUploadParts(
   input: Upload['sign-parts']['body'],
@@ -36,36 +35,21 @@ export async function signDocumentUploadParts(
   ) {
     throw new ROOT_ERROR('非法参数');
   }
-  const uniqueParts = [...new Set(input.partNumbers)];
   if (
-    !uniqueParts.length ||
-    uniqueParts.length > documentsConfig.upload.maxSignedParts ||
-    uniqueParts.some(
-      (partNumber) =>
-        !Number.isInteger(partNumber) ||
-        partNumber < 1 ||
-        partNumber > session.part_count!,
-    )
+    !Number.isInteger(input.partNumber) ||
+    input.partNumber < 1 ||
+    input.partNumber > session.part_count
   ) {
     throw new ROOT_ERROR('非法参数');
   }
-  const file = await getUploadSourceFile(session.file_id);
-  const parts = await Promise.all(
-    uniqueParts.map(async (partNumber) => {
-      const signed = await presignUploadPart({
-        bucket: file.bucket,
-        objectKey: file.object_key,
-        uploadId: session.upload_id!,
-        partNumber,
-      });
-      return {
-        partNumber,
-        uploadUrl: signed.url,
-        expiresAt: signed.expiresAt,
-      };
-    }),
-  );
-  return { parts };
+  const file = await getStoredFile(session.file_id);
+  const signed = await presignUploadPart({
+    bucket: file.bucket,
+    objectKey: file.object_key,
+    uploadId: session.upload_id,
+    partNumber: input.partNumber,
+  });
+  return { uploadUrl: signed.url };
 }
 
 /**
@@ -73,7 +57,7 @@ export async function signDocumentUploadParts(
  *
  * @param sessionId 上传会话标识。
  * @param userId 当前操作用户，用于会话所有权和审计。
- * @returns 已完成分片、上传字节数和缺失分片编号。
+ * @returns 对象存储已接收的分片。
  */
 export async function syncDocumentUploadParts(
   sessionId: string,
@@ -86,9 +70,9 @@ export async function syncDocumentUploadParts(
     !session.upload_id ||
     !session.part_count
   ) {
-    return { parts: [], uploadedSize: 0, missingPartNumbers: [] };
+    return { parts: [] };
   }
-  const file = await getUploadSourceFile(session.file_id);
+  const file = await getStoredFile(session.file_id);
   const parts = await listMultipartParts({
     bucket: file.bucket,
     objectKey: file.object_key,
@@ -98,21 +82,12 @@ export async function syncDocumentUploadParts(
   await db
     .update(schemas.file_upload_sessions)
     .set({
-      status: session.status === 'initialized' ? 'uploading' : session.status,
-      uploaded_size: parts.reduce((sum, part) => sum + part.size, 0),
+      status: 'uploading',
       last_update_user_id: userId,
       last_update_timestamp: now,
     })
     .where(eq(schemas.file_upload_sessions.session_id, session.session_id));
-  const uploaded = new Set(parts.map((part) => part.partNumber));
-  return {
-    parts,
-    uploadedSize: parts.reduce((sum, part) => sum + part.size, 0),
-    missingPartNumbers: Array.from(
-      { length: session.part_count },
-      (_, index) => index + 1,
-    ).filter((partNumber) => !uploaded.has(partNumber)),
-  };
+  return { parts };
 }
 
 /**
@@ -128,7 +103,7 @@ export async function abortDocumentUpload(
 ): Promise<'ok'> {
   const session = await getOwnedUploadSession(sessionId, userId);
   if (['canceled', 'expired'].includes(session.status)) return 'ok';
-  if (['completed'].includes(session.status)) {
+  if (session.status === 'completed') {
     throw new ROOT_ERROR('数据异常');
   }
   const where = buildWhere((filter) => {
@@ -153,7 +128,7 @@ export async function abortDocumentUpload(
   if (!claimed) {
     throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
   }
-  const file = await getUploadSourceFile(session.file_id);
+  const file = await getStoredFile(session.file_id);
   if (session.mode === 'multipart' && session.upload_id) {
     await abortMultipartUpload({
       bucket: file.bucket,

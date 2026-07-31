@@ -1,8 +1,5 @@
 import type { ApiMultAction } from '../../common/index.js';
 
-/** 上传完成后创建新文档或向已有文档增加版本。 */
-export type DocumentUploadIntent = 'create-document' | 'create-version';
-
 /** 服务端注册的通用上传策略。 */
 export type UploadPolicyKey =
   | 'default-attachment'
@@ -25,44 +22,8 @@ export type UploadSessionStatus =
 /** 通用文件可信状态。 */
 export type StoredFileStatus =
   | 'pending'
-  | 'verifying'
   | 'verified'
-  | 'rejected'
-  | 'deleting'
-  | 'deleted';
-
-/** 通用文件领域稳定错误码。 */
-export type UploadErrorCode =
-  | 'UPLOAD_INVALID_POLICY'
-  | 'UPLOAD_FILE_TOO_LARGE'
-  | 'UPLOAD_FILE_TYPE_NOT_ALLOWED'
-  | 'UPLOAD_SESSION_NOT_FOUND'
-  | 'UPLOAD_SESSION_EXPIRED'
-  | 'UPLOAD_SESSION_STATE_CONFLICT'
-  | 'UPLOAD_PART_INVALID'
-  | 'UPLOAD_OBJECT_MISMATCH'
-  | 'UPLOAD_FILE_REJECTED'
-  | 'UPLOAD_FILE_FORBIDDEN'
-  | 'UPLOAD_FILE_IN_USE'
-  | 'UPLOAD_STORAGE_UNAVAILABLE';
-
-/** 对外返回的通用文件信息，不包含 Bucket、Object Key 和存储凭证。 */
-export interface StoredFileInfo {
-  /** 文件稳定标识。 */
-  fileId: string;
-  /** 用户上传时的显示名称。 */
-  filename: string;
-  /** 服务端验证后的可信 MIME。 */
-  contentType: string;
-  /** 文件字节数。 */
-  size: number;
-  /** 服务端计算的 SHA-256；严格验证完成前为空。 */
-  sha256: string | null;
-  /** 文件可信状态。 */
-  status: StoredFileStatus;
-  /** 创建时间。 */
-  createdAt: Date;
-}
+  | 'rejected';
 
 /** 已上传分片信息，以对象存储 ListParts 结果为事实来源。 */
 export interface UploadedPartInfo {
@@ -72,48 +33,6 @@ export interface UploadedPartInfo {
   etag: string;
   /** 分片字节数。 */
   size: number;
-}
-
-/** 上传会话管理信息。 */
-export interface UploadSessionInfo {
-  /** 上传会话标识。 */
-  sessionId: string;
-  /** 初始化时创建的通用文件标识。 */
-  fileId: string;
-  /** 服务端上传策略。 */
-  policyKey: UploadPolicyKey;
-  /** 文件验证成功后是否自动创建 RAG 接入任务。 */
-  enterRag: boolean;
-  /** 上传完成后的文档绑定意图。 */
-  documentIntent: DocumentUploadIntent;
-  /** 新增版本时的目标文档标识。 */
-  documentId: string | null;
-  /** 新建文档时使用的显示名称。 */
-  documentName: string | null;
-  /** 自动处理使用的多个目标知识库。 */
-  datasetIds: string[];
-  /** 自动处理使用的配置组合版本。 */
-  processingConfigVersion: string | null;
-  /** 当前传输模式。 */
-  mode: UploadMode;
-  /** 当前会话状态。 */
-  status: UploadSessionStatus;
-  /** 文件显示名称。 */
-  filename: string;
-  /** 声明的文件字节数。 */
-  size: number;
-  /** Multipart 分片字节数；普通上传为空。 */
-  partSize: number | null;
-  /** Multipart 分片总数；普通上传为空。 */
-  partCount: number | null;
-  /** 已由 MinIO 确认的上传字节数。 */
-  uploadedSize: number;
-  /** 会话过期时间。 */
-  expiresAt: Date;
-  /** 稳定错误码。 */
-  errorCode: UploadErrorCode | null;
-  /** 面向管理端的错误说明。 */
-  errorMessage: string | null;
 }
 
 /** 文档上传完成后的业务结果。 */
@@ -140,41 +59,28 @@ export type Upload = ApiMultAction<{
       contentType: string;
       /** 文件字节数。 */
       size: number;
-      /** 客户端文件指纹，用于刷新后匹配会话。 */
-      fingerprint: string;
       /** 客户端请求幂等键。 */
       idempotencyKey: string;
       /** 已有文档标识；提供时表示上传新版本。 */
       documentId?: string;
-      /** 新建文档显示名称；为空时使用文件名。 */
-      documentName?: string;
-      /** 文件验证成功后是否自动进入 RAG 接入流程。 */
-      enterRag?: boolean;
-      /** 自动处理使用的多个目标知识库。 */
-      datasetIds?: string[];
-      /** 自动处理使用的配置组合版本。 */
-      processingConfigVersion?: string;
     };
     resp:
       | {
           /** 既有会话已完成，只允许客户端取回文档版本结果。 */
           mode: 'completed';
-          /** 不包含任何对象存储写凭证的终态会话。 */
-          session: UploadSessionInfo;
+          /** 服务端上传会话标识。 */
+          sessionId: string;
         }
       | {
           mode: 'single';
-          session: UploadSessionInfo;
+          sessionId: string;
           uploadUrl: string;
           headers: Record<string, string>;
-          expiresAt: Date;
         }
       | {
           mode: 'multipart';
-          session: UploadSessionInfo;
-          uploadId: string;
+          sessionId: string;
           partSize: number;
-          partCount: number;
         };
   };
   'sign-parts': {
@@ -182,30 +88,18 @@ export type Upload = ApiMultAction<{
       /** 上传会话标识。 */
       sessionId: string;
       /** 需要签名的分片编号。 */
-      partNumbers: number[];
+      partNumber: number;
     };
     resp: {
-      parts: {
-        partNumber: number;
-        uploadUrl: string;
-        expiresAt: Date;
-      }[];
+      uploadUrl: string;
     };
   };
   'list-parts': {
     body: { sessionId: string };
-    resp: {
-      parts: UploadedPartInfo[];
-      uploadedSize: number;
-      missingPartNumbers: number[];
-    };
+    resp: { parts: UploadedPartInfo[] };
   };
   complete: {
-    body: {
-      sessionId: string;
-      /** Multipart 模式需要提交的分片清单；普通上传省略。 */
-      parts?: Pick<UploadedPartInfo, 'partNumber' | 'etag'>[];
-    };
+    body: { sessionId: string };
     resp: DocumentUploadResult;
   };
   abort: {
@@ -214,15 +108,6 @@ export type Upload = ApiMultAction<{
   };
   status: {
     body: { sessionId: string };
-    resp: UploadSessionInfo;
-  };
-  list: {
-    body: {
-      status?: UploadSessionStatus[];
-      policyKey?: UploadPolicyKey[];
-      limit?: number[];
-      withCount?: boolean;
-    };
-    resp: { list: UploadSessionInfo[]; count: number };
+    resp: { status: UploadSessionStatus };
   };
 }>;

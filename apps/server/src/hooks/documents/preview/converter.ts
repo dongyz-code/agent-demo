@@ -9,7 +9,7 @@ import {
   getFileExtension,
 } from '@repo/shared';
 import { documentsConfig } from '../config.js';
-import { presignGetObject } from '../storage/presign.js';
+import { presignGetObject } from '../file/objects.js';
 
 import type { Readable } from 'node:stream';
 

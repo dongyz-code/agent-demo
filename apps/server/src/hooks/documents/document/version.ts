@@ -4,7 +4,7 @@ import { eq, max, ne, sql } from 'drizzle-orm';
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { documentsConfig } from '../config.js';
-import { getDocumentSourceFile } from '../storage/source.js';
+import { getStoredFile } from '../file/source.js';
 import { createDocumentContentTask } from './content/task.js';
 import { getDocumentDetail, resolveDocumentVersion } from './read.js';
 
@@ -48,7 +48,7 @@ export async function createDocumentVersionFromFile(
   input: CreateDocumentVersionFromFileInput,
   userId: string,
 ): Promise<DocumentVersionBinding> {
-  const file = await getDocumentSourceFile(input.fileId);
+  const file = await getStoredFile(input.fileId);
   if (file.status !== 'verified' || file.create_user_id !== userId) {
     throw new ROOT_ERROR('数据异常');
   }

@@ -1,7 +1,9 @@
 import { eq, inArray } from 'drizzle-orm';
+import { fileTypeFromBuffer } from 'file-type';
 
 import { logger, ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
+import { contentTypesByExtension, getFileExtension } from '@repo/shared';
 import { createDocumentVersionFromFile } from '../document/version.js';
 import { createDocumentPreviewTask } from '../preview/task.js';
 import {
@@ -9,27 +11,36 @@ import {
   headStoredObject,
   listMultipartParts,
   openStoredObject,
-} from '../storage/objects.js';
+} from './objects.js';
 import { getUploadPolicy } from './policies.js';
 import {
   assertTransferableUploadSession,
   getOwnedUploadSession,
-  getUploadSourceFile,
 } from './session.js';
-import {
-  calculateSha256Stream,
-  detectTrustedContentType,
-} from './validators.js';
+import { getStoredFile } from './source.js';
 
-import type { Upload, UploadedPartInfo } from '@repo/types';
+import type { Upload } from '@repo/types';
+import type { SupportedFileExtension } from '@repo/shared';
 
 /** 文件签名检测读取的最大前缀，足以覆盖常见格式识别。 */
 const MAGIC_PREFIX_BYTES = 8192;
+/** 没有稳定 Magic Number、允许按扩展名和声明 MIME 回退的文本格式。 */
+const TEXT_EXTENSIONS: readonly SupportedFileExtension[] = ['txt', 'md', 'csv'];
+
+/** 文件内容验证器输入。 */
+interface FileValidationInput {
+  /** 文件前缀字节。 */
+  prefix: Buffer;
+  /** 用户上传时提供的文件名，用于约束签名识别范围。 */
+  filename: string;
+  /** 初始化时声明的 MIME。 */
+  declaredContentType: string;
+}
 
 /**
  * 完成对象上传、创建文档版本并触发预览与版本内容任务。
  *
- * @param input 上传会话标识与可选 Multipart 完成清单。
+ * @param input 上传会话标识。
  * @param userId 当前操作用户，用于会话所有权、文档范围和审计。
  * @returns 新建或复用的文档版本结果。
  */
@@ -38,54 +49,52 @@ export async function completeDocumentUpload(
   userId: string,
 ): Promise<Upload['complete']['resp']> {
   const session = await getOwnedUploadSession(input.sessionId, userId);
-  const file = await finishUpload(session, input.parts, userId);
+  const file = await finishUpload(session, userId);
   const binding = await createDocumentVersionFromFile(
     {
       fileId: file.file_id,
       documentId: session.document_id ?? undefined,
-      name: session.document_name ?? file.filename,
+      name: file.filename,
       ragEnabled: false,
     },
     userId,
   );
-  if (getUploadPolicy(session.policy_key).previewEnabled) {
-    try {
-      await createDocumentPreviewTask(
-        {
-          documentId: binding.document.documentId,
-          documentVersionId: binding.documentVersionId,
-          triggerSource: 'upload',
-        },
-        userId,
-      );
-    } catch (error) {
-      let message = '预览任务创建失败';
-      if (error instanceof Error) message = error.message;
-      await db
-        .update(schemas.document_versions)
-        .set({
-          preview_status: 'failed',
-          preview_error: message,
-          last_update_user_id: userId,
-          last_update_timestamp: new Date(),
-        })
-        .where(
-          eq(
-            schemas.document_versions.document_version_id,
-            binding.documentVersionId,
-          ),
-        )
-        .catch(() => undefined);
-      logger.error(
-        {
-          event: 'documents.upload.preview_schedule_failed',
-          documentId: binding.document.documentId,
-          documentVersionId: binding.documentVersionId,
-          error,
-        },
-        '文档已入库，但预览任务创建失败',
-      );
-    }
+  try {
+    await createDocumentPreviewTask(
+      {
+        documentId: binding.document.documentId,
+        documentVersionId: binding.documentVersionId,
+        triggerSource: 'upload',
+      },
+      userId,
+    );
+  } catch (error) {
+    let message = '预览任务创建失败';
+    if (error instanceof Error) message = error.message;
+    await db
+      .update(schemas.document_versions)
+      .set({
+        preview_status: 'failed',
+        preview_error: message,
+        last_update_user_id: userId,
+        last_update_timestamp: new Date(),
+      })
+      .where(
+        eq(
+          schemas.document_versions.document_version_id,
+          binding.documentVersionId,
+        ),
+      )
+      .catch(() => undefined);
+    logger.error(
+      {
+        event: 'documents.upload.preview_schedule_failed',
+        documentId: binding.document.documentId,
+        documentVersionId: binding.documentVersionId,
+        error,
+      },
+      '文档已入库，但预览任务创建失败',
+    );
   }
   return {
     documentId: binding.document.documentId,
@@ -98,11 +107,10 @@ export async function completeDocumentUpload(
 /** 幂等完成上传并返回已验证源文件行。 */
 async function finishUpload(
   session: typeof schemas.file_upload_sessions.$inferSelect,
-  submittedParts: Pick<UploadedPartInfo, 'partNumber' | 'etag'>[] | undefined,
   userId: string,
 ) {
   if (session.status === 'completed') {
-    return await getUploadSourceFile(session.file_id);
+    return await getStoredFile(session.file_id);
   }
   if (session.status === 'completing') {
     throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
@@ -131,10 +139,10 @@ async function finishUpload(
     throw new ROOT_ERROR('数据异常');
   }
 
-  const file = await getUploadSourceFile(session.file_id);
+  const file = await getStoredFile(session.file_id);
   try {
     if (session.mode === 'multipart') {
-      if (!session.upload_id || !session.part_count || !submittedParts) {
+      if (!session.upload_id || !session.part_count) {
         throw new ROOT_ERROR('非法参数');
       }
       const actualParts = await listMultipartParts({
@@ -142,7 +150,12 @@ async function finishUpload(
         objectKey: file.object_key,
         uploadId: session.upload_id,
       });
-      validateCompletionParts(actualParts, submittedParts, session.part_count);
+      const hasInvalidPart = actualParts.some(
+        (part, index) => part.partNumber !== index + 1,
+      );
+      if (actualParts.length !== session.part_count || hasInvalidPart) {
+        throw new ROOT_ERROR('非法参数');
+      }
       await completeMultipartUpload({
         bucket: file.bucket,
         objectKey: file.object_key,
@@ -156,10 +169,6 @@ async function finishUpload(
       .update(schemas.file_upload_sessions)
       .set({
         status: 'completed',
-        uploaded_size: session.size,
-        completed_timestamp: new Date(),
-        error_code: null,
-        error_message: null,
         last_update_user_id: userId,
         last_update_timestamp: new Date(),
       })
@@ -170,8 +179,6 @@ async function finishUpload(
       .update(schemas.file_upload_sessions)
       .set({
         status: 'failed',
-        error_code: 'UPLOAD_FILE_REJECTED',
-        error_message: error instanceof Error ? error.message : '上传完成失败',
         last_update_user_id: userId,
         last_update_timestamp: new Date(),
       })
@@ -186,16 +193,6 @@ async function validateStoredFile(
   session: typeof schemas.file_upload_sessions.$inferSelect,
   userId: string,
 ) {
-  const now = new Date();
-  await db
-    .update(schemas.files)
-    .set({
-      status: 'verifying',
-      last_update_user_id: userId,
-      last_update_timestamp: now,
-    })
-    .where(eq(schemas.files.file_id, file.file_id));
-
   try {
     const head = await headStoredObject({
       bucket: file.bucket,
@@ -223,18 +220,12 @@ async function validateStoredFile(
       throw new ROOT_ERROR('文件上传: 文件内容与声明类型不匹配');
     }
 
-    const sha256 = await calculateObjectSha256({
-      bucket: file.bucket,
-      objectKey: file.object_key,
-    });
+    const now = new Date();
     const [updated] = await db
       .update(schemas.files)
       .set({
         content_type: trustedContentType,
-        sha256,
-        etag: head.ETag ?? file.etag,
         status: 'verified',
-        verified_timestamp: now,
         last_update_user_id: userId,
         last_update_timestamp: now,
       })
@@ -281,41 +272,28 @@ async function readObjectPrefix({
   return Buffer.concat(chunks);
 }
 
-/** 流式计算对象 SHA-256，避免大文件整体进入内存。 */
-async function calculateObjectSha256(body: {
-  bucket: string;
-  objectKey: string;
-}) {
-  return await calculateSha256Stream(await openStoredObject(body));
-}
+/**
+ * 使用文件签名识别可信 MIME。
+ *
+ * 文本格式通常没有稳定 Magic Number，仅允许受策略约束的 text 声明回退。
+ *
+ * @param input 文件前缀与客户端声明 MIME。
+ * @returns 二进制签名识别结果、允许的文本回退或空。
+ */
+async function detectTrustedContentType(input: FileValidationInput) {
+  const extension = getFileExtension(input.filename);
+  if (!extension) return undefined;
+  const compatibleContentTypes: readonly string[] =
+    contentTypesByExtension[extension];
 
-/** 校验客户端完成清单与对象存储 ListParts 结果一致。 */
-function validateCompletionParts(
-  actualParts: UploadedPartInfo[],
-  submittedParts: Pick<UploadedPartInfo, 'partNumber' | 'etag'>[],
-  partCount: number,
-): void {
-  if (actualParts.length !== partCount || submittedParts.length !== partCount) {
-    throw new ROOT_ERROR('非法参数');
+  const detected = await fileTypeFromBuffer(input.prefix);
+  if (detected?.mime) {
+    if (!compatibleContentTypes.includes(detected.mime)) return undefined;
+    return compatibleContentTypes[0];
   }
-  const submitted = new Map(
-    submittedParts.map((part) => [part.partNumber, normalizeEtag(part.etag)]),
-  );
-  for (let partNumber = 1; partNumber <= partCount; partNumber++) {
-    const actual = actualParts[partNumber - 1];
-    if (
-      actual?.partNumber !== partNumber ||
-      normalizeEtag(actual.etag) !== submitted.get(partNumber)
-    ) {
-      throw new ROOT_ERROR(
-        '非法参数',
-        `UPLOAD_PART_INVALID: 分片 ${partNumber} 不匹配`,
-      );
-    }
+  if (!TEXT_EXTENSIONS.includes(extension)) return undefined;
+  if (!compatibleContentTypes.includes(input.declaredContentType)) {
+    return undefined;
   }
-}
-
-/** 规范化 S3 响应中可能带双引号的 ETag。 */
-function normalizeEtag(value: string): string {
-  return value.replace(/^"|"$/g, '');
+  return compatibleContentTypes[0];
 }
