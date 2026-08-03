@@ -21,7 +21,7 @@ export const documentsConfig = {
     presignExpiresSeconds: 20 * 60,
     multipartThresholdBytes: 50 * 1024 * 1024,
     partSizeBytes: 16 * 1024 * 1024,
-    maxFileSizeBytes: 2 * 1024 * 1024 * 1024,
+    maxFileSizeBytes: 200 * 1024 * 1024,
     sessionExpiresSeconds: 24 * 60 * 60,
     maxTextPreviewBytes: 1024 * 1024,
     officePreviewEndpoint: OFFICE_PREVIEW_ENDPOINT

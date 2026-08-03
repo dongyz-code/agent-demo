@@ -34,6 +34,9 @@ const RESTART_REQUIRED_ERROR_PARTS = [
   '上传会话已结束',
 ];
 
+/** 浏览器同时执行的对象存储请求上限，控制带宽竞争和内存占用。 */
+const DOCUMENT_UPLOAD_CONCURRENCY = 4;
+
 /** 创建使用项目文档上传接口的 Uppy 实例和队列操作。 */
 export function createUploadUppy(options: UploaderOptions) {
   const uploaderId = ['agent-demo-upload', options.instanceKey].join('-');
@@ -63,11 +66,16 @@ export function createUploadUppy(options: UploaderOptions) {
   uppy.addPreProcessor(initializeFiles);
 
   uppy.use(AwsS3<UploadFileMeta, UploadResponseBody>, {
+    limit: DOCUMENT_UPLOAD_CONCURRENCY,
     shouldUseMultipart(file) {
       return file.meta.mode === 'multipart';
     },
     getChunkSize(file) {
-      return (file as ManagedFile).meta.partSize ?? 5 * 1024 * 1024;
+      const partSize = (file as ManagedFile).meta.partSize;
+      if (!partSize) {
+        throw new Error('Multipart 上传缺少后端分片大小');
+      }
+      return partSize;
     },
     async getUploadParameters(file) {
       assertInitialized(file);

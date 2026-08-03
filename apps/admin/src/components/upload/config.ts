@@ -4,8 +4,8 @@ import {
   getFileExtension,
 } from '@repo/shared';
 
-/** 文档管理单文件上限，与服务端当前配置的 2 GiB 保持一致。 */
-export const documentMaxFileSizeBytes = 2 * 1024 * 1024 * 1024;
+/** 文档管理单文件上限，与服务端当前配置的 200 MiB 保持一致。 */
+export const documentMaxFileSizeBytes = 200 * 1024 * 1024;
 
 /** 文件选择器的 accept 值，始终从共享扩展名注册表派生。 */
 export const documentUploadAccept = Object.keys(contentTypesByExtension)

@@ -16,7 +16,7 @@ import {
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { binaryContentType } from '@repo/shared';
-import { presignGetObject } from '../file/objects.js';
+import { objectStorage } from '../file/objects.js';
 
 import type {
   DocumentDetail,
@@ -265,7 +265,7 @@ export async function getDocumentDownload(
     documentVersionId,
     userId,
   );
-  const signed = await presignGetObject({
+  const signed = await objectStorage.presignGet({
     bucket: row.file.bucket,
     objectKey: row.file.object_key,
     contentType: row.file.content_type ?? binaryContentType,
@@ -430,7 +430,7 @@ async function toPreviewPageInfo(
   page: typeof schemas.document_preview_pages.$inferSelect,
   filename: string,
 ): Promise<DocumentPreviewPageInfo> {
-  const signed = await presignGetObject({
+  const signed = await objectStorage.presignGet({
     bucket: page.bucket,
     objectKey: page.object_key,
     contentType: page.content_type,

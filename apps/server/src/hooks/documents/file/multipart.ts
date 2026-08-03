@@ -2,11 +2,7 @@ import { eq, inArray } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import {
-  abortMultipartUpload,
-  listMultipartParts,
-  presignUploadPart,
-} from './objects.js';
+import { objectStorage } from './objects.js';
 import {
   assertTransferableUploadSession,
   getOwnedUploadSession,
@@ -43,13 +39,13 @@ export async function signDocumentUploadParts(
     throw new ROOT_ERROR('非法参数');
   }
   const file = await getStoredFile(session.file_id);
-  const signed = await presignUploadPart({
+  const uploadUrl = await objectStorage.presignPart({
     bucket: file.bucket,
     objectKey: file.object_key,
     uploadId: session.upload_id,
     partNumber: input.partNumber,
   });
-  return { uploadUrl: signed.url };
+  return { uploadUrl };
 }
 
 /**
@@ -73,7 +69,7 @@ export async function syncDocumentUploadParts(
     return { parts: [] };
   }
   const file = await getStoredFile(session.file_id);
-  const parts = await listMultipartParts({
+  const parts = await objectStorage.listParts({
     bucket: file.bucket,
     objectKey: file.object_key,
     uploadId: session.upload_id,
@@ -130,7 +126,7 @@ export async function abortDocumentUpload(
   }
   const file = await getStoredFile(session.file_id);
   if (session.mode === 'multipart' && session.upload_id) {
-    await abortMultipartUpload({
+    await objectStorage.abortMultipart({
       bucket: file.bucket,
       objectKey: file.object_key,
       uploadId: session.upload_id,

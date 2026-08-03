@@ -10,7 +10,7 @@ import {
   getFileExtension,
 } from '@repo/shared';
 import { documentsConfig } from '../config.js';
-import { presignGetObject } from '../file/objects.js';
+import { objectStorage } from '../file/objects.js';
 
 import type { Readable } from 'node:stream';
 
@@ -33,7 +33,7 @@ const TEXT_TYPES: ReadonlySet<string> = new Set(
   contentTypeConfig.text.flatMap((item) => item.mime),
 );
 const PREVIEW_PAGE_CONTENT_TYPE = contentTypesByExtension.webp.mime[0];
-const MAX_SOURCE_BYTES = 200 * 1024 * 1024;
+const MAX_SOURCE_BYTES = documentsConfig.upload.maxFileSizeBytes;
 const MAX_PAGE_COUNT = 1_000;
 const MAX_PAGE_PIXELS = 24_000_000;
 const PDF_RENDER_SCALE = 2.5;
@@ -228,7 +228,7 @@ async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
       'DOCUMENT_PREVIEW_OFFICE_WORKER_MISSING: 未配置 Office 转换 Worker',
     );
   }
-  const signed = await presignGetObject({
+  const signed = await objectStorage.presignGet({
     bucket: source.bucket,
     objectKey: source.objectKey,
     contentType: source.contentType,

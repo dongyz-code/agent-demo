@@ -3,7 +3,7 @@ import { asc, eq, gte, lt } from 'drizzle-orm';
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { resolveDocumentVersion } from '../document/read.js';
-import { presignGetObject } from '../file/objects.js';
+import { objectStorage } from '../file/objects.js';
 import { createDocumentPreviewTask } from './task.js';
 
 import type {
@@ -129,7 +129,7 @@ async function signPreviewPage(
   page: typeof schemas.document_preview_pages.$inferSelect,
   filename: string,
 ): Promise<DocumentPreviewPageInfo> {
-  const signed = await presignGetObject({
+  const signed = await objectStorage.presignGet({
     bucket: page.bucket,
     objectKey: page.object_key,
     contentType: page.content_type,

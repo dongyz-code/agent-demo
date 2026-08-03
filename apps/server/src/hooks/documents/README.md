@@ -7,7 +7,7 @@ Document 是公共业务主体，DocumentVersion 表示不可变内容，File �
 ## 目录职责
 
 - `document/`：复杂文档搜索与详情、版本创建和切换、逻辑删除与异步清理；`content/` 负责版本级解析、标准化、Segment 和唯一内容任务。
-- `file/`：文件上传初始化、完成、Multipart 操作、会话状态、策略、内容验证，以及内部 S3 client、对象命令、签名和源文件读取；已上传分片以对象存储 `ListParts` 为唯一事实来源，不维护数据库分片投影。
+- `file/`：文件上传初始化、完成、Multipart 操作、会话状态、内容验证，以及 S3 对象存储适配器和源文件读取；已上传分片以对象存储 `ListParts` 为唯一事实来源，不维护数据库分片投影。
 - `preview/`：页面窗口、预览任务、页面转换器和 worker 执行体。
 - `rag/`：文档知识库关系集合以及 active/pending 版本的批量条件发布。
 - `tasks/`：文档任务详情、任务中心补充查询、worker、lease 和阶段运行时。

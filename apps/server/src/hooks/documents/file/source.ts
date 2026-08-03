@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
-import { openStoredObject } from './objects.js';
+import { objectStorage } from './objects.js';
 
 import type { Readable } from 'node:stream';
 /** 文档处理读取已验证源文件时使用的稳定描述。 */
@@ -56,7 +56,7 @@ export async function getReadableDocumentSource(
     contentType: file.content_type,
     size: file.size,
     openStream: async () =>
-      await openStoredObject({
+      await objectStorage.open({
         bucket: file.bucket,
         objectKey: file.object_key,
       }),

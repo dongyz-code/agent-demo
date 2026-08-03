@@ -7,7 +7,7 @@ import {
   FileProcessingLeaseLostError,
   isTaskCanceled,
 } from '../tasks/runtime.js';
-import { deleteStoredObject } from '../file/objects.js';
+import { objectStorage } from '../file/objects.js';
 
 import type { FileProcessingTaskLease } from '../tasks/runtime.js';
 
@@ -48,7 +48,7 @@ async function deleteDocumentStoredObjects(
   );
   for (const object of uniqueObjects.values()) {
     await lease.assertActive();
-    await deleteStoredObject({
+    await objectStorage.remove({
       bucket: object.bucket,
       objectKey: object.objectKey,
     });

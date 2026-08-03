@@ -11,11 +11,7 @@ import {
   isTaskCanceled,
   runTaskStage,
 } from '../tasks/runtime.js';
-import {
-  deleteStoredObject,
-  openStoredObject,
-  putStoredObject,
-} from '../file/objects.js';
+import { objectStorage } from '../file/objects.js';
 import {
   DOCUMENT_PREVIEW_CONVERTER_VERSION,
   documentPageConverter,
@@ -190,7 +186,7 @@ async function generateAndUploadPages(
     bucket: file.bucket,
     objectKey: file.object_key,
     open: async () =>
-      await openStoredObject({
+      await objectStorage.open({
         bucket: file.bucket,
         objectKey: file.object_key,
       }),
@@ -204,7 +200,7 @@ async function generateAndUploadPages(
       );
     }
     const objectKey = buildPreviewObjectKey(context, page.pageNumber);
-    await putStoredObject({
+    await objectStorage.put({
       bucket: file.bucket,
       objectKey,
       contentType: page.contentType,
@@ -348,7 +344,7 @@ async function deleteUploadedPages(
   await Promise.allSettled(
     pages.map(
       async (page) =>
-        await deleteStoredObject({
+        await objectStorage.remove({
           bucket: page.bucket,
           objectKey: page.objectKey,
         }),
@@ -365,7 +361,7 @@ function deleteOldPagesInBackground(
     void Promise.allSettled(
       pages.map(
         async (page) =>
-          await deleteStoredObject({
+          await objectStorage.remove({
             bucket: page.bucket,
             objectKey: page.objectKey,
           }),

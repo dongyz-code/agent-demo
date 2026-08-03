@@ -9,12 +9,7 @@ import {
 } from '@repo/shared';
 import { createDocumentVersionFromFile } from '../document/version.js';
 import { createDocumentPreviewTask } from '../preview/task.js';
-import {
-  completeMultipartUpload,
-  headStoredObject,
-  listMultipartParts,
-  openStoredObject,
-} from './objects.js';
+import { objectStorage } from './objects.js';
 import {
   assertTransferableUploadSession,
   getOwnedUploadSession,
@@ -144,7 +139,7 @@ async function finishUpload(
       if (!session.upload_id || !session.part_count) {
         throw new ROOT_ERROR('非法参数');
       }
-      const actualParts = await listMultipartParts({
+      const actualParts = await objectStorage.listParts({
         bucket: file.bucket,
         objectKey: file.object_key,
         uploadId: session.upload_id,
@@ -155,7 +150,7 @@ async function finishUpload(
       if (actualParts.length !== session.part_count || hasInvalidPart) {
         throw new ROOT_ERROR('非法参数');
       }
-      await completeMultipartUpload({
+      await objectStorage.completeMultipart({
         bucket: file.bucket,
         objectKey: file.object_key,
         uploadId: session.upload_id,
@@ -193,7 +188,7 @@ async function validateStoredFile(
   userId: string,
 ) {
   try {
-    const head = await headStoredObject({
+    const head = await objectStorage.head({
       bucket: file.bucket,
       objectKey: file.object_key,
     });
@@ -251,7 +246,7 @@ async function readObjectPrefix({
   objectKey: string;
   limit: number;
 }) {
-  const stream = await openStoredObject({ bucket, objectKey });
+  const stream = await objectStorage.open({ bucket, objectKey });
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of stream) {
