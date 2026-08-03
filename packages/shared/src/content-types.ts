@@ -1,55 +1,166 @@
-const jpegContentTypes = ['image/jpeg', 'image/jpg', 'image/pjpeg'] as const;
-const compoundFileContentType = 'application/x-cfb';
+/** 文件内容类型，用于区分不同格式族及其处理方式。 */
+export type ContentType =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'text'
+  | 'pdf'
+  | 'word'
+  | 'ppt'
+  | 'excel';
+
+/** 单种文件格式的扩展名与 MIME 配置。 */
+interface ContentTypeItem {
+  /** 同一种文件格式支持的不带点小写扩展名。 */
+  extensions: readonly [string, ...string[]];
+  /** 首项是规范 MIME，其余项用于兼容浏览器声明和签名检测结果。 */
+  mime: readonly [string, ...string[]];
+}
 
 /**
- * 扩展名对应的可接受 MIME，首项是缺省声明和入库使用的规范 MIME。
+ * 文件扩展名与 MIME 的唯一手写配置源。
  *
- * 旧版 Office 的通用 CFB 签名由服务端结合扩展名归一化。
+ * 顶层按业务文件类型分类。向空分类加入格式即表示系统开始接受该类文件，
+ * 调用方不得再维护额外的扩展名或 MIME 白名单。
  */
-export const contentTypesByExtension = {
-  jpg: jpegContentTypes,
-  jpeg: jpegContentTypes,
-  png: ['image/png', 'image/x-png'],
-  webp: ['image/webp'],
-  pdf: ['application/pdf', 'application/x-pdf'],
-  doc: [
-    'application/msword',
-    'application/x-msword',
-    'application/vnd.ms-word',
-    compoundFileContentType,
+export const contentTypeConfig = {
+  image: [
+    {
+      extensions: ['jpg', 'jpeg'],
+      mime: ['image/jpeg', 'image/jpg', 'image/pjpeg'],
+    },
+    {
+      extensions: ['png'],
+      mime: ['image/png', 'image/x-png'],
+    },
+    {
+      extensions: ['webp'],
+      mime: ['image/webp'],
+    },
   ],
-  docx: [
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  video: [],
+  audio: [],
+  text: [
+    {
+      extensions: ['txt'],
+      mime: ['text/plain'],
+    },
+    {
+      extensions: ['md'],
+      mime: ['text/markdown', 'text/x-markdown', 'text/plain'],
+    },
+    {
+      extensions: ['csv'],
+      mime: ['text/csv', 'application/csv', 'text/x-csv', 'text/plain'],
+    },
+  ],
+  pdf: [
+    {
+      extensions: ['pdf'],
+      mime: ['application/pdf', 'application/x-pdf'],
+    },
+  ],
+  word: [
+    {
+      extensions: ['doc'],
+      mime: [
+        'application/msword',
+        'application/x-msword',
+        'application/vnd.ms-word',
+        'application/x-cfb',
+      ],
+    },
+    {
+      extensions: ['docx'],
+      mime: [
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ],
+    },
   ],
   ppt: [
-    'application/vnd.ms-powerpoint',
-    'application/mspowerpoint',
-    'application/powerpoint',
-    'application/x-mspowerpoint',
-    compoundFileContentType,
+    {
+      extensions: ['ppt'],
+      mime: [
+        'application/vnd.ms-powerpoint',
+        'application/mspowerpoint',
+        'application/powerpoint',
+        'application/x-mspowerpoint',
+        'application/x-cfb',
+      ],
+    },
+    {
+      extensions: ['pptx'],
+      mime: [
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      ],
+    },
   ],
-  pptx: [
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  excel: [
+    {
+      extensions: ['xls'],
+      mime: [
+        'application/vnd.ms-excel',
+        'application/msexcel',
+        'application/x-msexcel',
+        'application/x-ms-excel',
+        'application/x-excel',
+        'application/x-cfb',
+      ],
+    },
+    {
+      extensions: ['xlsx'],
+      mime: [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ],
+    },
   ],
-  xls: [
-    'application/vnd.ms-excel',
-    'application/msexcel',
-    'application/x-msexcel',
-    'application/x-ms-excel',
-    'application/x-excel',
-    compoundFileContentType,
-  ],
-  xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-  txt: ['text/plain'],
-  md: ['text/markdown', 'text/x-markdown', 'text/plain'],
-  csv: ['text/csv', 'application/csv', 'text/x-csv', 'text/plain'],
-} as const;
+} as const satisfies Record<ContentType, readonly ContentTypeItem[]>;
 
-/** 注册表支持的文件扩展名。 */
-export type SupportedFileExtension = keyof typeof contentTypesByExtension;
+/** 无法提供具体文件 MIME 时使用的通用二进制传输类型。 */
+export const binaryContentType = 'application/octet-stream';
+
+/** 配置对象中的单种文件格式。 */
+type ConfiguredContentTypeItem =
+  (typeof contentTypeConfig)[keyof typeof contentTypeConfig][number];
+
+/** 配置对象实际注册的全部文件扩展名。 */
+export type SupportedFileExtension =
+  ConfiguredContentTypeItem['extensions'][number];
+
+/** 按扩展名查询时返回的文件分类和 MIME。 */
+interface ContentTypeByExtensionItem {
+  /** 扩展名所属的业务文件分类。 */
+  type: ContentType;
+  /** 当前扩展名接受的 MIME，首项为规范值。 */
+  mime: readonly [string, ...string[]];
+}
+
+/** 配置对象的分类和格式条目，供派生索引遍历。 */
+const contentTypeEntries = Object.entries(contentTypeConfig) as [
+  ContentType,
+  readonly ContentTypeItem[],
+][];
 
 /**
- * 提取不带点的小写文件扩展名。
+ * 扩展名到文件分类和 MIME 的唯一派生索引。
+ *
+ * 所有扩展名白名单必须通过 Object.keys(contentTypesByExtension) 获取。
+ */
+export const contentTypesByExtension = Object.fromEntries(
+  contentTypeEntries.flatMap(([type, items]) =>
+    items.flatMap((item) =>
+      item.extensions.map(
+        (extension) =>
+          [extension, { type, mime: item.mime }] as const,
+      ),
+    ),
+  ),
+) as Readonly<
+  Record<SupportedFileExtension, ContentTypeByExtensionItem>
+>;
+
+/**
+ * 提取注册表支持的不带点小写文件扩展名。
  *
  * @param filename 用户上传时提供的文件名。
  * @returns 注册表支持的小写扩展名；缺失或不支持时返回空。
@@ -60,36 +171,6 @@ export function getFileExtension(
   const index = filename.lastIndexOf('.');
   if (index < 0) return undefined;
   const extension = filename.slice(index + 1).toLowerCase();
-  if (!isSupportedFileExtension(extension)) return undefined;
-  return extension;
-}
-
-/**
- * 合并扩展名对应的全部 MIME 并去重。
- *
- * @param extensions 调用方明确支持的文件扩展名。
- * @returns 保持注册顺序的 MIME 列表。
- */
-export function collectContentTypes(
-  extensions: readonly SupportedFileExtension[],
-): string[] {
-  const contentTypes = new Set<string>();
-  for (const extension of extensions) {
-    for (const contentType of contentTypesByExtension[extension]) {
-      contentTypes.add(contentType);
-    }
-  }
-  return [...contentTypes];
-}
-
-/**
- * 判断字符串是否为注册表支持的扩展名。
- *
- * @param extension 不带点的小写扩展名候选。
- * @returns 候选存在于注册表时返回真，并收窄其类型。
- */
-function isSupportedFileExtension(
-  extension: string,
-): extension is SupportedFileExtension {
-  return Object.hasOwn(contentTypesByExtension, extension);
+  if (!Object.hasOwn(contentTypesByExtension, extension)) return undefined;
+  return extension as SupportedFileExtension;
 }

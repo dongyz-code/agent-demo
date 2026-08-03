@@ -3,8 +3,12 @@ import AwsS3 from '@uppy/aws-s3';
 import GoldenRetriever from '@uppy/golden-retriever';
 
 import { api } from '@/utils';
+import { binaryContentType, contentTypesByExtension } from '@repo/shared';
 import { getUploadErrorMessage } from './utils';
-import { getClientUploadPolicy, resolveDeclaredContentType } from './policies';
+import {
+  documentMaxFileSizeBytes,
+  resolveDeclaredContentType,
+} from './config';
 
 import type { UppyFile } from '@uppy/core';
 import type {
@@ -32,20 +36,15 @@ const RESTART_REQUIRED_ERROR_PARTS = [
 
 /** 创建使用项目文档上传接口的 Uppy 实例和队列操作。 */
 export function createUploadUppy(options: UploaderOptions) {
-  const policy = getClientUploadPolicy(options.policyKey);
-  const uploaderId = [
-    'agent-demo-upload',
-    options.instanceKey,
-    options.policyKey,
-  ].join('-');
+  const uploaderId = ['agent-demo-upload', options.instanceKey].join('-');
   const uppy = new Uppy<UploadFileMeta, UploadResponseBody>({
     id: uploaderId,
     autoProceed: false,
     allowMultipleUploadBatches: true,
     restrictions: {
-      maxFileSize: policy.maxFileSizeBytes,
+      maxFileSize: documentMaxFileSizeBytes,
       maxNumberOfFiles: options.maxNumberOfFiles,
-      allowedFileTypes: [...policy.allowedExtensions].map(
+      allowedFileTypes: Object.keys(contentTypesByExtension).map(
         (extension) => `.${extension}`,
       ),
     },
@@ -164,7 +163,7 @@ export function createUploadUppy(options: UploaderOptions) {
       const currentDocumentId = options.getDocumentId?.();
       let documentId = file.meta.documentId ?? currentDocumentId;
       if (file.meta.documentId === null) documentId = undefined;
-      let contentType = file.type || 'application/octet-stream';
+      let contentType = file.type || binaryContentType;
       if (file.data instanceof File) {
         contentType = resolveDeclaredContentType(file.data);
       }
@@ -176,7 +175,6 @@ export function createUploadUppy(options: UploaderOptions) {
         restartRequired: false,
       });
       const initialized = await api('/documents/upload-init', {
-        policyKey: options.policyKey,
         filename: file.name,
         contentType,
         size: file.size ?? 0,

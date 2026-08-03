@@ -14,7 +14,6 @@ import { timestampsTrigger } from '../declaration/presets.js';
 import type {
   StoredFileStatus,
   UploadMode,
-  UploadPolicyKey,
   UploadSessionStatus,
 } from '@repo/types';
 
@@ -61,8 +60,6 @@ export const file_upload_sessions = pgTable(
     session_id: uuid('session_id').primaryKey(),
     /** 初始化时创建的通用文件标识。 */
     file_id: uuid('file_id').notNull(),
-    /** 服务端上传策略键。 */
-    policy_key: varchar255('policy_key').$type<UploadPolicyKey>().notNull(),
     /** 新增版本时的目标文档；新建文档时为空。 */
     document_id: uuid('document_id'),
     /** 客户端请求幂等键。 */

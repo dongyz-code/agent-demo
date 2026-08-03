@@ -25,6 +25,7 @@ import type {
   FileProcessingTaskContext,
   FileProcessingTaskLease,
 } from '../tasks/runtime.js';
+import type { ConvertedDocumentPage } from './converter.js';
 
 /** 已上传但尚未发布的页面对象。 */
 interface UploadedPreviewPage {
@@ -35,7 +36,7 @@ interface UploadedPreviewPage {
   /** 页面图片像素高度。 */
   height: number;
   /** 页面图片可信 MIME。 */
-  contentType: 'image/webp';
+  contentType: ConvertedDocumentPage['contentType'];
   /** 页面对象字节数。 */
   size: number;
   /** 页面对象私有 Bucket。 */

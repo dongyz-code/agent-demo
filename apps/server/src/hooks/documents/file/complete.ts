@@ -3,7 +3,10 @@ import { fileTypeFromBuffer } from 'file-type';
 
 import { logger, ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import { contentTypesByExtension, getFileExtension } from '@repo/shared';
+import {
+  contentTypesByExtension,
+  getFileExtension,
+} from '@repo/shared';
 import { createDocumentVersionFromFile } from '../document/version.js';
 import { createDocumentPreviewTask } from '../preview/task.js';
 import {
@@ -12,7 +15,6 @@ import {
   listMultipartParts,
   openStoredObject,
 } from './objects.js';
-import { getUploadPolicy } from './policies.js';
 import {
   assertTransferableUploadSession,
   getOwnedUploadSession,
@@ -20,12 +22,9 @@ import {
 import { getStoredFile } from './source.js';
 
 import type { Upload } from '@repo/types';
-import type { SupportedFileExtension } from '@repo/shared';
 
 /** 文件签名检测读取的最大前缀，足以覆盖常见格式识别。 */
 const MAGIC_PREFIX_BYTES = 8192;
-/** 没有稳定 Magic Number、允许按扩展名和声明 MIME 回退的文本格式。 */
-const TEXT_EXTENSIONS: readonly SupportedFileExtension[] = ['txt', 'md', 'csv'];
 
 /** 文件内容验证器输入。 */
 interface FileValidationInput {
@@ -212,11 +211,7 @@ async function validateStoredFile(
       filename: file.filename,
       declaredContentType: file.declared_content_type,
     });
-    const policy = getUploadPolicy(session.policy_key);
-    if (
-      !trustedContentType ||
-      !policy.allowedContentTypes.includes(trustedContentType)
-    ) {
+    if (!trustedContentType) {
       throw new ROOT_ERROR('文件上传: 文件内容与声明类型不匹配');
     }
 
@@ -283,17 +278,16 @@ async function readObjectPrefix({
 async function detectTrustedContentType(input: FileValidationInput) {
   const extension = getFileExtension(input.filename);
   if (!extension) return undefined;
-  const compatibleContentTypes: readonly string[] =
-    contentTypesByExtension[extension];
+  const contentType = contentTypesByExtension[extension];
 
   const detected = await fileTypeFromBuffer(input.prefix);
   if (detected?.mime) {
-    if (!compatibleContentTypes.includes(detected.mime)) return undefined;
-    return compatibleContentTypes[0];
+    if (!contentType.mime.includes(detected.mime)) return undefined;
+    return contentType.mime[0];
   }
-  if (!TEXT_EXTENSIONS.includes(extension)) return undefined;
-  if (!compatibleContentTypes.includes(input.declaredContentType)) {
+  if (contentType.type !== 'text') return undefined;
+  if (!contentType.mime.includes(input.declaredContentType)) {
     return undefined;
   }
-  return compatibleContentTypes[0];
+  return contentType.mime[0];
 }

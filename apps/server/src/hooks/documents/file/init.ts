@@ -3,7 +3,7 @@ import { eq, ne } from 'drizzle-orm';
 
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import { getFileExtension } from '@repo/shared';
+import { contentTypesByExtension, getFileExtension } from '@repo/shared';
 import { documentsConfig } from '../config.js';
 import {
   abortMultipartUpload,
@@ -13,7 +13,6 @@ import {
   presignPutObject,
   sanitizeUploadFilename,
 } from './objects.js';
-import { getUploadPolicy } from './policies.js';
 import { getStoredFile } from './source.js';
 
 import type { Upload } from '@repo/types';
@@ -32,20 +31,19 @@ export async function initializeDocumentUpload(
   if (input.documentId) {
     await assertUploadTargetDocument(input.documentId, userId);
   }
-  const policy = getUploadPolicy(input.policyKey);
   const filename = sanitizeUploadFilename(input.filename);
   const extension = getFileExtension(filename);
   if (!Number.isSafeInteger(input.size) || input.size <= 0) {
     throw new ROOT_ERROR('文件上传: 文件不能为空');
   }
-  if (input.size > policy.maxFileSizeBytes) {
+  if (input.size > documentsConfig.upload.maxFileSizeBytes) {
     throw new ROOT_ERROR('文件上传: 文件大小超过限制');
   }
-  if (
-    !extension ||
-    !policy.allowedContentTypes.includes(input.contentType) ||
-    !policy.allowedExtensions.includes(extension)
-  ) {
+  if (!extension) {
+    throw new ROOT_ERROR('文件上传: 文件类型不受支持');
+  }
+  const contentType = contentTypesByExtension[extension];
+  if (!contentType.mime.includes(input.contentType)) {
     throw new ROOT_ERROR('文件上传: 文件类型不受支持');
   }
 
@@ -70,10 +68,12 @@ export async function initializeDocumentUpload(
   const sessionId = randomUUID();
   const objectKey = buildObjectKey({ fileId, extension, now });
   const mode =
-    input.size >= policy.multipartThresholdBytes ? 'multipart' : 'single';
+    input.size >= documentsConfig.upload.multipartThresholdBytes
+      ? 'multipart'
+      : 'single';
   const multipart =
     mode === 'multipart'
-      ? calculateMultipartPlan(input.size, policy.partSizeBytes)
+      ? calculateMultipartPlan(input.size, documentsConfig.upload.partSizeBytes)
       : undefined;
   let uploadId: string | undefined;
   if (mode === 'multipart') {
@@ -107,7 +107,6 @@ export async function initializeDocumentUpload(
         .values({
           session_id: sessionId,
           file_id: fileId,
-          policy_key: input.policyKey,
           document_id: input.documentId ?? null,
           idempotency_key: input.idempotencyKey,
           mode,

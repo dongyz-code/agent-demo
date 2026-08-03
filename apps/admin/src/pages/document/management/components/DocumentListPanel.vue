@@ -103,13 +103,11 @@
     <upload-dialog
       ref="uploadRef"
       instance-key="document-new"
-      policy-key="default-attachment"
       @uploaded="handleUploaded"
     />
     <upload-dialog
       ref="versionUploadRef"
       instance-key="document-version"
-      policy-key="default-attachment"
       :max-number-of-files="1"
       @uploaded="handleUploaded"
     />

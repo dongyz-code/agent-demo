@@ -1,21 +1,19 @@
 import { hashToUuid } from '../ids.js';
-import {
-  collectContentTypes,
-  getFileExtension,
-} from '@repo/shared';
+import { contentTypeConfig, getFileExtension } from '@repo/shared';
 
 import type { DocumentParsedBlock } from '@repo/types';
 import type { DocumentParser } from '../types.js';
 
 /** 防止本地文本解析器把异常大文件整体载入内存。 */
 const MAX_LOCAL_TEXT_BYTES = 32 * 1024 * 1024;
-const LOCAL_TEXT_EXTENSIONS = ['txt', 'md', 'csv'] as const;
 
 /** Markdown、纯文本和 CSV 的本地解析器。 */
 export const localTextParser: DocumentParser = {
   name: 'local-text',
   version: '1',
-  contentTypes: collectContentTypes(LOCAL_TEXT_EXTENSIONS),
+  contentTypes: [
+    ...new Set(contentTypeConfig.text.flatMap((item) => item.mime)),
+  ],
   async parse({ file }) {
     const source = await readText(file);
     const extension = getFileExtension(file.filename);

@@ -15,6 +15,7 @@ import {
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
+import { binaryContentType } from '@repo/shared';
 import { presignGetObject } from '../file/objects.js';
 
 import type {
@@ -267,7 +268,7 @@ export async function getDocumentDownload(
   const signed = await presignGetObject({
     bucket: row.file.bucket,
     objectKey: row.file.object_key,
-    contentType: row.file.content_type ?? 'application/octet-stream',
+    contentType: row.file.content_type ?? binaryContentType,
     filename: row.file.filename,
     disposition: 'attachment',
   });
@@ -394,7 +395,10 @@ async function toDocumentInfo(
     versionCount:
       aggregates.versionCountByDocument.get(row.document.document_id) ?? 1,
     cover: cover
-      ? await toPreviewPageInfo(cover, `${row.document.name}-page-1.webp`)
+      ? await toPreviewPageInfo(
+          cover,
+          `${row.document.name}-page-1.webp`,
+        )
       : null,
     datasets: aggregates.datasetsByDocument.get(row.document.document_id) ?? [],
     createdAt: row.document.create_timestamp,

@@ -5,7 +5,8 @@ import sanitizeHtml from 'sanitize-html';
 import sharp from 'sharp';
 
 import {
-  collectContentTypes,
+  contentTypeConfig,
+  contentTypesByExtension,
   getFileExtension,
 } from '@repo/shared';
 import { documentsConfig } from '../config.js';
@@ -17,14 +18,21 @@ Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
-const IMAGE_TYPES = new Set(
-  collectContentTypes(['jpg', 'jpeg', 'png', 'webp']),
+const IMAGE_TYPES: ReadonlySet<string> = new Set(
+  contentTypeConfig.image.flatMap((item) => item.mime),
 );
-const PDF_TYPES = new Set(collectContentTypes(['pdf']));
-const OFFICE_TYPES = new Set(
-  collectContentTypes(['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx']),
+const PDF_TYPES: ReadonlySet<string> = new Set(
+  contentTypeConfig.pdf.flatMap((item) => item.mime),
 );
-const TEXT_TYPES = new Set(collectContentTypes(['txt', 'md', 'csv']));
+const OFFICE_TYPES: ReadonlySet<string> = new Set([
+  ...contentTypeConfig.word.flatMap((item) => item.mime),
+  ...contentTypeConfig.ppt.flatMap((item) => item.mime),
+  ...contentTypeConfig.excel.flatMap((item) => item.mime),
+]);
+const TEXT_TYPES: ReadonlySet<string> = new Set(
+  contentTypeConfig.text.flatMap((item) => item.mime),
+);
+const PREVIEW_PAGE_CONTENT_TYPE = contentTypesByExtension.webp.mime[0];
 const MAX_SOURCE_BYTES = 200 * 1024 * 1024;
 const MAX_PAGE_COUNT = 1_000;
 const MAX_PAGE_PIXELS = 24_000_000;
@@ -70,7 +78,7 @@ export interface ConvertedDocumentPage {
   /** 页面图片像素高度。 */
   height: number;
   /** 固定为 WebP 的可信 MIME。 */
-  contentType: 'image/webp';
+  contentType: typeof PREVIEW_PAGE_CONTENT_TYPE;
   /** 待上传的完整页面内容。 */
   content: Buffer;
 }
@@ -149,7 +157,7 @@ async function convertImage(
     pageNumber: 1,
     width: metadata.width,
     height: metadata.height,
-    contentType: 'image/webp',
+    contentType: PREVIEW_PAGE_CONTENT_TYPE,
     content,
   };
 }
@@ -193,14 +201,14 @@ async function* convertPdf(
           canvasContext: context as never,
           viewport,
         }).promise;
-        const pageContent = await sharp(canvas.toBuffer('image/png'))
+        const pageContent = await sharp(await canvas.encode('png'))
           .webp({ quality: PREVIEW_WEBP_QUALITY })
           .toBuffer();
         yield {
           pageNumber,
           width,
           height,
-          contentType: 'image/webp',
+          contentType: PREVIEW_PAGE_CONTENT_TYPE,
           content: pageContent,
         };
       } finally {
@@ -229,7 +237,11 @@ async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
   });
   const response = await axios.post<ArrayBuffer>(
     endpoint,
-    { sourceUrl: signed.url, filename: source.filename, target: 'pdf' },
+    {
+      sourceUrl: signed.url,
+      filename: source.filename,
+      target: 'pdf',
+    },
     {
       responseType: 'arraybuffer',
       timeout: documentsConfig.document.parserTimeoutMs,
@@ -282,7 +294,7 @@ async function* convertText(
       pageNumber: index + 1,
       width: TEXT_PAGE_WIDTH,
       height: TEXT_PAGE_HEIGHT,
-      contentType: 'image/webp',
+      contentType: PREVIEW_PAGE_CONTENT_TYPE,
       content: pageContent,
     };
   }

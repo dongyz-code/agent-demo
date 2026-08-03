@@ -5,7 +5,8 @@ import { ROOT } from '@/configs/index.js';
 import { documentsConfig } from '../../../config.js';
 import { hashToUuid } from '../ids.js';
 import {
-  collectContentTypes,
+  binaryContentType,
+  contentTypeConfig,
   getFileExtension,
 } from '@repo/shared';
 
@@ -20,23 +21,20 @@ const MIN_LOCAL_PDF_SEMANTIC_CHARACTERS = 40;
 const MIN_LOCAL_PDF_SEMANTIC_CHARACTERS_PER_PAGE = 20;
 const MIN_LOCAL_PDF_PAGE_CHARACTERS = 8;
 const MIN_LOCAL_PDF_READABLE_RATIO = 0.85;
-
-const REMOTE_EXTENSIONS = [
-  'pdf',
-  'doc',
-  'docx',
-  'ppt',
-  'pptx',
-  'xls',
-  'xlsx',
-] as const;
-const REMOTE_TYPES = collectContentTypes(REMOTE_EXTENSIONS);
+const REMOTE_DOCUMENT_CONTENT_TYPES = [
+  ...new Set([
+    ...contentTypeConfig.pdf.flatMap((item) => item.mime),
+    ...contentTypeConfig.word.flatMap((item) => item.mime),
+    ...contentTypeConfig.ppt.flatMap((item) => item.mime),
+    ...contentTypeConfig.excel.flatMap((item) => item.mime),
+  ]),
+];
 
 /** PDF 优先读取本地文本层，无法可靠提取时与 Office 一并回退 TextIn。 */
 export const remoteDocumentParser: DocumentParser = {
   name: 'remote-document',
   version: `pdfjs-${pdfjs.version}:textin-v1`,
-  contentTypes: REMOTE_TYPES,
+  contentTypes: REMOTE_DOCUMENT_CONTENT_TYPES,
   /** 优先本地解析数字 PDF，其余情况调用 TextIn 并转换统一文档块。 */
   async parse({ file }) {
     if (getFileExtension(file.filename) === 'pdf') {
@@ -62,7 +60,7 @@ export const remoteDocumentParser: DocumentParser = {
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/octet-stream',
+            'Content-Type': binaryContentType,
           },
           timeout: config.parserTimeoutMs,
           maxBodyLength: Infinity,

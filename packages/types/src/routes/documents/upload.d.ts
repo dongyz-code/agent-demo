@@ -1,11 +1,5 @@
 import type { ApiMultAction } from '../../common/index.js';
 
-/** 服务端注册的通用上传策略。 */
-export type UploadPolicyKey =
-  | 'default-attachment'
-  | 'image'
-  | 'rag-document';
-
 /** 文件上传传输模式。 */
 export type UploadMode = 'single' | 'multipart';
 
@@ -51,8 +45,6 @@ export interface DocumentUploadResult {
 export type Upload = ApiMultAction<{
   init: {
     body: {
-      /** 服务端注册的上传策略键。 */
-      policyKey: UploadPolicyKey;
       /** 原始文件名。 */
       filename: string;
       /** 浏览器声明 MIME，仅用于前置判断。 */

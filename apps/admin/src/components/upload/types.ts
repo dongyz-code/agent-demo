@@ -1,4 +1,4 @@
-import type { DocumentUploadResult, UploadMode, UploadPolicyKey } from '@/types';
+import type { DocumentUploadResult, UploadMode } from '@/types';
 
 /** Uppy 文件上保存的通用上传会话元数据。 */
 export interface UploadFileMeta extends Record<string, unknown> {
@@ -70,10 +70,8 @@ export interface UploadQueueItem {
 
 /** 通用上传器创建参数。 */
 export interface UploaderOptions {
-  /** 上传器持久化空间的稳定用途键，不得只使用文件策略区分。 */
+  /** 上传器持久化空间的稳定用途键，用于隔离不同文档上传队列。 */
   instanceKey: string;
-  /** 服务端注册的上传策略。 */
-  policyKey: UploadPolicyKey;
   /** 单次队列最多允许加入的文件数。 */
   maxNumberOfFiles?: number;
   /** 每次初始化上传会话时读取最新的目标文档；空值表示新建文档。 */

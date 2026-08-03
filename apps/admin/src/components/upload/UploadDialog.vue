@@ -68,18 +68,14 @@ import { notify } from '@/utils';
 
 import LucideCloudUpload from '~icons/lucide/cloud-upload';
 
-import type { DocumentUploadResult, UploadPolicyKey } from '@/types';
+import type { DocumentUploadResult } from '@/types';
 
-const props = withDefaults(defineProps<{
-  /** 服务端上传策略。 */
-  policyKey?: UploadPolicyKey;
+const props = defineProps<{
   /** GoldenRetriever 持久化空间的稳定用途键。 */
   instanceKey: string;
   /** 单次最多选择的文件数量；上传新版本时应设为 1。 */
   maxNumberOfFiles?: number;
-}>(), {
-  policyKey: 'default-attachment',
-});
+}>();
 
 const emit = defineEmits<{
   /** 单个文件完成验证并创建文档版本。 */
@@ -107,7 +103,6 @@ const {
   clearDismissedFiles,
 } = useUploader({
   instanceKey: props.instanceKey,
-  policyKey: props.policyKey,
   maxNumberOfFiles: props.maxNumberOfFiles,
   getDocumentId() {
     return targetDocumentId.value;

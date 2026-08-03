@@ -2,10 +2,10 @@ import { onBeforeUnmount, ref, shallowRef } from 'vue';
 
 import { createUploadUppy } from './uppy-adapter';
 import {
-  getClientUploadPolicy,
+  documentUploadAccept,
   resolveDeclaredContentType,
   validateClientUploadFile,
-} from './policies';
+} from './config';
 
 import type {
   UploadQueueItem,
@@ -17,7 +17,6 @@ import type {
 export function useUploader(options: UploaderOptions) {
   const items = shallowRef<UploadQueueItem[]>([]);
   const uploadingBatch = ref(false);
-  const policy = getClientUploadPolicy(options.policyKey);
   const adapter = createUploadUppy(options);
   const { uppy } = adapter;
 
@@ -54,7 +53,7 @@ export function useUploader(options: UploaderOptions) {
         errors.push(`单次最多选择 ${options.maxNumberOfFiles} 个文件`);
         break;
       }
-      const validationError = validateClientUploadFile(file, policy);
+      const validationError = validateClientUploadFile(file);
       if (validationError) {
         errors.push(validationError);
         continue;
@@ -141,7 +140,7 @@ export function useUploader(options: UploaderOptions) {
   return {
     items,
     uploadingBatch,
-    accept: policy.accept,
+    accept: documentUploadAccept,
     addFiles,
     upload,
     pauseResume,
