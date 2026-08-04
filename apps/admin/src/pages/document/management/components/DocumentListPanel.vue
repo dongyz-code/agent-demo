@@ -46,31 +46,31 @@
           {{ row.name }}
         </div>
         <div
-          v-if="row.activeVersion.filename !== row.name"
+          v-if="row.activeVersion?.filename !== row.name"
           class="mt-1 max-w-72 truncate text-xs text-gray-400"
         >
-          {{ row.activeVersion.filename }}
+          {{ row.activeVersion?.filename }}
         </div>
       </template>
       <template #version="{ row }">
         <div class="flex items-center gap-2 whitespace-nowrap">
           <el-tag size="small" effect="plain">
-            V{{ row.activeVersion.version }}
+            V{{ row.activeVersion?.version }}
           </el-tag>
           <span class="text-xs text-gray-500">共 {{ row.versionCount }} 个版本</span>
         </div>
       </template>
-      <template #size="{ row }">{{ formatFileSize(row.activeVersion.size) }}</template>
+      <template #size="{ row }">{{ formatFileSize(row.activeVersion?.size) }}</template>
       <template #preview="{ row }">
         <div class="flex items-center gap-2 whitespace-nowrap">
-          <el-tag :type="getPreviewTagType(row.activeVersion.previewStatus)">
-            {{ previewStatusLabels[row.activeVersion.previewStatus] }}
+          <el-tag :type="getPreviewTagType(row.activeVersion?.previewStatus)">
+            {{ previewStatusLabels[row.activeVersion?.previewStatus] }}
           </el-tag>
           <span
-            v-if="row.activeVersion.previewPageCount"
+            v-if="row.activeVersion?.previewPageCount"
             class="text-xs text-gray-500"
           >
-            {{ row.activeVersion.previewPageCount }} 页
+            {{ row.activeVersion?.previewPageCount }} 页
           </span>
         </div>
       </template>
@@ -121,7 +121,6 @@
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { ElButton, ElTag } from 'element-plus';
 import {
-  VActionButtonGroup,
   VSchemaForm,
   VTable,
   usePage,
@@ -129,6 +128,8 @@ import {
 
 import DocumentPreviewDialog from '@/components/document-viewer/DocumentPreviewDialog.vue';
 import UploadDialog from '@/components/upload/UploadDialog.vue';
+import VActionButtonGroup from '@/components/action-button-group/VActionButtonGroup.vue';
+import type { ActionButtonItem } from '@/components/action-button-group/types';
 import { api, confirm, notify } from '@/utils';
 import DocumentDatasetsDialog from './DocumentDatasetsDialog.vue';
 import DocumentDetailDialog from './DocumentDetailDialog.vue';
@@ -148,7 +149,6 @@ import type {
   RagDatasetDocumentStatus,
 } from '@/types';
 import type {
-  ActionButtonItem,
   SchemaFormColumn,
   TableRow,
 } from '@repo/ui';
@@ -240,11 +240,11 @@ function getDocumentActions(document: DocumentInfo): ActionButtonItem[] {
       key: 'preview',
       label: '预览',
       icon: LucideEye,
-      disabled: document.activeVersion.previewStatus !== 'ready',
+      disabled: document.activeVersion?.previewStatus !== 'ready',
       handler: () =>
         previewRef.value?.open(
           document.documentId,
-          document.activeVersion.documentVersionId,
+          document.activeVersion?.documentVersionId,
         ),
     },
     {
@@ -257,9 +257,9 @@ function getDocumentActions(document: DocumentInfo): ActionButtonItem[] {
       key: 'reprocess',
       label: '重新处理',
       icon: LucideRefreshCw,
-      disabled:
-        document.activeVersion.previewStatus === 'pending' ||
-        document.activeVersion.previewStatus === 'processing',
+      isShow:
+        document.activeVersion?.previewStatus !== 'pending' &&
+        document.activeVersion?.previewStatus !== 'processing',
       handler: () => reprocessPreview(document),
     },
     {
@@ -343,6 +343,7 @@ async function uploadVersion(document: DocumentInfo) {
  * @param document 当前文档聚合信息。
  */
 async function reprocessPreview(document: DocumentInfo): Promise<void> {
+  if (!document.activeVersion) return;
   await api('/documents/document-preview-retry', {
     documentId: document.documentId,
     documentVersionId: document.activeVersion.documentVersionId,

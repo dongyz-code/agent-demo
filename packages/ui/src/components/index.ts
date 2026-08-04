@@ -11,4 +11,3 @@ export * from './table';
 export * from './tabs';
 export * from './icon';
 export * from './date-picker-range';
-export * from './action-button-group';

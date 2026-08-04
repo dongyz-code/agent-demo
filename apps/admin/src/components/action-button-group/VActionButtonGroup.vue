@@ -58,7 +58,7 @@ import {
 } from 'element-plus';
 import LucideChevronDown from '~icons/lucide/chevron-down';
 
-import type { ActionButtonItem } from './type';
+import type { ActionButtonItem } from './types';
 
 const props = withDefaults(defineProps<{
   /** 按期望展示顺序排列的操作配置。 */
@@ -72,11 +72,15 @@ const props = withDefaults(defineProps<{
   moreLabel: '更多',
 });
 
+/** 过滤掉显式隐藏的操作后再分配到按钮区与溢出菜单。 */
+const shownActions = computed(() =>
+  props.actions.filter((action) => action.isShow !== false),
+);
 const visibleActions = computed(() =>
-  props.actions.slice(0, Math.max(0, props.maxVisible)),
+  shownActions.value.slice(0, Math.max(0, props.maxVisible)),
 );
 const overflowActions = computed(() =>
-  props.actions.slice(Math.max(0, props.maxVisible)),
+  shownActions.value.slice(Math.max(0, props.maxVisible)),
 );
 
 /**

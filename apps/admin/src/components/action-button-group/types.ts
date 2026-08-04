@@ -1,4 +1,4 @@
-import type { IconType } from '../icon';
+import type { FunctionalComponent as IconType } from 'vue';
 
 /** 操作按钮的 Element Plus 语义类型。 */
 export type ActionButtonType =
@@ -22,4 +22,6 @@ export interface ActionButtonItem {
   type?: ActionButtonType;
   /** 禁用时保留展示但不执行 handler。 */
   disabled?: boolean;
+  /** 是否展示该操作，默认 true；为 false 时从按钮区与溢出菜单中一并排除。 */
+  isShow?: boolean;
 }
