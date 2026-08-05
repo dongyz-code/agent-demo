@@ -4,23 +4,49 @@ import { marked } from 'marked';
 import { ROOT } from '@/configs/index.js';
 import { documentsConfig } from '../../../config.js';
 import { hashToUuid } from '../ids.js';
-import {
-  binaryContentType,
-  contentTypeConfig,
-  getFileExtension,
-} from '@repo/shared';
+import { contentTypeConfig } from '@repo/shared';
 
 import type { DocumentParsedBlock } from '@repo/types';
 import type { DocumentParser, DocumentParserInput } from '../types.js';
 import type { Token, Tokens } from 'marked';
 
-const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+/** TextIn 异步解析任务的稳定状态。 */
+type TextInJobStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
 
-const MAX_LOCAL_PDF_BYTES = 64 * 1024 * 1024;
-const MIN_LOCAL_PDF_SEMANTIC_CHARACTERS = 40;
-const MIN_LOCAL_PDF_SEMANTIC_CHARACTERS_PER_PAGE = 20;
-const MIN_LOCAL_PDF_PAGE_CHARACTERS = 8;
-const MIN_LOCAL_PDF_READABLE_RATIO = 0.85;
+/** 解析阶段用于恢复 TextIn 异步任务的持久化信息。 */
+interface TextInParseCheckpoint {
+  /** checkpoint 归属，避免误用其他解析器留下的数据。 */
+  provider: 'textin-xparse';
+  /** checkpoint 结构版本。 */
+  version: 1;
+  /** TextIn 返回的异步任务标识。 */
+  jobId: string;
+  /** 最近一次确认的上游任务状态。 */
+  status: TextInJobStatus;
+}
+
+/** TextIn 查询接口返回的必要任务字段。 */
+interface TextInJobResult {
+  /** TextIn 异步任务标识。 */
+  jobId: string;
+  /** 当前任务状态。 */
+  status: TextInJobStatus;
+  /** 任务完成后用于下载完整解析结果的地址。 */
+  resultUrl?: string;
+}
+
+const TEXT_IN_ASYNC_PATH = 'api/v1/xparse/parse/async';
+const TEXT_IN_PARSE_CONFIG = {
+  capabilities: {
+    table_view: 'markdown',
+  },
+  config: {
+    force_engine: 'textin',
+    engine_params: {
+      parse_mode: 'auto',
+    },
+  },
+};
 const REMOTE_DOCUMENT_CONTENT_TYPES = [
   ...new Set([
     ...contentTypeConfig.pdf.flatMap((item) => item.mime),
@@ -30,44 +56,28 @@ const REMOTE_DOCUMENT_CONTENT_TYPES = [
   ]),
 ];
 
-/** PDF 优先读取本地文本层，无法可靠提取时与 Office 一并回退 TextIn。 */
+/** 使用 TextIn xParse 异步接口解析 PDF 与 Office 文档。 */
 export const remoteDocumentParser: DocumentParser = {
   name: 'remote-document',
-  version: `pdfjs-${pdfjs.version}:textin-v1`,
+  version: 'textin-xparse-async-1.3.0',
   contentTypes: REMOTE_DOCUMENT_CONTENT_TYPES,
-  /** 优先本地解析数字 PDF，其余情况调用 TextIn 并转换统一文档块。 */
-  async parse({ file }) {
-    if (getFileExtension(file.filename) === 'pdf') {
-      const localBlocks = await tryParseLocalPdf(file);
-      if (localBlocks) return localBlocks;
-    }
-
-    const config = documentsConfig.document;
-    if (!config.parserEndpoint) {
-      throw new Error(
-        'DOCUMENT_PARSER_ENDPOINT_MISSING: TextIn 解析地址未配置',
-      );
-    }
-    const apiKey = ROOT.AI?.textIn?.apiKey?.trim();
-    if (!apiKey) {
-      throw new Error('DOCUMENT_PARSER_AUTH_MISSING: AI.textIn.apiKey 未配置');
-    }
-
+  /** 提交或恢复持久化 TextIn job，完成后把 Markdown 转换为统一文档块。 */
+  async parse(input) {
     try {
-      const response = await axios.post<unknown>(
-        config.parserEndpoint,
-        await file.openStream(),
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': binaryContentType,
-          },
-          timeout: config.parserTimeoutMs,
-          maxBodyLength: Infinity,
-          maxContentLength: Infinity,
-        },
-      );
-      return parseTextInResponse(response.data, file.fileId);
+      const credentials = getTextInCredentials();
+      let checkpoint = parseTextInCheckpoint(input.checkpoint);
+      if (!checkpoint) {
+        const jobId = await createTextInJob(input, credentials);
+        checkpoint = {
+          provider: 'textin-xparse',
+          version: 1,
+          jobId,
+          status: 'pending',
+        };
+        await input.saveCheckpoint(checkpoint);
+      }
+      const result = await waitForTextInResult(checkpoint, credentials, input);
+      return parseTextInResponse(result, input.file.fileId);
     } catch (error) {
       throw normalizeTextInError(error);
     }
@@ -75,164 +85,269 @@ export const remoteDocumentParser: DocumentParser = {
 };
 
 /**
- * 尝试从 PDF 自带文本层直接生成文档块。
+ * 读取并校验 TextIn 代理接口配置。
  *
- * @param file 已验证且可重复打开的 PDF 源文件。
- * @returns 文本层质量足够时返回按页组织的块，否则返回空并交给远程解析。
+ * @returns xParse 基础地址与 Bearer 鉴权请求头。
  */
-async function tryParseLocalPdf(
-  file: DocumentParserInput['file'],
-): Promise<DocumentParsedBlock[] | undefined> {
-  if (file.size > MAX_LOCAL_PDF_BYTES) return undefined;
+function getTextInCredentials(): {
+  /** TextIn API 基础地址。 */
+  baseUrl: string;
+  /** TextIn 代理 Bearer 鉴权请求头。 */
+  headers: Record<string, string>;
+} {
+  const baseUrl = documentsConfig.document.textInBaseUrl;
+  if (!baseUrl) {
+    throw new Error(
+      'DOCUMENT_PARSER_ENDPOINT_MISSING: AI.textIn.baseUrl 未配置',
+    );
+  }
+  const apiKey = ROOT.AI?.textIn?.apiKey?.trim();
+  if (!apiKey) {
+    throw new Error(
+      'DOCUMENT_PARSER_AUTH_MISSING: AI.textIn.apiKey 未配置',
+    );
+  }
+  return {
+    baseUrl,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  };
+}
 
-  try {
-    const source = await readLocalPdf(file);
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(source),
-      useSystemFonts: true,
-    });
-    const document = await loadingTask.promise;
-    try {
-      const pages: string[] = [];
-      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
-        const page = await document.getPage(pageNumber);
-        try {
-          const textContent = await page.getTextContent();
-          pages.push(extractPdfPageText(textContent.items));
-        } finally {
-          page.cleanup();
-        }
+/**
+ * 创建 TextIn 异步解析任务。
+ *
+ * @param input 文档源、checkpoint 和 lease 控制器。
+ * @param credentials TextIn 地址与鉴权头。
+ * @returns TextIn 返回且可用于恢复轮询的 job_id。
+ */
+async function createTextInJob(
+  input: DocumentParserInput,
+  credentials: ReturnType<typeof getTextInCredentials>,
+): Promise<string> {
+  await input.assertActive();
+  const form = new FormData();
+  form.append('file_url', await input.file.createDownloadUrl());
+  form.append('config', JSON.stringify(TEXT_IN_PARSE_CONFIG));
+  const response = await axios.post<unknown>(
+    buildTextInUrl(credentials.baseUrl, TEXT_IN_ASYNC_PATH),
+    form,
+    {
+      headers: credentials.headers,
+      timeout: documentsConfig.document.textInRequestTimeoutMs,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    },
+  );
+  const data = getTextInResponseData(response.data, '创建异步解析任务');
+  if (typeof data.job_id !== 'string' || !data.job_id) {
+    throw new Error(
+      'DOCUMENT_PARSER_INVALID_RESPONSE: TextIn 未返回有效 job_id',
+    );
+  }
+  return data.job_id;
+}
+
+/**
+ * 恢复轮询 TextIn job，并在完成后下载完整结果。
+ *
+ * @param checkpoint 已持久化的 TextIn job 信息。
+ * @param credentials TextIn 地址与鉴权头。
+ * @param input 文档解析阶段的 checkpoint 与 lease 控制器。
+ * @returns 与新版同步接口相同的完整响应体。
+ */
+async function waitForTextInResult(
+  checkpoint: TextInParseCheckpoint,
+  credentials: ReturnType<typeof getTextInCredentials>,
+  input: DocumentParserInput,
+): Promise<unknown> {
+  const startedAt = Date.now();
+  let lastStatus = checkpoint.status;
+  while (Date.now() - startedAt < documentsConfig.document.textInMaxWaitMs) {
+    await input.assertActive();
+    const job = await getTextInJob(checkpoint.jobId, credentials);
+    if (job.status !== lastStatus) {
+      lastStatus = job.status;
+      await input.saveCheckpoint({
+        ...checkpoint,
+        status: job.status,
+      } satisfies TextInParseCheckpoint);
+    }
+    if (job.status === 'failed') {
+      throw new Error(
+        `DOCUMENT_PARSER_UPSTREAM_FAILED: TextIn 异步解析任务失败（job_id=${job.jobId}）`,
+      );
+    }
+    if (job.status === 'completed') {
+      if (!job.resultUrl) {
+        throw new Error(
+          'DOCUMENT_PARSER_INVALID_RESPONSE: TextIn 完成任务未返回 result_url',
+        );
       }
-      if (!isReliablePdfText(pages)) return undefined;
-      return pages.flatMap((text, index) => {
-        if (!text) return [];
-        const pageNumber = index + 1;
-        return [
-          {
-            blockId: hashToUuid(
-              `${file.fileId}:pdfjs:${pageNumber}:${text}`,
-            ),
-            type: 'paragraph',
-            text,
-            headingPath: [],
-            page: pageNumber,
-            position: index,
-            metadata: { source: 'pdf-text-layer' },
-          },
-        ];
+      await input.assertActive();
+      const response = await axios.get<unknown>(job.resultUrl, {
+        headers: credentials.headers,
+        timeout: documentsConfig.document.textInRequestTimeoutMs,
+        maxContentLength: Infinity,
       });
-    } finally {
-      await document.destroy();
+      return response.data;
     }
-  } catch {
-    return undefined;
+    await wait(documentsConfig.document.textInPollIntervalMs);
   }
+  throw new Error(
+    `DOCUMENT_PARSER_ASYNC_TIMEOUT: TextIn 异步解析等待超时（job_id=${checkpoint.jobId}）`,
+  );
 }
 
 /**
- * 把受限大小的 PDF 流读取为 PDF.js 所需的完整字节。
+ * 查询 TextIn 异步任务状态。
  *
- * @param file 已验证的 PDF 源文件。
- * @returns 不超过本地解析上限的 PDF 字节。
+ * @param jobId 已持久化的 TextIn job_id。
+ * @param credentials TextIn 地址与鉴权头。
+ * @returns 当前任务状态与完成后的结果地址。
  */
-async function readLocalPdf(file: DocumentParserInput['file']): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-  const stream = await file.openStream();
-  for await (const chunk of stream) {
-    const content = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    totalBytes += content.length;
-    if (totalBytes > MAX_LOCAL_PDF_BYTES) {
-      throw new Error('DOCUMENT_LOCAL_PDF_TOO_LARGE');
-    }
-    chunks.push(content);
+async function getTextInJob(
+  jobId: string,
+  credentials: ReturnType<typeof getTextInCredentials>,
+): Promise<TextInJobResult> {
+  const path = `${TEXT_IN_ASYNC_PATH}/${encodeURIComponent(jobId)}`;
+  const response = await axios.get<unknown>(
+    buildTextInUrl(credentials.baseUrl, path),
+    {
+      headers: credentials.headers,
+      timeout: documentsConfig.document.textInRequestTimeoutMs,
+      maxContentLength: Infinity,
+    },
+  );
+  const data = getTextInResponseData(response.data, '查询异步解析任务');
+  if (typeof data.job_id !== 'string' || data.job_id !== jobId) {
+    throw new Error(
+      'DOCUMENT_PARSER_INVALID_RESPONSE: TextIn 状态响应 job_id 不匹配',
+    );
   }
-  return Buffer.concat(chunks, totalBytes);
+  if (!isTextInJobStatus(data.status)) {
+    throw new Error(
+      'DOCUMENT_PARSER_INVALID_RESPONSE: TextIn 返回了未知任务状态',
+    );
+  }
+  const result: TextInJobResult = {
+    jobId: data.job_id,
+    status: data.status,
+  };
+  if (typeof data.result_url === 'string' && data.result_url) {
+    result.resultUrl = data.result_url;
+  }
+  return result;
 }
 
 /**
- * 将 PDF.js 文本项按原有换行和必要的西文词间距拼成单页文本。
+ * 从 TextIn 新版响应中读取业务 data，并统一业务错误。
  *
- * @param items PDF.js 返回的文本项与标记项。
- * @returns 清理多余行内空白后的单页文本。
+ * @param value TextIn 未经信任的响应体。
+ * @param operation 当前调用动作，用于生成安全错误摘要。
+ * @returns 通过业务 code 校验的 data 对象。
  */
-function extractPdfPageText(items: unknown[]): string {
-  let source = '';
-  let previous = '';
-  for (const item of items) {
-    if (!item || typeof item !== 'object' || !('str' in item)) continue;
-    if (typeof item.str !== 'string') continue;
-    if (shouldInsertPdfTextSpace(previous, item.str)) source += ' ';
-    source += item.str;
-    previous = item.str;
-    if ('hasEOL' in item && item.hasEOL === true) {
-      source += '\n';
-      previous = '';
-    }
+function getTextInResponseData(
+  value: unknown,
+  operation: string,
+): Record<string, unknown> {
+  const response = toRecord(value);
+  if (!response) {
+    throw new Error(
+      `DOCUMENT_PARSER_INVALID_RESPONSE: TextIn ${operation}返回体无效`,
+    );
   }
-  return source
-    .replace(/\r\n?/g, '\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  const code = response.code;
+  if (code === 40101 || code === 40102) {
+    throw new Error('DOCUMENT_PARSER_AUTH_FAILED: TextIn 代理鉴权失败');
+  }
+  if (code !== 200) {
+    throw new Error(
+      `DOCUMENT_PARSER_UPSTREAM_FAILED: TextIn ${operation}失败（${String(code ?? 'unknown')}）`,
+    );
+  }
+  const data = toRecord(response.data);
+  if (!data) {
+    throw new Error(
+      `DOCUMENT_PARSER_INVALID_RESPONSE: TextIn ${operation}未返回 data`,
+    );
+  }
+  return data;
 }
 
 /**
- * 判断相邻 PDF 文本项之间是否需要补一个西文词间空格。
+ * 从阶段 checkpoint 恢复 TextIn job。
  *
- * @param previous 前一个 PDF 文本项。
- * @param current 当前 PDF 文本项。
- * @returns 两端都是拉丁字母或数字且原文未携带空白时返回真。
+ * @param value 数据库存储并重新解析的未知 checkpoint。
+ * @returns 首次处理时返回空；已有合法 job 时返回恢复信息。
  */
-function shouldInsertPdfTextSpace(previous: string, current: string): boolean {
+function parseTextInCheckpoint(
+  value: unknown,
+): TextInParseCheckpoint | undefined {
+  if (value === undefined || value === null) return undefined;
+  const checkpoint = toRecord(value);
+  if (
+    checkpoint?.provider !== 'textin-xparse' ||
+    checkpoint.version !== 1 ||
+    typeof checkpoint.jobId !== 'string' ||
+    !checkpoint.jobId ||
+    !isTextInJobStatus(checkpoint.status)
+  ) {
+    throw new Error(
+      'DOCUMENT_PARSER_CHECKPOINT_INVALID: TextIn 异步任务恢复信息无效',
+    );
+  }
+  return {
+    provider: 'textin-xparse',
+    version: 1,
+    jobId: checkpoint.jobId,
+    status: checkpoint.status,
+  };
+}
+
+/**
+ * 判断未知值是否为 TextIn 支持的任务状态。
+ *
+ * @param value TextIn 状态响应或 checkpoint 中的未知状态。
+ * @returns 属于稳定状态枚举时返回真。
+ */
+function isTextInJobStatus(value: unknown): value is TextInJobStatus {
   return (
-    /[\p{Script=Latin}\p{N}]$/u.test(previous) &&
-    /^[\p{Script=Latin}\p{N}]/u.test(current)
+    value === 'pending' ||
+    value === 'in_progress' ||
+    value === 'completed' ||
+    value === 'failed'
   );
 }
 
 /**
- * 判断本地文本层是否足以替代远程文档识别。
+ * 基于配置的 API 根地址构造 TextIn xParse 接口地址。
  *
- * @param pages 按 PDF 页码排列的本地提取文本。
- * @returns 总体文字量、页面覆盖和字符可读性均达标时返回真。
+ * @param baseUrl TextIn API 根地址。
+ * @param path 不以斜杠开头的 xParse 接口路径。
+ * @returns 可供 Axios 调用的完整 URL。
  */
-function isReliablePdfText(pages: string[]): boolean {
-  if (!pages.length) return false;
-  const semanticCounts = pages.map(
-    (text) => text.match(/[\p{L}\p{N}]/gu)?.length ?? 0,
-  );
-  const semanticCharacterCount = semanticCounts.reduce(
-    (total, count) => total + count,
-    0,
-  );
-  const requiredCharacterCount = Math.max(
-    MIN_LOCAL_PDF_SEMANTIC_CHARACTERS,
-    pages.length * MIN_LOCAL_PDF_SEMANTIC_CHARACTERS_PER_PAGE,
-  );
-  if (semanticCharacterCount < requiredCharacterCount) return false;
+function buildTextInUrl(baseUrl: string, path: string): string {
+  return new URL(path, `${baseUrl.replace(/\/+$/, '')}/`).toString();
+}
 
-  const readablePageCount = semanticCounts.filter(
-    (count) => count >= MIN_LOCAL_PDF_PAGE_CHARACTERS,
-  ).length;
-  const allowedSparsePageCount = pages.length >= 5 ? 1 : 0;
-  if (readablePageCount < pages.length - allowedSparsePageCount) return false;
-
-  const text = pages.join('');
-  const visibleCharacterCount = text.match(/\S/gu)?.length ?? 0;
-  const readableCharacterCount =
-    text.match(/[\p{L}\p{M}\p{N}\p{P}\p{S}]/gu)?.length ?? 0;
-  return (
-    visibleCharacterCount > 0 &&
-    readableCharacterCount / visibleCharacterCount >=
-      MIN_LOCAL_PDF_READABLE_RATIO
-  );
+/**
+ * 等待下一次 TextIn 状态查询，避免高频轮询。
+ *
+ * @param milliseconds 等待毫秒数。
+ * @returns 定时器到期后完成。
+ */
+async function wait(milliseconds: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 /**
  * 将 TextIn 响应转换为仓库统一文档块。
  *
- * @param value TextIn `pdf_to_markdown` 接口响应体。
+ * @param value TextIn xParse `result_url` 下载得到的新版响应体。
  * @param fileId 当前源文件稳定标识，用于生成确定性块 ID。
  * @returns 可继续进行标准化、切分和向量化的文档块。
  */
@@ -240,21 +355,13 @@ export function parseTextInResponse(
   value: unknown,
   fileId: string,
 ): DocumentParsedBlock[] {
-  const response = toRecord(value);
-  const code = response?.code;
-  if (code !== undefined && String(code) !== '200') {
-    throw new Error(
-      `DOCUMENT_PARSER_UPSTREAM_FAILED: TextIn 解析失败（${String(code)}）`,
-    );
-  }
-
-  const result = toRecord(response?.result);
-  if (typeof result?.markdown !== 'string') {
+  const data = getTextInResponseData(value, '下载解析结果');
+  if (typeof data.markdown !== 'string') {
     throw new Error(
       'DOCUMENT_PARSER_INVALID_RESPONSE: TextIn 未返回 Markdown 内容',
     );
   }
-  return parseTextInMarkdown(result.markdown, fileId);
+  return parseTextInMarkdown(data.markdown, fileId);
 }
 
 /**
@@ -293,7 +400,10 @@ function parseTextInMarkdown(
       headingPath: [...headingPath],
       page: null,
       position,
-      metadata: content.metadata,
+      metadata: {
+        ...content.metadata,
+        source: 'textin-xparse',
+      },
     });
   });
 
@@ -364,9 +474,10 @@ function getTokenContent(token: Token):
  * @returns 非数组普通对象；其他值返回空。
  */
 function toRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
 }
 
 /**
@@ -377,9 +488,8 @@ function toRecord(value: unknown): Record<string, unknown> | undefined {
  */
 function normalizeTextInError(error: unknown): Error {
   if (!axios.isAxiosError(error)) {
-    return error instanceof Error
-      ? error
-      : new Error('DOCUMENT_PARSER_FAILED: TextIn 文档解析失败');
+    if (error instanceof Error) return error;
+    return new Error('DOCUMENT_PARSER_FAILED: TextIn 文档解析失败');
   }
   const status = error.response?.status;
   if (status === 401 || status === 403) {
@@ -387,10 +497,15 @@ function normalizeTextInError(error: unknown): Error {
       'DOCUMENT_PARSER_AUTH_FAILED: TextIn 代理鉴权失败，请检查 AI.textIn.apiKey',
     );
   }
-  if (error.code === 'ECONNABORTED') {
-    return new Error('DOCUMENT_PARSER_TIMEOUT: TextIn 文档解析超时');
+  if (status === 429) {
+    return new Error('DOCUMENT_PARSER_RATE_LIMITED: TextIn 请求频率受限');
   }
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+    return new Error('DOCUMENT_PARSER_TIMEOUT: TextIn 单次请求超时');
+  }
+  let statusSummary = '';
+  if (status) statusSummary = `（HTTP ${status}）`;
   return new Error(
-    `DOCUMENT_PARSER_REQUEST_FAILED: TextIn 请求失败${status ? `（HTTP ${status}）` : ''}`,
+    `DOCUMENT_PARSER_REQUEST_FAILED: TextIn 请求失败${statusSummary}`,
   );
 }

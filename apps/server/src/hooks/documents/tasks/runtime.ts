@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { appendTaskLog } from '../../tasks/log.js';
@@ -44,6 +44,19 @@ export class FileProcessingLeaseLostError extends Error {
   }
 }
 
+/** 单个任务阶段执行期间可恢复的持久化上下文。 */
+export interface FileProcessingStageExecution {
+  /** 上一次同阶段尝试保存的 JSON checkpoint；首次执行时为空。 */
+  checkpoint: unknown;
+  /**
+   * 覆盖保存当前阶段的轻量 JSON checkpoint。
+   *
+   * @param checkpoint 可被 JSON 序列化的恢复信息，不得包含密钥或完整文档内容。
+   * @returns 当前任务仍持有 lease 且 checkpoint 已持久化时完成。
+   */
+  saveCheckpoint: (checkpoint: unknown) => Promise<void>;
+}
+
 /**
  * 执行单个阶段并记录进度、尝试次数和错误。
  *
@@ -57,7 +70,7 @@ export async function runTaskStage<T>(
   context: FileProcessingTaskContext,
   lease: FileProcessingTaskLease,
   stage: FileProcessingStage,
-  action: () => Promise<T> | T,
+  action: (execution: FileProcessingStageExecution) => Promise<T> | T,
 ) {
   await lease.assertActive();
   const stageCountWhere = buildWhere((filter) => {
@@ -73,11 +86,17 @@ export async function runTaskStage<T>(
       eq(schemas.tasks.pending_uuid, lease.leaseId),
     );
   });
-  const attempt =
-    (await db.$count(
-      schemas.file_processing_task_stage_runs,
-      stageCountWhere,
-    )) + 1;
+  const [previousRun] = await db
+    .select({
+      attempt: schemas.file_processing_task_stage_runs.attempt,
+      checkpoint: schemas.file_processing_task_stage_runs.checkpoint,
+    })
+    .from(schemas.file_processing_task_stage_runs)
+    .where(stageCountWhere)
+    .orderBy(desc(schemas.file_processing_task_stage_runs.attempt))
+    .limit(1);
+  const attempt = (previousRun?.attempt ?? 0) + 1;
+  const checkpoint = parseStageCheckpoint(previousRun?.checkpoint);
   const stageRunId = randomUUID();
   const start = new Date();
   await db.transaction(async (tx) => {
@@ -99,7 +118,7 @@ export async function runTaskStage<T>(
       status: 'pending',
       processed_items: 0,
       total_items: 0,
-      checkpoint: null,
+      checkpoint: previousRun?.checkpoint ?? null,
       error_code: null,
       error_message: null,
       start_timestamp: start,
@@ -108,7 +127,30 @@ export async function runTaskStage<T>(
   });
   await appendTaskLog(context.taskId, `开始阶段：${stage}`);
   try {
-    const result = await action();
+    const result = await action({
+      checkpoint,
+      saveCheckpoint: async (value) => {
+        const serialized = serializeStageCheckpoint(value);
+        await lease.assertActive();
+        const stageRunWhere = buildWhere((filter) => {
+          filter.push(
+            eq(
+              schemas.file_processing_task_stage_runs.stage_run_id,
+              stageRunId,
+            ),
+            eq(schemas.file_processing_task_stage_runs.status, 'pending'),
+          );
+        });
+        const [saved] = await db
+          .update(schemas.file_processing_task_stage_runs)
+          .set({ checkpoint: serialized })
+          .where(stageRunWhere)
+          .returning({
+            stageRunId: schemas.file_processing_task_stage_runs.stage_run_id,
+          });
+        if (!saved) throw new FileProcessingLeaseLostError();
+      },
+    });
     await lease.assertActive();
     const processedItems = getProcessedItems(result);
     await db.transaction(async (tx) => {
@@ -124,7 +166,6 @@ export async function runTaskStage<T>(
           status: 'completed',
           processed_items: processedItems,
           total_items: processedItems,
-          checkpoint: null,
           end_timestamp: new Date(),
         })
         .where(
@@ -168,6 +209,39 @@ export async function runTaskStage<T>(
     await appendTaskLog(context.taskId, `阶段失败：${stage}，${message}`);
     throw error;
   }
+}
+
+/**
+ * 解析数据库中的阶段 checkpoint。
+ *
+ * @param value 数据库存储的 JSON 字符串。
+ * @returns checkpoint 对象；没有历史 checkpoint 时返回空。
+ */
+function parseStageCheckpoint(value: string | null | undefined): unknown {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    throw new Error(
+      'FILE_PROCESSING_CHECKPOINT_INVALID: 阶段恢复信息不是有效 JSON',
+    );
+  }
+}
+
+/**
+ * 序列化阶段 checkpoint，并拒绝无法稳定落库的值。
+ *
+ * @param value 业务阶段提供的轻量恢复信息。
+ * @returns 可写入数据库的 JSON 字符串。
+ */
+function serializeStageCheckpoint(value: unknown): string {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) {
+    throw new Error(
+      'FILE_PROCESSING_CHECKPOINT_INVALID: 阶段恢复信息无法序列化',
+    );
+  }
+  return serialized;
 }
 
 /** 将任务标记为成功并写入安全结果摘要。 */

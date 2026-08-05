@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
+import { documentsConfig } from '../config.js';
 import { objectStorage } from './objects.js';
 
 import type { Readable } from 'node:stream';
@@ -17,6 +18,8 @@ export interface ReadableDocumentSource {
   size: number;
   /** 每次调用均重新打开对象流，避免重试复用已消费流。 */
   openStream: () => Promise<Readable>;
+  /** 为可信外部解析服务签发短期原文件下载地址。 */
+  createDownloadUrl: () => Promise<string>;
 }
 
 /**
@@ -50,15 +53,28 @@ export async function getReadableDocumentSource(
   if (file.status !== 'verified' || !file.content_type) {
     throw new ROOT_ERROR('数据异常');
   }
+  const contentType = file.content_type;
   return {
     fileId: file.file_id,
     filename: file.filename,
-    contentType: file.content_type,
+    contentType,
     size: file.size,
     openStream: async () =>
       await objectStorage.open({
         bucket: file.bucket,
         objectKey: file.object_key,
       }),
+    createDownloadUrl: async () => {
+      const signed = await objectStorage.presignGet({
+        bucket: file.bucket,
+        objectKey: file.object_key,
+        contentType,
+        filename: file.filename,
+        disposition: 'inline',
+        expiresInSeconds:
+          documentsConfig.document.textInSourceUrlExpiresSeconds,
+      });
+      return signed.url;
+    },
   };
 }

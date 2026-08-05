@@ -257,7 +257,7 @@ export const adminPermissionTree = [
             label: '文档管理',
             type: 'page',
             icon: 'files',
-            route: 'file.management',
+            route: 'documents.management',
             children: [
               {
                 key: 'actions.documents.upload',
@@ -290,7 +290,7 @@ export const adminPermissionTree = [
             label: '知识库管理',
             type: 'page',
             icon: 'book-open',
-            route: 'rag.dataset',
+            route: 'documents.dataset',
             children: [
               {
                 key: 'actions.documents.dataset-create',

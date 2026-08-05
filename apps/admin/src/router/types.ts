@@ -19,15 +19,11 @@ export const routeNameMap = {
   'system.task': '任务管理',
   'system.table': '表管理',
 
-  /** ============ 文件中心相关 ============ */
+  /** ============ 文档中心相关 ============ */
 
-  file: '文档中心',
-  'file.management': '文档管理',
-
-  /** ============ RAG 管理相关 ============ */
-
-  rag: 'RAG 管理',
-  'rag.dataset': '知识库管理',
+  documents: '文档中心',
+  'documents.management': '文档管理',
+  'documents.dataset': '知识库管理',
 };
 
 export type RouteName = keyof typeof routeNameMap;

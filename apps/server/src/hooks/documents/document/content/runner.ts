@@ -54,8 +54,17 @@ export async function runDocumentContentTask(
       getReadableDocumentSource(context.fileId),
     );
     const parser = getDocumentParser(file.contentType);
-    const parsed = await runTaskStage(context, lease, 'parsing', async () =>
-      parser.parse({ file }),
+    const parsed = await runTaskStage(
+      context,
+      lease,
+      'parsing',
+      async ({ checkpoint, saveCheckpoint }) =>
+        parser.parse({
+          file,
+          checkpoint,
+          saveCheckpoint,
+          assertActive: lease.assertActive,
+        }),
     );
     const normalized = await runTaskStage(context, lease, 'normalizing', () =>
       normalizeDocumentBlocks(parsed),

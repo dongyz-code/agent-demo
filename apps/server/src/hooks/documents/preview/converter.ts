@@ -244,7 +244,7 @@ async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
     },
     {
       responseType: 'arraybuffer',
-      timeout: documentsConfig.document.parserTimeoutMs,
+      timeout: documentsConfig.document.officePreviewTimeoutMs,
       maxContentLength: MAX_SOURCE_BYTES,
       maxBodyLength: MAX_SOURCE_BYTES,
     },

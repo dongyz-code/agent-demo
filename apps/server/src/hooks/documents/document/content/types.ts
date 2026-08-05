@@ -5,6 +5,17 @@ import type { ReadableDocumentSource } from '../../file/source.js';
 export interface DocumentParserInput {
   /** 已验证通用文件及可重复读取流工厂。 */
   file: ReadableDocumentSource;
+  /** 当前解析阶段上一次持久化的轻量恢复信息。 */
+  checkpoint: unknown;
+  /**
+   * 保存当前解析阶段恢复信息。
+   *
+   * @param checkpoint 可 JSON 序列化且不包含文档正文或服务密钥的轻量状态。
+   * @returns 当前任务仍持有 lease 且恢复信息已经落库时完成。
+   */
+  saveCheckpoint: (checkpoint: unknown) => Promise<void>;
+  /** 确认任务仍由当前 worker 持有，失去 lease 或取消时抛出错误。 */
+  assertActive: () => Promise<void>;
 }
 
 /** 通用文档解析器。 */

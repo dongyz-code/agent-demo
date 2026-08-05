@@ -23,7 +23,7 @@ export type AiProvider = 'bailian' | 'volcengine' | 'awsBedrock' | 'google';
 export interface TextInSecret {
   /** 调用 TextIn 代理时使用的 Bearer Token。 */
   apiKey: string;
-  /** TextIn 文档解析完整接口地址。 */
+  /** TextIn 代理的 xParse API 基础地址，不包含具体接口路径。 */
   baseUrl: string;
 }
 

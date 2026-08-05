@@ -63,6 +63,8 @@ interface PresignGetInput extends ContentObjectReference {
   filename: string;
   /** 浏览器以内联或附件方式处理响应。 */
   disposition: 'inline' | 'attachment';
+  /** 可选签名有效秒数；外部异步任务可覆盖默认浏览器下载时长。 */
+  expiresInSeconds?: number;
 }
 
 /**
@@ -330,6 +332,8 @@ class S3ObjectStorage {
   ): Promise<{ url: string; expiresAt: Date }> {
     const fallbackName = encodeURIComponent(input.filename);
     const contentDisposition = `${input.disposition}; filename*=UTF-8''${fallbackName}`;
+    const expiresInSeconds =
+      input.expiresInSeconds ?? this.presignExpiresSeconds;
     const url = await getSignedUrl(
       this.signingClient,
       new GetObjectCommand({
@@ -338,11 +342,11 @@ class S3ObjectStorage {
         ResponseContentType: input.contentType,
         ResponseContentDisposition: contentDisposition,
       }),
-      { expiresIn: this.presignExpiresSeconds },
+      { expiresIn: expiresInSeconds },
     );
     return {
       url,
-      expiresAt: new Date(Date.now() + this.presignExpiresSeconds * 1000),
+      expiresAt: new Date(Date.now() + expiresInSeconds * 1000),
     };
   }
 }

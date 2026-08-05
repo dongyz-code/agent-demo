@@ -40,8 +40,8 @@ const _menuItems: MenuItem<RouteName>[] = [
     label: '文档中心',
     icon: LucideFolderOpen,
     children: [
-      helperRouterName('file.management'),
-      helperRouterName('rag.dataset'),
+      helperRouterName('documents.management'),
+      helperRouterName('documents.dataset'),
     ],
   },
 ];
