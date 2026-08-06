@@ -4,7 +4,7 @@ import { getEmbeddingModel } from '@/hooks/agents/providers/providers.js';
 import {
   DOCUMENT_SEGMENTS_COLLECTION,
   qdrantClient,
-} from '@/vector/client.js';
+} from '@/database/vector/client.js';
 import {
   deleteByFilter,
   upsertPoints,

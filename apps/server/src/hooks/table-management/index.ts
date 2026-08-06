@@ -2,7 +2,7 @@ import { buildWhere, db, schemas } from '@/database/index.js';
 import {
   compareTableStructure,
   getTableCatalogSnapshot,
-} from '@/database/structure/index.js';
+} from '@/database/postgres/structure/index.js';
 import { desc, eq, inArray, sql } from 'drizzle-orm';
 
 import {

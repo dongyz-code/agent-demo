@@ -6,8 +6,8 @@ import {
   ROOT,
   PORT,
 } from '@/configs/index.js';
-import { startupTableStructureSync } from '@/database/structure/index.js';
-import { ensureDocumentSegmentsCollection } from '@/vector/client.js';
+import { startupTableStructureSync } from '@/database/postgres/structure/index.js';
+import { ensureDocumentSegmentsCollection } from '@/database/vector/client.js';
 import { getRoutes, callback } from '@/router/index.js';
 import { objectStorage } from '@/hooks/documents/file/objects.js';
 import { startFileProcessingWorker } from '@/hooks/documents/tasks/worker.js';

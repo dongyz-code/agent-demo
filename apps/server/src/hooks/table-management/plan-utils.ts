@@ -1,8 +1,8 @@
-import { normalizeSqlType } from '@/database/structure/index.js';
+import { normalizeSqlType } from '@/database/postgres/structure/index.js';
 
 import type { TableColumnMapping } from '@repo/types';
 import type { ManagedTableSchema } from './types.js';
-import type { TableCatalogSnapshot } from '@/database/structure/index.js';
+import type { TableCatalogSnapshot } from '@/database/postgres/structure/index.js';
 
 /** 构造 reset 计划的目标字段到源字段映射。 */
 export function buildResetColumnSourceMap({

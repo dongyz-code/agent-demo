@@ -8,7 +8,7 @@ import {
 /**
  * Qdrant 向量存储连接与集合就绪检查。
  *
- * 与 PG（database/client.ts）并列，作为向量存储的客户端单例入口；
+ * 与 PostgreSQL（database/postgres/client.ts）分目录，作为向量存储客户端单例入口；
  * 由 server 启动期调用 {@link ensureDocumentSegmentsCollection} 确保集合存在。
  */
 

@@ -6,7 +6,7 @@ import { maskPreviewValue } from './sensitive.js';
 
 import type { TablePreview } from '@repo/types';
 import type { ManagedTableSchema } from './types.js';
-import type { TableCatalogSnapshot } from '@/database/structure/index.js';
+import type { TableCatalogSnapshot } from '@/database/postgres/structure/index.js';
 
 /** 读取单表数据预览，按分页返回注册字段并保留脱敏逻辑。 */
 export async function getTablePreview({

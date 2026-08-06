@@ -4,7 +4,10 @@ import { z } from 'zod/v4';
 
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { getEmbeddingModel } from '@/hooks/agents/providers/providers.js';
-import { DOCUMENT_SEGMENTS_COLLECTION, qdrantClient } from '@/vector/client.js';
+import {
+  DOCUMENT_SEGMENTS_COLLECTION,
+  qdrantClient,
+} from '@/database/vector/client.js';
 import { searchPoints } from '@repo/utils-qdrant';
 
 /** 单次检索返回片段上限默认值。 */

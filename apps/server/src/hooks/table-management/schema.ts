@@ -1,5 +1,5 @@
-import { describeTableTarget } from '@/database/structure/index.js';
-import { managedTableRegistry } from '@/database/tables/registry.js';
+import { describeTableTarget } from '@/database/postgres/structure/index.js';
+import { managedTableRegistry } from '@/database/postgres/tables/registry.js';
 
 import { isSensitiveColumn } from './sensitive.js';
 

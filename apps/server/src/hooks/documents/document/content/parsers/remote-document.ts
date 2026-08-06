@@ -1,7 +1,8 @@
 import axios from 'axios';
+import FormData from 'form-data';
 import { marked } from 'marked';
 
-import { ROOT } from '@/configs/index.js';
+import { logger, ROOT } from '@/configs/index.js';
 import { documentsConfig } from '../../../config.js';
 import { hashToUuid } from '../ids.js';
 import { contentTypeConfig } from '@repo/shared';
@@ -23,6 +24,8 @@ interface TextInParseCheckpoint {
   jobId: string;
   /** 最近一次确认的上游任务状态。 */
   status: TextInJobStatus;
+  /** 已确认完成时保存的结果地址，恢复后可绕过不稳定的状态查询接口。 */
+  resultUrl?: string;
 }
 
 /** TextIn 查询接口返回的必要任务字段。 */
@@ -126,20 +129,35 @@ async function createTextInJob(
   input: DocumentParserInput,
   credentials: ReturnType<typeof getTextInCredentials>,
 ): Promise<string> {
-  await input.assertActive();
-  const form = new FormData();
-  form.append('file_url', await input.file.createDownloadUrl());
-  form.append('config', JSON.stringify(TEXT_IN_PARSE_CONFIG));
-  const response = await axios.post<unknown>(
-    buildTextInUrl(credentials.baseUrl, TEXT_IN_ASYNC_PATH),
-    form,
-    {
-      headers: credentials.headers,
-      timeout: documentsConfig.document.textInRequestTimeoutMs,
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-    },
-  );
+  const response = await runTextInRequest('创建异步解析任务', async () => {
+    await input.assertActive();
+    const source = await input.file.openStream();
+    const form = new FormData();
+    form.append('file', source, {
+      filename: input.file.filename,
+      contentType: input.file.contentType,
+      knownLength: input.file.size,
+    });
+    form.append('config', JSON.stringify(TEXT_IN_PARSE_CONFIG));
+    try {
+      return await axios.post<unknown>(
+        buildTextInUrl(credentials.baseUrl, TEXT_IN_ASYNC_PATH),
+        form,
+        {
+          headers: {
+            ...credentials.headers,
+            ...form.getHeaders(),
+          },
+          timeout: documentsConfig.document.textInRequestTimeoutMs,
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+        },
+      );
+    } catch (error) {
+      source.destroy();
+      throw error;
+    }
+  });
   const data = getTextInResponseData(response.data, '创建异步解析任务');
   if (typeof data.job_id !== 'string' || !data.job_id) {
     throw new Error(
@@ -147,6 +165,74 @@ async function createTextInJob(
     );
   }
   return data.job_id;
+}
+
+/**
+ * 对 TextIn 单次 HTTP 调用执行有限的瞬时故障重试。
+ *
+ * 创建请求若已被上游接收但代理丢失响应，重试可能留下未被本任务引用的上游 job；
+ * 当前 API 没有可用幂等键，因此用有限尝试在可用性与重复成本之间取舍。
+ *
+ * @param operation 不含文件信息的调用阶段，用于安全重试日志。
+ * @param request 每次调用都创建全新请求体或执行幂等 GET 的动作。
+ * @returns 首次成功的 TextIn HTTP 响应。
+ */
+async function runTextInRequest<T>(
+  operation: string,
+  request: () => Promise<T>,
+): Promise<T> {
+  const config = documentsConfig.document;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await request();
+    } catch (error) {
+      if (
+        !isRetryableTextInRequestError(error) ||
+        attempt >= config.textInRequestMaxAttempts
+      ) {
+        throw error;
+      }
+      const delayMs = config.textInRequestRetryDelayMs * attempt;
+      let code: string | undefined;
+      let status: number | undefined;
+      if (axios.isAxiosError(error)) {
+        code = error.code;
+        status = error.response?.status;
+      }
+      logger.warn(
+        {
+          event: 'document.parser.textin.retry',
+          operation,
+          attempt,
+          maxAttempts: config.textInRequestMaxAttempts,
+          delayMs,
+          code,
+          status,
+        },
+        'TextIn 请求发生瞬时故障，准备重试',
+      );
+      await wait(delayMs);
+    }
+  }
+}
+
+/**
+ * 判断 TextIn 请求错误是否属于可恢复的网络或代理故障。
+ *
+ * @param error Axios 或业务代码抛出的未知错误。
+ * @returns HTTP 502/503/504、超时、连接重置或临时 DNS 故障时返回真。
+ */
+function isRetryableTextInRequestError(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false;
+  const status = error.response?.status;
+  if (status === 502 || status === 503 || status === 504) return true;
+  return [
+    'ECONNABORTED',
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'EAI_AGAIN',
+    'ERR_NETWORK',
+  ].includes(error.code ?? '');
 }
 
 /**
@@ -162,16 +248,37 @@ async function waitForTextInResult(
   credentials: ReturnType<typeof getTextInCredentials>,
   input: DocumentParserInput,
 ): Promise<unknown> {
+  if (checkpoint.status === 'completed' && checkpoint.resultUrl) {
+    return await downloadTextInResult(checkpoint.resultUrl, credentials, input);
+  }
   const startedAt = Date.now();
   let lastStatus = checkpoint.status;
   while (Date.now() - startedAt < documentsConfig.document.textInMaxWaitMs) {
     await input.assertActive();
-    const job = await getTextInJob(checkpoint.jobId, credentials);
-    if (job.status !== lastStatus) {
+    let job: TextInJobResult;
+    try {
+      job = await getTextInJob(checkpoint.jobId, credentials);
+    } catch (error) {
+      if (!isRetryableTextInRequestError(error)) throw error;
+      logger.warn(
+        {
+          event: 'document.parser.textin.poll_deferred',
+          jobId: checkpoint.jobId,
+        },
+        'TextIn 状态查询持续失败，将在总等待窗口内继续轮询',
+      );
+      await wait(documentsConfig.document.textInPollIntervalMs);
+      continue;
+    }
+    if (
+      job.status !== lastStatus ||
+      (job.resultUrl && job.resultUrl !== checkpoint.resultUrl)
+    ) {
       lastStatus = job.status;
       await input.saveCheckpoint({
         ...checkpoint,
         status: job.status,
+        resultUrl: job.resultUrl,
       } satisfies TextInParseCheckpoint);
     }
     if (job.status === 'failed') {
@@ -180,24 +287,43 @@ async function waitForTextInResult(
       );
     }
     if (job.status === 'completed') {
-      if (!job.resultUrl) {
+      const resultUrl = job.resultUrl;
+      if (!resultUrl) {
         throw new Error(
           'DOCUMENT_PARSER_INVALID_RESPONSE: TextIn 完成任务未返回 result_url',
         );
       }
-      await input.assertActive();
-      const response = await axios.get<unknown>(job.resultUrl, {
-        headers: credentials.headers,
-        timeout: documentsConfig.document.textInRequestTimeoutMs,
-        maxContentLength: Infinity,
-      });
-      return response.data;
+      return await downloadTextInResult(resultUrl, credentials, input);
     }
     await wait(documentsConfig.document.textInPollIntervalMs);
   }
   throw new Error(
     `DOCUMENT_PARSER_ASYNC_TIMEOUT: TextIn 异步解析等待超时（job_id=${checkpoint.jobId}）`,
   );
+}
+
+/**
+ * 下载 TextIn 已完成 job 的结果 JSON。
+ *
+ * @param resultUrl 状态接口返回并持久化的结果地址。
+ * @param credentials TextIn 地址与鉴权头。
+ * @param input 当前解析阶段的 lease 控制器。
+ * @returns TextIn xParse 直接结果响应体。
+ */
+async function downloadTextInResult(
+  resultUrl: string,
+  credentials: ReturnType<typeof getTextInCredentials>,
+  input: DocumentParserInput,
+): Promise<unknown> {
+  await input.assertActive();
+  const response = await runTextInRequest('下载解析结果', async () =>
+    axios.get<unknown>(resultUrl, {
+      headers: credentials.headers,
+      timeout: documentsConfig.document.textInRequestTimeoutMs,
+      maxContentLength: Infinity,
+    }),
+  );
+  return response.data;
 }
 
 /**
@@ -212,13 +338,12 @@ async function getTextInJob(
   credentials: ReturnType<typeof getTextInCredentials>,
 ): Promise<TextInJobResult> {
   const path = `${TEXT_IN_ASYNC_PATH}/${encodeURIComponent(jobId)}`;
-  const response = await axios.get<unknown>(
-    buildTextInUrl(credentials.baseUrl, path),
-    {
+  const response = await runTextInRequest('查询异步解析任务', async () =>
+    axios.get<unknown>(buildTextInUrl(credentials.baseUrl, path), {
       headers: credentials.headers,
       timeout: documentsConfig.document.textInRequestTimeoutMs,
       maxContentLength: Infinity,
-    },
+    }),
   );
   const data = getTextInResponseData(response.data, '查询异步解析任务');
   if (typeof data.job_id !== 'string' || data.job_id !== jobId) {
@@ -292,18 +417,24 @@ function parseTextInCheckpoint(
     checkpoint.version !== 1 ||
     typeof checkpoint.jobId !== 'string' ||
     !checkpoint.jobId ||
-    !isTextInJobStatus(checkpoint.status)
+    !isTextInJobStatus(checkpoint.status) ||
+    (checkpoint.resultUrl !== undefined &&
+      (typeof checkpoint.resultUrl !== 'string' || !checkpoint.resultUrl))
   ) {
     throw new Error(
       'DOCUMENT_PARSER_CHECKPOINT_INVALID: TextIn 异步任务恢复信息无效',
     );
   }
-  return {
+  const parsed: TextInParseCheckpoint = {
     provider: 'textin-xparse',
     version: 1,
     jobId: checkpoint.jobId,
     status: checkpoint.status,
   };
+  if (typeof checkpoint.resultUrl === 'string') {
+    parsed.resultUrl = checkpoint.resultUrl;
+  }
+  return parsed;
 }
 
 /**
@@ -355,7 +486,13 @@ export function parseTextInResponse(
   value: unknown,
   fileId: string,
 ): DocumentParsedBlock[] {
-  const data = getTextInResponseData(value, '下载解析结果');
+  const directResult = toRecord(value);
+  let data: Record<string, unknown>;
+  if (typeof directResult?.markdown === 'string') {
+    data = directResult;
+  } else {
+    data = getTextInResponseData(value, '下载解析结果');
+  }
   if (typeof data.markdown !== 'string') {
     throw new Error(
       'DOCUMENT_PARSER_INVALID_RESPONSE: TextIn 未返回 Markdown 内容',

@@ -9,7 +9,7 @@ import {
   getTableCatalogSnapshot,
   quoteIdent,
   quoteQualified,
-} from '@/database/structure/index.js';
+} from '@/database/postgres/structure/index.js';
 import { db, schemas } from '@/database/index.js';
 import { dayJsformat } from '@repo/utils-node';
 import { randomUUID } from 'node:crypto';
@@ -31,7 +31,7 @@ import type {
   StoredResetPlan,
   StoredTablePlan,
 } from './types.js';
-import type { TableCatalogSnapshot } from '@/database/structure/index.js';
+import type { TableCatalogSnapshot } from '@/database/postgres/structure/index.js';
 
 const planExpireMs = 30 * 60 * 1000;
 

@@ -1,4 +1,4 @@
-import { getTableCatalogSnapshot } from '@/database/structure/index.js';
+import { getTableCatalogSnapshot } from '@/database/postgres/structure/index.js';
 
 import { assertManagedTableSchema } from './schema.js';
 

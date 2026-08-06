@@ -1,5 +1,5 @@
 import type { TableColumnInfo, TableIndexInfo } from '@repo/types';
-import type { SchemaTrigger } from '@/database/declaration/types.js';
+import type { SchemaTrigger } from '@/database/postgres/declaration/types.js';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 /** 表管理中允许被展示和操作的 schema 表快照。 */
