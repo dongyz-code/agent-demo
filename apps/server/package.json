@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "rimraf build && tsc && tsc-alias --outDir build",
+    "build": "rimraf build && tsc && tsc-alias -p tsconfig.json --outDir build",
     "dev": "tsx src/index.ts",
-    "lint": "tsc"
+    "lint": "tsc",
+    "test:tasks": "tsx --test src/hooks/tasks/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.2",

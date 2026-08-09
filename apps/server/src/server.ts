@@ -10,7 +10,7 @@ import { startupTableStructureSync } from '@/database/postgres/structure/index.j
 import { ensureDocumentSegmentsCollection } from '@/database/vector/client.js';
 import { getRoutes, callback } from '@/router/index.js';
 import { objectStorage } from '@/hooks/documents/file/objects.js';
-import { startFileProcessingWorker } from '@/hooks/documents/tasks/worker.js';
+import { task } from '@/hooks/tasks/task.js';
 
 logger.info(
   {
@@ -33,17 +33,8 @@ async function createServer() {
       'Qdrant 不可用，服务继续启动但 RAG 索引将失败重试',
     );
   }
-  try {
-    await startFileProcessingWorker();
-  } catch (error) {
-    logger.error(
-      {
-        event: 'file.processing.schema_not_ready',
-        err: error,
-      },
-      '文件任务表结构尚未完成 reset，服务继续启动但暂不执行文件任务',
-    );
-  }
+  // 任务持久化结构错误或启动恢复失败都必须阻止服务接流量。
+  await task.start();
   await createFastify({
     fastify: {
       options: {

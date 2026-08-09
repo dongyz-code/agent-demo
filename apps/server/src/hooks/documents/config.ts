@@ -49,8 +49,14 @@ export const documentsConfig = {
     segmentOverlapTokens: 80,
   },
   fileProcessing: {
-    workerConcurrency: 4,
-    staleTaskSeconds: 5 * 60,
     enabled: FILE_PROCESSING_ENABLED,
+    /** 汇总文档任务的单实例并发，内容、预览和清理共同占用。 */
+    concurrency: 2,
+    /** 汇总文档任务首次执行之外允许的最大自动重试次数。 */
+    maxRetries: 3,
+    /** 汇总文档任务的固定重试间隔。 */
+    retryDelayMs: 5_000,
+    /** 汇总文档任务单次执行的总超时。 */
+    timeoutMs: 2 * 60 * 60 * 1000,
   },
 };

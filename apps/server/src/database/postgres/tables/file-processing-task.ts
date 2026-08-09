@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  jsonb,
   primaryKey,
   text,
   uniqueIndex,
@@ -12,10 +13,10 @@ import { pgTable } from '../declaration/declaration.js';
 import { timestampsTrigger } from '../declaration/presets.js';
 
 import type {
-  DocumentProcessingTaskType,
+  DocumentProcessingTaskPart,
   FileProcessingStage,
+  FileProcessingStageRunStatus,
   FileProcessingTriggerSource,
-  TaskStatus,
 } from '@repo/types';
 
 /** 文件处理任务领域扩展；任务状态只保存在通用 tasks 表。 */
@@ -30,9 +31,9 @@ export const file_processing_tasks = pgTable(
     document_id: uuid('document_id').notNull(),
     /** 本次任务处理的文档版本。 */
     document_version_id: uuid('document_version_id').notNull(),
-    /** 同一扩展表承载的预览或版本内容处理能力。 */
-    task_type: varchar255('task_type')
-      .$type<DocumentProcessingTaskType>()
+    /** 同一整体任务按顺序执行的内容与预览部分。 */
+    task_parts: jsonb('task_parts')
+      .$type<DocumentProcessingTaskPart[]>()
       .notNull(),
     /** 同一文件从 1 开始递增的执行序号。 */
     execution_no: integer('execution_no').notNull(),
@@ -40,8 +41,10 @@ export const file_processing_tasks = pgTable(
     trigger_source: varchar255('trigger_source')
       .$type<FileProcessingTriggerSource>()
       .notNull(),
-    /** 预览转换或版本内容处理配置。 */
-    processing_config_version: varchar255('processing_config_version').notNull(),
+    /** 内容处理配置版本；未选择内容部分时为空。 */
+    content_config_version: varchar255('content_config_version'),
+    /** 预览转换器版本；未选择预览部分时为空。 */
+    preview_config_version: varchar255('preview_config_version'),
     /** JSON 结果摘要，不保存完整文档内容。 */
     result_summary: text('result_summary'),
     ...baseCols(),
@@ -52,10 +55,7 @@ export const file_processing_tasks = pgTable(
       table.execution_no,
     ),
     index('file_processing_tasks_document_idx').on(table.document_id),
-    index('file_processing_tasks_version_type_idx').on(
-      table.document_version_id,
-      table.task_type,
-    ),
+    index('file_processing_tasks_version_idx').on(table.document_version_id),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
       updateColumn: 'last_update_timestamp',
@@ -67,7 +67,7 @@ export const file_processing_tasks = pgTable(
 export const file_processing_task_stage_runs = pgTable(
   'file_processing_task_stage_runs',
   {
-    /** 阶段记录标识。 */
+    /** UUIDv7 阶段记录标识。 */
     stage_run_id: uuid('stage_run_id').notNull(),
     /** 所属通用任务。 */
     task_id: uuid('task_id').notNull(),
@@ -76,7 +76,9 @@ export const file_processing_task_stage_runs = pgTable(
     /** 同一任务同一阶段从 1 开始递增的尝试次数。 */
     attempt: integer('attempt').notNull(),
     /** 阶段执行状态。 */
-    status: varchar255('status').$type<TaskStatus>().notNull(),
+    status: varchar255('status')
+      .$type<FileProcessingStageRunStatus>()
+      .notNull(),
     /** 阶段已处理项目数量。 */
     processed_items: integer('processed_items').notNull().default(0),
     /** 阶段待处理项目总数。 */

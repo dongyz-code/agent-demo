@@ -4,7 +4,7 @@ import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { resolveDocumentVersion } from '../document/read.js';
 import { objectStorage } from '../file/objects.js';
-import { createDocumentPreviewTask } from './task.js';
+import { createDocumentProcessingTask } from '../tasks/task.js';
 
 import type {
   DocumentPreviewPageInfo,
@@ -113,10 +113,11 @@ export async function retryDocumentPreview(
   );
   let triggerSource: FileProcessingTriggerSource = 'rerun';
   if (resolved.version.preview_status === 'failed') triggerSource = 'retry';
-  await createDocumentPreviewTask(
+  await createDocumentProcessingTask(
     {
       documentId: input.documentId,
       documentVersionId: resolved.version.document_version_id,
+      parts: ['preview'],
       triggerSource,
     },
     userId,

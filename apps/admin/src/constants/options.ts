@@ -6,12 +6,13 @@ export const { staticMapping, staticOptions } = helperStatic({
     [true, '启用'],
   ],
   task_status: [
-    ['to-be-started', '待开始'],
-    ['pending', '执行中'],
-    ['completed', '已完成'],
+    ['queued', '等待中'],
+    ['running', '执行中'],
+    ['retrying', '等待重试'],
+    ['succeeded', '执行成功'],
     ['failed', '执行失败'],
-    ['killed', '已停止'],
-    ['deleted', '已删除'],
+    ['canceled', '已取消'],
+    ['timed_out', '执行超时'],
   ],
   task_update_mode: [
     ['auto', '自动'],

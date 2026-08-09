@@ -1,3 +1,4 @@
+import { ROOT_ERROR } from '@/configs/index.js';
 import { hashToUuid } from '../ids.js';
 import { contentTypeConfig, getFileExtension } from '@repo/shared';
 
@@ -7,9 +8,9 @@ import type { DocumentParser } from '../types.js';
 /** 防止本地文本解析器把异常大文件整体载入内存。 */
 const MAX_LOCAL_TEXT_BYTES = 32 * 1024 * 1024;
 
-/** Markdown、纯文本和 CSV 的本地解析器。 */
-export const localTextParser: DocumentParser = {
-  name: 'local-text',
+/** 将 Markdown、纯文本和 CSV 直接转换为统一文档块。 */
+export const textParser: DocumentParser = {
+  name: 'text',
   version: '1',
   contentTypes: [
     ...new Set(contentTypeConfig.text.flatMap((item) => item.mime)),
@@ -20,14 +21,14 @@ export const localTextParser: DocumentParser = {
     if (extension === 'csv') {
       return parseCsv(source, file.fileId);
     }
-    return parseText(source, file.fileId, extension === 'md');
+    return parseTextContent(source, file.fileId, extension === 'md');
   },
 };
 
 /** 读取受限大小 UTF-8 文本。 */
 async function readText(file: Parameters<DocumentParser['parse']>[0]['file']) {
   if (file.size > MAX_LOCAL_TEXT_BYTES) {
-    throw new Error('DOCUMENT_TEXT_TOO_LARGE: 本地文本解析上限为 32 MiB');
+    throw new ROOT_ERROR('本地文本解析上限为 32 MiB');
   }
   const chunks: Buffer[] = [];
   const stream = await file.openStream();
@@ -37,8 +38,18 @@ async function readText(file: Parameters<DocumentParser['parse']>[0]['file']) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-/** 将 Markdown 或普通文本转换为标题与段落块。 */
-function parseText(source: string, fileId: string, markdown: boolean) {
+/**
+ * 将 Markdown 或普通文本转换为标题与段落块。
+ * @param source 待解析的 UTF-8 文本。
+ * @param fileId 源文件标识，用于生成确定性块 ID。
+ * @param markdown 是否识别 Markdown 标题语法。
+ * @returns 保持原始顺序的文档块。
+ */
+export function parseTextContent(
+  source: string,
+  fileId: string,
+  markdown: boolean,
+) {
   const blocks: DocumentParsedBlock[] = [];
   const headingPath: string[] = [];
   const sections = source.replace(/\r\n?/g, '\n').split(/\n{2,}/);

@@ -1,4 +1,4 @@
-import { cancelDocumentProcessingTask } from '@/hooks/documents/tasks/control.js';
+import { cancelDocumentProcessingTask } from '@/hooks/documents/tasks/task.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 

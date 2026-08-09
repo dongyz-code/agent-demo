@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import sharp from 'sharp';
 
+import { ROOT_ERROR } from '@/configs/index.js';
 import {
   contentTypeConfig,
   contentTypesByExtension,
@@ -111,9 +112,7 @@ export const documentPageConverter: DocumentPageConverter = {
   supports: supportsDocumentPagePreview,
   async *convert(source) {
     if (!supportsDocumentPagePreview(source.contentType)) {
-      throw new Error(
-        'DOCUMENT_PREVIEW_TYPE_UNSUPPORTED: 当前文件类型不支持页面预览',
-      );
+      throw new ROOT_ERROR('当前文件类型不支持页面预览');
     }
     if (IMAGE_TYPES.has(source.contentType)) {
       yield await convertImage(source);
@@ -149,9 +148,7 @@ async function convertImage(
     .toBuffer();
   const metadata = await sharp(content).metadata();
   if (!metadata.width || !metadata.height) {
-    throw new Error(
-      'DOCUMENT_PREVIEW_IMAGE_INVALID: 无法读取转换后页面尺寸',
-    );
+    throw new ROOT_ERROR('无法读取转换后页面尺寸');
   }
   return {
     pageNumber: 1,
@@ -173,9 +170,7 @@ async function* convertPdf(
   const document = await loadingTask.promise;
   try {
     if (document.numPages < 1 || document.numPages > MAX_PAGE_COUNT) {
-      throw new Error(
-        `DOCUMENT_PREVIEW_PAGE_LIMIT: PDF 页数必须在 1 到 ${MAX_PAGE_COUNT} 之间`,
-      );
+      throw new ROOT_ERROR('PDF 页数超过上限', { limit: MAX_PAGE_COUNT });
     }
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
       const page = await document.getPage(pageNumber);
@@ -224,9 +219,7 @@ async function* convertPdf(
 async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
   const endpoint = documentsConfig.upload.officePreviewEndpoint;
   if (!endpoint) {
-    throw new Error(
-      'DOCUMENT_PREVIEW_OFFICE_WORKER_MISSING: 未配置 Office 转换 Worker',
-    );
+    throw new ROOT_ERROR('未配置 Office 转换 Worker');
   }
   const signed = await objectStorage.presignGet({
     bucket: source.bucket,
@@ -251,9 +244,7 @@ async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
   );
   const content = Buffer.from(response.data);
   if (!content.subarray(0, 5).equals(Buffer.from('%PDF-'))) {
-    throw new Error(
-      'DOCUMENT_PREVIEW_OFFICE_INVALID: Office Worker 未返回有效 PDF',
-    );
+    throw new ROOT_ERROR('Office Worker 未返回有效 PDF');
   }
   return content;
 }
@@ -277,9 +268,7 @@ async function* convertText(
   );
   const pageCount = Math.max(1, Math.ceil(lines.length / linesPerPage));
   if (pageCount > MAX_PAGE_COUNT) {
-    throw new Error(
-      `DOCUMENT_PREVIEW_PAGE_LIMIT: 文本排版后超过 ${MAX_PAGE_COUNT} 页`,
-    );
+    throw new ROOT_ERROR('文本预览页数超过上限', { limit: MAX_PAGE_COUNT });
   }
   for (let index = 0; index < pageCount; index++) {
     const pageLines = lines.slice(
@@ -362,9 +351,7 @@ async function readSourceBuffer(
   maxBytes: number,
 ): Promise<Buffer> {
   if (source.size > maxBytes) {
-    throw new Error(
-      `DOCUMENT_PREVIEW_SOURCE_LIMIT: 源文件超过 ${maxBytes} 字节预览上限`,
-    );
+    throw new ROOT_ERROR('源文件超过预览大小上限', { maxBytes });
   }
   const stream = await source.open();
   const chunks: Buffer[] = [];
@@ -374,9 +361,7 @@ async function readSourceBuffer(
     total += buffer.byteLength;
     if (total > maxBytes) {
       stream.destroy();
-      throw new Error(
-        `DOCUMENT_PREVIEW_SOURCE_LIMIT: 源文件超过 ${maxBytes} 字节预览上限`,
-      );
+      throw new ROOT_ERROR('源文件超过预览大小上限', { maxBytes });
     }
     chunks.push(buffer);
   }

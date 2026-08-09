@@ -5,7 +5,7 @@ import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { documentsConfig } from '../config.js';
 import { getStoredFile } from '../file/source.js';
-import { createDocumentContentTask } from './content/task.js';
+import { createDocumentProcessingTask } from '../tasks/task.js';
 import { getDocumentDetail, resolveDocumentVersion } from './read.js';
 
 /** 将已验证源文件绑定为文档版本时需要的输入。 */
@@ -239,10 +239,11 @@ export async function setActiveDocumentVersion(
   });
 
   if (documentsConfig.fileProcessing.enabled && relationCount) {
-    await createDocumentContentTask(
+    await createDocumentProcessingTask(
       {
         documentId,
         documentVersionId,
+        parts: ['content'],
         triggerSource: 'manual',
       },
       userId,

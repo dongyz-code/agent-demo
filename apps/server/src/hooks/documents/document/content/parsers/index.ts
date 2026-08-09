@@ -1,14 +1,14 @@
 import { ROOT_ERROR } from '@/configs/index.js';
-import { localTextParser } from './local-text.js';
-import { remoteDocumentParser } from './remote-document.js';
+import { textParser } from './text.js';
+import { textInParser } from './textin.js';
 
 import type { DocumentParser } from '../types.js';
 
-const parsers: DocumentParser[] = [localTextParser, remoteDocumentParser];
+const documentParsers: DocumentParser[] = [textParser, textInParser];
 
 /** 按可信 MIME 选择唯一文档解析器。 */
 export function getDocumentParser(contentType: string) {
-  const parser = parsers.find((item) =>
+  const parser = documentParsers.find((item) =>
     item.contentTypes.includes(contentType),
   );
   if (!parser) {

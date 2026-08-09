@@ -1,362 +1,380 @@
-import { randomUUID } from 'node:crypto';
-import { desc, eq } from 'drizzle-orm';
+import { and, eq, inArray, max, sql } from 'drizzle-orm';
 
-import { buildWhere, db, schemas } from '@/database/index.js';
-import { appendTaskLog } from '../../tasks/log.js';
-import { FILE_PROCESSING_STAGE_PROGRESS } from './definition.js';
-import { getErrorCode } from './errors.js';
+import { ROOT_ERROR } from '@/configs/index.js';
+import { schemas } from '@/database/index.js';
+import { documentsConfig } from '../config.js';
 
 import type {
-  DocumentProcessingTaskType,
-  FileProcessingStage,
-} from '@repo/types';
+  TaskCancelLifecycleInput,
+  TaskCreateInput,
+  TaskFailureInput,
+  TaskRunInput,
+} from '@/hooks/tasks/task.js';
+import type {
+  DocumentFileTaskData,
+  DocumentTaskData,
+} from './task.js';
+import type { FileProcessingTaskContext } from './stage.js';
 
-/** worker 领取后交给运行时的完整任务上下文。 */
-export interface FileProcessingTaskContext {
-  /** 通用任务标识。 */
-  taskId: string;
-  /** 被处理文件。 */
-  fileId: string;
-  /** 逻辑文档标识。 */
-  documentId: string;
-  /** 当前文档版本标识。 */
-  documentVersionId: string;
-  /** 当前任务执行页面预览还是版本内容处理。 */
-  taskType: DocumentProcessingTaskType;
-  /** 创建任务的操作用户。 */
-  userId: string;
-}
+/** 文档处理任务取消时使用的稳定错误码。 */
+export const DOCUMENT_TASK_CANCELED_ERROR_CODE =
+  'FILE_PROCESSING_TASK_CANCELED';
+/** 文档处理任务取消时使用的安全摘要。 */
+export const DOCUMENT_TASK_CANCELED_MESSAGE = '文件处理任务已取消';
 
-/** runner 用于确认当前进程仍持有任务的最小 lease。 */
-export interface FileProcessingTaskLease {
-  /** 当前领取生成的唯一 token。 */
-  leaseId: string;
-  /** 续租并确认任务仍属于当前执行器，失效时抛出错误。 */
-  assertActive: () => Promise<void>;
-}
-
-/** 当前执行器不再拥有任务时使用的内部错误。 */
-export class FileProcessingLeaseLostError extends Error {
-  /** 构造稳定且不包含业务内容的 lease 失效错误。 */
-  constructor() {
-    super('FILE_PROCESSING_LEASE_LOST: 文件处理任务 lease 已失效');
-    this.name = 'FileProcessingLeaseLostError';
+/**
+ * 执行 documents 域唯一的整体任务脚本。
+ *
+ * @param input 通用任务运行信息和文档业务数据组成的单对象参数。
+ * @returns 选中的全部文档处理部分完成后结束。
+ */
+export default async function runDocumentTask(
+  input: TaskRunInput<DocumentTaskData>,
+): Promise<void> {
+  resolveDocumentTaskParts(input.data);
+  if (isCleanupData(input.data)) {
+    const { runDocumentCleanupTask } =
+      await import('../document/cleanup.js');
+    await runDocumentCleanupTask(input.data, input);
+    return;
   }
-}
-
-/** 单个任务阶段执行期间可恢复的持久化上下文。 */
-export interface FileProcessingStageExecution {
-  /** 上一次同阶段尝试保存的 JSON checkpoint；首次执行时为空。 */
-  checkpoint: unknown;
-  /**
-   * 覆盖保存当前阶段的轻量 JSON checkpoint。
-   *
-   * @param checkpoint 可被 JSON 序列化的恢复信息，不得包含密钥或完整文档内容。
-   * @returns 当前任务仍持有 lease 且 checkpoint 已持久化时完成。
-   */
-  saveCheckpoint: (checkpoint: unknown) => Promise<void>;
+  if (!documentsConfig.fileProcessing.enabled) {
+    throw new Error('FILE_PROCESSING_DISABLED: 文件处理任务未启用');
+  }
+  for (const [index, part] of input.data.parts.entries()) {
+    const context: FileProcessingTaskContext = {
+      task: input,
+      fileId: input.data.fileId,
+      documentId: input.data.documentId,
+      documentVersionId: input.data.documentVersionId,
+      part,
+      progressStart: Math.floor((index * 100) / input.data.parts.length),
+      progressEnd: Math.floor(
+        ((index + 1) * 100) / input.data.parts.length,
+      ),
+      userId: input.data.userId,
+    };
+    if (part === 'content') {
+      const { runDocumentContentTask } =
+        await import('../document/content/runner.js');
+      await runDocumentContentTask(context);
+      continue;
+    }
+    const { runDocumentPreviewTask } = await import('../preview/runner.js');
+    await runDocumentPreviewTask(context);
+  }
+  await input.progress({ stage: 'completed', progress: 100 });
 }
 
 /**
- * 执行单个阶段并记录进度、尝试次数和错误。
+ * 在 task.add 内部事务中准备文档领域状态和扩展记录。
  *
- * @param context worker 已领取的任务上下文。
- * @param lease 当前领取对应的 lease 校验器。
- * @param stage 本次执行的文件处理阶段。
- * @param action 阶段业务动作，可能包含外部请求。
- * @returns 阶段动作完成且 lease 仍有效时返回动作结果。
+ * @param input 新任务标识、data 和 task 包内部事务。
+ * @returns 文档创建前置状态原子保存后结束。
  */
-export async function runTaskStage<T>(
-  context: FileProcessingTaskContext,
-  lease: FileProcessingTaskLease,
-  stage: FileProcessingStage,
-  action: (execution: FileProcessingStageExecution) => Promise<T> | T,
-) {
-  await lease.assertActive();
-  const stageCountWhere = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.file_processing_task_stage_runs.task_id, context.taskId),
-      eq(schemas.file_processing_task_stage_runs.stage, stage),
-    );
+export async function onCreate(
+  input: TaskCreateInput<DocumentTaskData>,
+): Promise<void> {
+  resolveDocumentTaskParts(input.data);
+  if (isCleanupData(input.data)) {
+    await prepareDocumentCleanup({ ...input, data: input.data });
+    return;
+  }
+  await prepareDocumentProcessing({ ...input, data: input.data });
+}
+
+/**
+ * 在通用取消事务内终结文档处理阶段和领域状态。
+ *
+ * @param input 被取消任务的 data、用户和 task 包内部事务。
+ * @returns 领域取消状态写入完成后结束。
+ */
+export async function onCancel(
+  input: TaskCancelLifecycleInput<DocumentTaskData>,
+): Promise<void> {
+  if (isCleanupData(input.data)) return;
+  await settleFileProcessingDomain(input, input.data, {
+    stageStatus: 'canceled',
+    errorCode: input.errorCode,
+    errorMessage: input.errorMessage,
   });
-  const taskWhere = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.tasks.task_id, context.taskId),
-      eq(schemas.tasks.status, 'pending'),
-      eq(schemas.tasks.pending_uuid, lease.leaseId),
-    );
+}
+
+/**
+ * 在通用重试耗尽事务内终结文档处理阶段和领域状态。
+ *
+ * @param input 最终错误、任务 data 与 task 包内部事务。
+ * @returns 领域失败状态写入完成后结束。
+ */
+export async function onTerminalFailure(
+  input: TaskFailureInput<DocumentTaskData>,
+): Promise<void> {
+  if (isCleanupData(input.data)) return;
+  let stageStatus: 'failed' | 'interrupted' = 'failed';
+  if (input.reason === 'interrupted') stageStatus = 'interrupted';
+  await settleFileProcessingDomain(input, input.data, {
+    stageStatus,
+    errorCode: input.errorCode,
+    errorMessage: input.errorMessage,
   });
-  const [previousRun] = await db
-    .select({
-      attempt: schemas.file_processing_task_stage_runs.attempt,
-      checkpoint: schemas.file_processing_task_stage_runs.checkpoint,
-    })
-    .from(schemas.file_processing_task_stage_runs)
-    .where(stageCountWhere)
-    .orderBy(desc(schemas.file_processing_task_stage_runs.attempt))
-    .limit(1);
-  const attempt = (previousRun?.attempt ?? 0) + 1;
-  const checkpoint = parseStageCheckpoint(previousRun?.checkpoint);
-  const stageRunId = randomUUID();
-  const start = new Date();
-  await db.transaction(async (tx) => {
-    const [owned] = await tx
-      .update(schemas.tasks)
-      .set({
-        current_stage: stage,
-        progress: FILE_PROCESSING_STAGE_PROGRESS[stage],
-        last_update_timestamp: start,
-      })
-      .where(taskWhere)
-      .returning({ taskId: schemas.tasks.task_id });
-    if (!owned) throw new FileProcessingLeaseLostError();
-    await tx.insert(schemas.file_processing_task_stage_runs).values({
-      stage_run_id: stageRunId,
-      task_id: context.taskId,
-      stage,
-      attempt,
-      status: 'pending',
-      processed_items: 0,
-      total_items: 0,
-      checkpoint: previousRun?.checkpoint ?? null,
-      error_code: null,
-      error_message: null,
-      start_timestamp: start,
-      end_timestamp: null,
-    });
-  });
-  await appendTaskLog(context.taskId, `开始阶段：${stage}`);
-  try {
-    const result = await action({
-      checkpoint,
-      saveCheckpoint: async (value) => {
-        const serialized = serializeStageCheckpoint(value);
-        await lease.assertActive();
-        const stageRunWhere = buildWhere((filter) => {
-          filter.push(
-            eq(
-              schemas.file_processing_task_stage_runs.stage_run_id,
-              stageRunId,
-            ),
-            eq(schemas.file_processing_task_stage_runs.status, 'pending'),
-          );
-        });
-        const [saved] = await db
-          .update(schemas.file_processing_task_stage_runs)
-          .set({ checkpoint: serialized })
-          .where(stageRunWhere)
-          .returning({
-            stageRunId: schemas.file_processing_task_stage_runs.stage_run_id,
-          });
-        if (!saved) throw new FileProcessingLeaseLostError();
-      },
-    });
-    await lease.assertActive();
-    const processedItems = getProcessedItems(result);
-    await db.transaction(async (tx) => {
-      const [owned] = await tx
-        .update(schemas.tasks)
-        .set({ last_update_timestamp: new Date() })
-        .where(taskWhere)
-        .returning({ taskId: schemas.tasks.task_id });
-      if (!owned) throw new FileProcessingLeaseLostError();
-      await tx
-        .update(schemas.file_processing_task_stage_runs)
-        .set({
-          status: 'completed',
-          processed_items: processedItems,
-          total_items: processedItems,
-          end_timestamp: new Date(),
-        })
-        .where(
-          eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
-        );
-      await tx
-        .update(schemas.tasks)
-        .set({
-          processed_items: processedItems,
-          total_items: processedItems,
-          last_update_timestamp: new Date(),
-        })
-        .where(taskWhere);
-    });
-    await appendTaskLog(
-      context.taskId,
-      `完成阶段：${stage}，处理数量：${processedItems}`,
-    );
-    return result;
-  } catch (error) {
-    try {
-      await lease.assertActive();
-    } catch (leaseError) {
-      if (await isTaskCanceled(context.taskId)) {
-        await finishCanceledStageRun(stageRunId);
-      }
-      throw leaseError;
+}
+
+/** 文件处理任务收敛时需要持久化的稳定错误。 */
+interface FileProcessingTerminalError {
+  /** 活动阶段最终状态。 */
+  stageStatus: 'failed' | 'canceled' | 'interrupted';
+  /** 稳定错误码。 */
+  errorCode: string;
+  /** 面向任务中心的安全错误摘要。 */
+  errorMessage: string;
+}
+
+/**
+ * 在 task.add 事务中创建文件处理领域扩展。
+ *
+ * @param input 新通用任务和文件处理数据。
+ * @returns 领域扩展与预览 pending 状态保存后结束。
+ */
+async function prepareDocumentProcessing(
+  input: TaskCreateInput<DocumentFileTaskData>,
+): Promise<void> {
+  for (const part of input.data.parts) {
+    if (!input.data.processingConfigVersions[part]) {
+      throw new Error(`DOCUMENT_TASK_CONFIG_REQUIRED: ${part} 缺少配置版本`);
     }
-    const message = error instanceof Error ? error.message : '阶段执行失败';
-    await db
-      .update(schemas.file_processing_task_stage_runs)
+  }
+  const lockKey = `document-process:${input.data.documentVersionId}`;
+  await input.transaction.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`,
+  );
+  const [lastExecution] = await input.transaction
+    .select({ value: max(schemas.file_processing_tasks.execution_no) })
+    .from(schemas.file_processing_tasks)
+    .where(
+      eq(
+        schemas.file_processing_tasks.document_version_id,
+        input.data.documentVersionId,
+      ),
+    );
+  const now = new Date();
+  if (input.data.parts.includes('preview')) {
+    await input.transaction
+      .update(schemas.document_versions)
       .set({
-        status: (await isTaskCanceled(context.taskId)) ? 'killed' : 'failed',
-        error_code: getErrorCode(message, 'FILE_PROCESSING_FAILED'),
-        error_message: message,
-        end_timestamp: new Date(),
+        preview_status: 'pending',
+        preview_page_count: 0,
+        preview_error: null,
+        preview_converter_version: null,
+        last_update_user_id: input.data.userId,
+        last_update_timestamp: now,
       })
       .where(
-        eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
+        eq(
+          schemas.document_versions.document_version_id,
+          input.data.documentVersionId,
+        ),
       );
-    await appendTaskLog(context.taskId, `阶段失败：${stage}，${message}`);
-    throw error;
   }
+  await input.transaction.insert(schemas.file_processing_tasks).values({
+    task_id: input.taskId,
+    file_id: input.data.fileId,
+    document_id: input.data.documentId,
+    document_version_id: input.data.documentVersionId,
+    task_parts: input.data.parts,
+    execution_no: (lastExecution?.value ?? 0) + 1,
+    trigger_source: input.data.triggerSource,
+    content_config_version:
+      input.data.processingConfigVersions.content ?? null,
+    preview_config_version:
+      input.data.processingConfigVersions.preview ?? null,
+    result_summary: null,
+    create_user_id: input.data.userId,
+    create_timestamp: now,
+    last_update_user_id: input.data.userId,
+    last_update_timestamp: now,
+  });
 }
 
 /**
- * 解析数据库中的阶段 checkpoint。
+ * 在 task.add 事务中逻辑删除文档，为独占清理脚本准备数据。
  *
- * @param value 数据库存储的 JSON 字符串。
- * @returns checkpoint 对象；没有历史 checkpoint 时返回空。
+ * @param input 新通用任务和文档清理数据。
+ * @returns 文档逻辑删除和 RAG 关系移除完成后结束。
  */
-function parseStageCheckpoint(value: string | null | undefined): unknown {
-  if (!value) return undefined;
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    throw new Error(
-      'FILE_PROCESSING_CHECKPOINT_INVALID: 阶段恢复信息不是有效 JSON',
-    );
-  }
-}
-
-/**
- * 序列化阶段 checkpoint，并拒绝无法稳定落库的值。
- *
- * @param value 业务阶段提供的轻量恢复信息。
- * @returns 可写入数据库的 JSON 字符串。
- */
-function serializeStageCheckpoint(value: unknown): string {
-  const serialized = JSON.stringify(value);
-  if (serialized === undefined) {
-    throw new Error(
-      'FILE_PROCESSING_CHECKPOINT_INVALID: 阶段恢复信息无法序列化',
-    );
-  }
-  return serialized;
-}
-
-/** 将任务标记为成功并写入安全结果摘要。 */
-export async function completeTask(
-  context: FileProcessingTaskContext,
-  lease: FileProcessingTaskLease,
-  segmentCount: number,
-  resultSummary: Record<string, unknown>,
-) {
-  await lease.assertActive();
+async function prepareDocumentCleanup(
+  input: TaskCreateInput<Extract<DocumentTaskData, { parts: ['cleanup'] }>>,
+): Promise<void> {
+  const lockKey = `document-cleanup:${input.data.documentId}`;
+  await input.transaction.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`,
+  );
+  const [document] = await input.transaction
+    .select({ status: schemas.documents.status })
+    .from(schemas.documents)
+    .where(
+      and(
+        eq(schemas.documents.document_id, input.data.documentId),
+        eq(schemas.documents.create_user_id, input.data.userId),
+      ),
+    )
+    .limit(1);
+  if (!document) throw new ROOT_ERROR('相关文件不存在');
   const now = new Date();
-  const where = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.tasks.task_id, context.taskId),
-      eq(schemas.tasks.status, 'pending'),
-      eq(schemas.tasks.pending_uuid, lease.leaseId),
-    );
-  });
-  await db.transaction(async (tx) => {
-    const [completed] = await tx
-      .update(schemas.tasks)
+  if (document.status !== 'deleted') {
+    await input.transaction
+      .update(schemas.documents)
       .set({
-        status: 'completed',
-        current_stage: 'completed',
-        progress: 100,
-        processed_items: segmentCount,
-        total_items: segmentCount,
-        end_timestamp: now,
-        error_code: null,
-        error_message: null,
+        status: 'deleted',
+        last_update_user_id: input.data.userId,
         last_update_timestamp: now,
       })
-      .where(where)
-      .returning({ taskId: schemas.tasks.task_id });
-    if (!completed) throw new FileProcessingLeaseLostError();
-    await tx
-      .update(schemas.file_processing_tasks)
-      .set({
-        result_summary: JSON.stringify(resultSummary),
-        last_update_user_id: context.userId,
-        last_update_timestamp: now,
-      })
-      .where(eq(schemas.file_processing_tasks.task_id, context.taskId));
-  });
-  await appendTaskLog(context.taskId, `任务执行完成，处理数量：${segmentCount}`);
+      .where(eq(schemas.documents.document_id, input.data.documentId));
+  }
+  await input.transaction
+    .delete(schemas.rag_dataset_documents)
+    .where(
+      eq(schemas.rag_dataset_documents.document_id, input.data.documentId),
+    );
 }
 
-/** 将仍由当前 lease 持有的任务标记为失败并保留当前阶段。 */
-export async function failTask(
-  taskId: string,
-  leaseId: string,
-  errorCode: string,
-  message: string,
-) {
-  const where = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.tasks.task_id, taskId),
-      eq(schemas.tasks.status, 'pending'),
-      eq(schemas.tasks.pending_uuid, leaseId),
-    );
-  });
-  const [failed] = await db
-    .update(schemas.tasks)
-    .set({
-      status: 'failed',
-      error_code: errorCode,
-      error_message: message,
-      end_timestamp: new Date(),
-      last_update_timestamp: new Date(),
-    })
-    .where(where)
-    .returning({ taskId: schemas.tasks.task_id });
-  if (failed) await appendTaskLog(taskId, `任务执行失败：${message}`);
-  return Boolean(failed);
-}
-
-/** 将取消期间仍为 pending 的当前阶段记录终结为 killed。 */
-async function finishCanceledStageRun(stageRunId: string) {
-  const where = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
-      eq(schemas.file_processing_task_stage_runs.status, 'pending'),
-    );
-  });
-  await db
+/**
+ * 收敛内容或预览阶段以及对应的 RAG 或页面预览状态。
+ *
+ * @param input 任务、用户和 task 包内部事务。
+ * @param data 创建任务时保存的文件处理数据。
+ * @param error 阶段终态与安全错误。
+ * @returns 阶段和领域状态完成原子更新后结束。
+ */
+async function settleFileProcessingDomain(
+  input:
+    | TaskCancelLifecycleInput<DocumentTaskData>
+    | TaskFailureInput<DocumentTaskData>,
+  data: DocumentFileTaskData,
+  error: FileProcessingTerminalError,
+): Promise<void> {
+  const now = new Date();
+  let auditUserId = data.userId;
+  if ('userId' in input && input.userId) auditUserId = input.userId;
+  await input.transaction
     .update(schemas.file_processing_task_stage_runs)
     .set({
-      status: 'killed',
-      error_code: 'FILE_PROCESSING_TASK_CANCELED',
-      error_message: '文件处理任务已取消',
-      end_timestamp: new Date(),
+      status: error.stageStatus,
+      error_code: error.errorCode,
+      error_message: error.errorMessage,
+      end_timestamp: now,
     })
-    .where(where);
-}
-
-/** 查询任务是否已被取消。 */
-export async function isTaskCanceled(taskId: string) {
-  const [task] = await db
-    .select({ status: schemas.tasks.status })
-    .from(schemas.tasks)
-    .where(eq(schemas.tasks.task_id, taskId))
-    .limit(1);
-  return task?.status === 'killed';
-}
-
-/** 估算阶段结果数量，用于任务中心进度摘要。 */
-function getProcessedItems(value: unknown) {
-  if (Array.isArray(value)) return value.length;
-  if (value && typeof value === 'object') {
-    if ('segments' in value && Array.isArray(value.segments)) {
-      return value.segments.length;
-    }
-    if ('blocks' in value && Array.isArray(value.blocks)) {
-      return value.blocks.length;
-    }
+    .where(
+      and(
+        eq(schemas.file_processing_task_stage_runs.task_id, input.taskId),
+        eq(schemas.file_processing_task_stage_runs.status, 'running'),
+      ),
+    );
+  if (data.parts.includes('preview')) {
+    await input.transaction
+      .update(schemas.document_versions)
+      .set({
+        preview_status: 'failed',
+        preview_error: error.errorMessage,
+        last_update_user_id: auditUserId,
+        last_update_timestamp: now,
+      })
+      .where(
+        and(
+          eq(
+            schemas.document_versions.document_version_id,
+            data.documentVersionId,
+          ),
+          inArray(schemas.document_versions.preview_status, [
+            'pending',
+            'processing',
+          ]),
+        ),
+      );
   }
-  return 1;
+  if (data.parts.includes('content')) {
+    await input.transaction
+      .update(schemas.rag_dataset_documents)
+      .set({
+        rag_status: 'failed',
+        rag_error: error.errorMessage,
+        last_update_user_id: auditUserId,
+        last_update_timestamp: now,
+      })
+      .where(
+        and(
+          eq(schemas.rag_dataset_documents.document_id, data.documentId),
+          eq(
+            schemas.rag_dataset_documents.pending_version_id,
+            data.documentVersionId,
+          ),
+          inArray(schemas.rag_dataset_documents.rag_status, [
+            'pending',
+            'processing',
+          ]),
+        ),
+      );
+  }
+}
+
+/**
+ * 校验并解析从 PostgreSQL JSONB 恢复的文档任务 parts。
+ *
+ * @param data 静态类型为判别式联合、运行时仍需防御非法数据的输入。
+ * @returns 按调用方顺序排列的处理部分；非法输入抛出稳定错误。
+ */
+export function resolveDocumentTaskParts(
+  data: DocumentTaskData,
+): Array<'content' | 'preview' | 'cleanup'> {
+  if (!data || typeof data !== 'object') {
+    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务参数无效');
+  }
+  if (!isNonEmptyString(data.documentId) || !isNonEmptyString(data.userId)) {
+    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务参数不完整');
+  }
+  if (!Array.isArray(data.parts) || !data.parts.length) {
+    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务未指定处理部分');
+  }
+  const invalidPart = data.parts.some(
+    (part) => !['content', 'preview', 'cleanup'].includes(part),
+  );
+  if (invalidPart) {
+    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务部分无效');
+  }
+  const parts = data.parts as Array<'content' | 'preview' | 'cleanup'>;
+  if (parts.includes('cleanup')) {
+    if (parts.length !== 1) {
+      throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 清理部分必须独占任务');
+    }
+    return ['cleanup'];
+  }
+  const fileData = data as DocumentFileTaskData;
+  if (
+    !isNonEmptyString(fileData.fileId) ||
+    !isNonEmptyString(fileData.documentVersionId)
+  ) {
+    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文件处理参数不完整');
+  }
+  return [...fileData.parts];
+}
+
+/**
+ * 判断整体任务是否为独占的物理清理任务。
+ *
+ * @param data 已完成基础校验的文档任务数据。
+ * @returns parts 只包含 cleanup 时返回 true。
+ */
+function isCleanupData(
+  data: DocumentTaskData,
+): data is Extract<DocumentTaskData, { parts: ['cleanup'] }> {
+  return data.parts.length === 1 && data.parts[0] === 'cleanup';
+}
+
+/**
+ * 判断任务字段是否为非空字符串。
+ *
+ * @param value JSONB data 中的未知字段值。
+ * @returns 字段可作为领域标识使用时返回 true。
+ */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
 }

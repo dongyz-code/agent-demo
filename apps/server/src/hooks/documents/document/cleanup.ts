@@ -1,15 +1,10 @@
 import { eq, inArray } from 'drizzle-orm';
 
-import { buildWhere, db, schemas } from '@/database/index.js';
-import { getErrorCode } from '../tasks/errors.js';
-import {
-  failTask,
-  FileProcessingLeaseLostError,
-  isTaskCanceled,
-} from '../tasks/runtime.js';
+import { ROOT_ERROR } from '@/configs/index.js';
+import { db, schemas } from '@/database/index.js';
 import { objectStorage } from '../file/objects.js';
 
-import type { FileProcessingTaskLease } from '../tasks/runtime.js';
+import type { TaskRunInput } from '@/hooks/tasks/task.js';
 
 /** 需要由文档清理任务删除的私有对象位置。 */
 interface DocumentCleanupStoredObject {
@@ -21,8 +16,6 @@ interface DocumentCleanupStoredObject {
 
 /** 文档清理 worker 所需的最小任务上下文。 */
 interface DocumentCleanupTaskContext {
-  /** 通用任务标识。 */
-  taskId: string;
   /** 被逻辑删除的文档标识。 */
   documentId: string;
   /** 发起删除的审计用户。 */
@@ -30,15 +23,15 @@ interface DocumentCleanupTaskContext {
 }
 
 /**
- * 顺序删除去重后的文档对象，并在每次远程动作前后校验 lease。
+ * 顺序删除去重后的文档对象，并在每次远程动作前后检查取消。
  *
  * @param objects 页面和源文件对象位置。
- * @param lease 当前清理任务租约，失效后立即停止后续删除。
+ * @param taskContext 当前清理任务公共运行上下文。
  * @returns 所有对象均已删除时结束。
  */
 async function deleteDocumentStoredObjects(
   objects: DocumentCleanupStoredObject[],
-  lease: FileProcessingTaskLease,
+  taskContext: TaskRunInput,
 ): Promise<void> {
   const uniqueObjects = new Map(
     objects.map((object) => [
@@ -47,12 +40,12 @@ async function deleteDocumentStoredObjects(
     ]),
   );
   for (const object of uniqueObjects.values()) {
-    await lease.assertActive();
+    await taskContext.throwIfCanceled();
     await objectStorage.remove({
       bucket: object.bucket,
       objectKey: object.objectKey,
     });
-    await lease.assertActive();
+    await taskContext.throwIfCanceled();
   }
 }
 
@@ -62,35 +55,37 @@ async function deleteDocumentStoredObjects(
  * 对象全部删除后才会进入数据库事务；任一步失败都会保留文档行，使同一任务可以安全重试。
  *
  * @param context cleanup task 的文档与审计上下文。
- * @param lease 当前 worker 租约，失效后禁止提交数据库删除。
- * @returns 清理成功、失败、取消或失去 lease 后结束。
+ * @param taskContext 通用任务公共运行上下文。
+ * @returns 正常返回时由任务框架自动完成；异常交由框架重试或终结。
  */
 export async function runDocumentCleanupTask(
   context: DocumentCleanupTaskContext,
-  lease: FileProcessingTaskLease,
+  taskContext: TaskRunInput,
 ): Promise<void> {
-  try {
-    await lease.assertActive();
-    const objects = await loadDocumentCleanupObjects(context.documentId);
-    await deleteDocumentStoredObjects(objects, lease);
-    await deleteDocumentDatabaseRows(context, lease);
-  } catch (error) {
-    if (
-      error instanceof FileProcessingLeaseLostError ||
-      (await isTaskCanceled(context.taskId))
-    ) {
-      return;
-    }
-    const message = toSafeCleanupError(error);
-    const failed = await failTask(
-      context.taskId,
-      lease.leaseId,
-      getErrorCode(message, 'DOCUMENT_CLEANUP_FAILED'),
-      message,
-    );
-    if (!failed) return;
-    throw error;
-  }
+  await taskContext.throwIfCanceled();
+  const objects = await loadDocumentCleanupObjects(context.documentId);
+  await taskContext.progress({
+    stage: 'cleanup-objects',
+    progress: 10,
+    processedItems: 0,
+    totalItems: objects.length,
+  });
+  await taskContext.log.info(`开始清理文档对象，共 ${objects.length} 个`);
+  await deleteDocumentStoredObjects(objects, taskContext);
+  await taskContext.progress({
+    stage: 'cleanup-database',
+    progress: 80,
+    processedItems: objects.length,
+    totalItems: objects.length,
+  });
+  await deleteDocumentDatabaseRows(context, taskContext);
+  await taskContext.progress({
+    stage: 'completed',
+    progress: 100,
+    processedItems: objects.length,
+    totalItems: objects.length,
+  });
+  await taskContext.log.info('文档物理清理完成');
 }
 
 /**
@@ -109,9 +104,7 @@ async function loadDocumentCleanupObjects(
     .limit(1);
   if (!document) return [];
   if (document.status !== 'deleted') {
-    throw new Error(
-      'DOCUMENT_CLEANUP_NOT_DELETED: 只有已逻辑删除的文档可以清理',
-    );
+    throw new ROOT_ERROR('只有已逻辑删除的文档可以清理');
   }
   const versions = await db
     .select({
@@ -145,46 +138,25 @@ async function loadDocumentCleanupObjects(
 }
 
 /**
- * 在一个事务内删除文档领域记录，并以同一 lease 完成 cleanup task。
+ * 在一个事务内删除文档领域记录并确认任务仍有效。
  *
  * @param context cleanup task 的文档和审计上下文。
- * @param lease 当前 worker 租约，事务提交前必须仍然有效。
- * @returns 数据库记录删除和任务完成状态同时提交后结束。
+ * @param taskContext 通用任务公共运行上下文。
+ * @returns 数据库记录删除完成后结束，通用任务历史始终保留。
  */
 async function deleteDocumentDatabaseRows(
   context: DocumentCleanupTaskContext,
-  lease: FileProcessingTaskLease,
+  taskContext: TaskRunInput,
 ): Promise<void> {
-  await lease.assertActive();
+  await taskContext.throwIfCanceled();
   await db.transaction(async (tx) => {
-    const now = new Date();
-    const where = buildWhere((filter) => {
-      filter.push(
-        eq(schemas.tasks.task_id, context.taskId),
-        eq(schemas.tasks.status, 'pending'),
-        eq(schemas.tasks.pending_uuid, lease.leaseId),
-      );
-    });
-    const [owned] = await tx
-      .update(schemas.tasks)
-      .set({
-        current_stage: 'cleanup-database',
-        progress: 80,
-        last_update_timestamp: now,
-      })
-      .where(where)
-      .returning({ id: schemas.tasks.task_id });
-    if (!owned) throw new FileProcessingLeaseLostError();
-
     const [document] = await tx
       .select({ status: schemas.documents.status })
       .from(schemas.documents)
       .where(eq(schemas.documents.document_id, context.documentId))
       .limit(1);
     if (document && document.status !== 'deleted') {
-      throw new Error(
-        'DOCUMENT_CLEANUP_NOT_DELETED: 文档状态已恢复，拒绝物理清理',
-      );
+      throw new ROOT_ERROR('文档状态已恢复，拒绝物理清理');
     }
     if (document) {
       const versions = await tx
@@ -196,31 +168,6 @@ async function deleteDocumentDatabaseRows(
         .where(eq(schemas.document_versions.document_id, context.documentId));
       const versionIds = versions.map((version) => version.id);
       const fileIds = versions.map((version) => version.fileId);
-      const processingTasks = await tx
-        .select({ id: schemas.file_processing_tasks.task_id })
-        .from(schemas.file_processing_tasks)
-        .where(
-          eq(schemas.file_processing_tasks.document_id, context.documentId),
-        );
-      const processingTaskIds = processingTasks.map((task) => task.id);
-      if (processingTaskIds.length) {
-        await tx
-          .delete(schemas.file_processing_task_stage_runs)
-          .where(
-            inArray(
-              schemas.file_processing_task_stage_runs.task_id,
-              processingTaskIds,
-            ),
-          );
-        await tx
-          .delete(schemas.file_processing_tasks)
-          .where(
-            inArray(schemas.file_processing_tasks.task_id, processingTaskIds),
-          );
-        await tx
-          .delete(schemas.tasks)
-          .where(inArray(schemas.tasks.task_id, processingTaskIds));
-      }
       await tx
         .delete(schemas.rag_dataset_documents)
         .where(
@@ -258,32 +205,5 @@ async function deleteDocumentDatabaseRows(
         .delete(schemas.documents)
         .where(eq(schemas.documents.document_id, context.documentId));
     }
-    const [completed] = await tx
-      .update(schemas.tasks)
-      .set({
-        status: 'completed',
-        current_stage: 'completed',
-        progress: 100,
-        processed_items: 1,
-        total_items: 1,
-        error_code: null,
-        error_message: null,
-        end_timestamp: now,
-        last_update_timestamp: now,
-      })
-      .where(where)
-      .returning({ id: schemas.tasks.task_id });
-    if (!completed) throw new FileProcessingLeaseLostError();
   });
-}
-
-/**
- * 将内部清理异常限制为任务中心可安全展示的短摘要。
- *
- * @param error 未知内部错误。
- * @returns 最长 500 字符的安全错误摘要。
- */
-function toSafeCleanupError(error: unknown): string {
-  const message = error instanceof Error ? error.message : '文档清理失败';
-  return message.slice(0, 500);
 }

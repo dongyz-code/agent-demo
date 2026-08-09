@@ -15,11 +15,11 @@ import { api_logs, user_logs } from './log.js';
 import { rag_dataset_documents, rag_datasets } from './rag.js';
 import { table_structure_ops } from './structure.js';
 import { apps, sys_conf } from './system.js';
-import { tasks } from './task.js';
+import { task_attempts, task_logs, tasks } from './task.js';
 
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
-/** 允许表管理功能展示和操作的业务表白名单，不包含内部审计表。 */
+/** 允许表管理功能展示和 reset 的表白名单，包含需随任务主表重建的 attempt 与日志表。 */
 export const managedTableRegistry = {
   sys_conf,
   user,
@@ -27,6 +27,8 @@ export const managedTableRegistry = {
   user_role,
   apps,
   tasks,
+  task_attempts,
+  task_logs,
   file_upload_sessions,
   api_logs,
   user_logs,

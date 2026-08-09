@@ -1,130 +1,62 @@
 import type { ApiMultAction } from '../../common/index.js';
-import type { TaskItem } from '../models.js';
+import type {
+  TaskAttemptItem,
+  TaskItem,
+  TaskLogItem,
+  TaskStatus,
+} from '../models.js';
 
+/** 通用任务中心过滤条件。 */
 export type TaskSqlFilter = {
-  key?: string | string[];
-  status?: TaskItem['status'] | TaskItem['status'][];
-  trigger_method?: TaskItem['trigger_method'];
-  /** 当前执行阶段。 */
+  /** 任务标识精确过滤。 */
+  task_id?: string;
+  /** 一个或多个稳定任务名称。 */
+  name?: string | string[];
+  /** 一个或多个生命周期状态。 */
+  status?: TaskStatus | TaskStatus[];
+  /** 当前业务阶段。 */
   current_stage?: string | string[];
-  /** 关联业务对象标识。 */
-  business_id?: string;
-  /** 任务发起用户。 */
-  execution_user_id?: string;
+  /** 任务名称模糊匹配。 */
   search?: string;
+  /** 创建时间闭区间。 */
   create_timestamp?: (Date | null)[];
 };
 
-/** 顶层是数组，对象模式下是 key */
-export type TaskArgItem<
-  T extends { optionKey: string } = { optionKey: string },
-> = {
-  /** 参数名(数字为数组下标, 字符串为对象属性名) */
-  key: number | string;
-  /** 参数说明 */
-  comment: string;
-  /** 是否必填(默认必填) */
-  required: boolean;
-} & (
-  | {
-      /** 值为布尔类型 前端使用 switch */
-      type: 'boolean';
-    }
-  | {
-      /** 值为数字类型 前端使用 input-number */
-      type: 'number';
-    }
-  | {
-      /** 值为数字类型 前端使用 input-number */
-      type: 'string';
-    }
-  | {
-      /** 选项，默认使用 el-select */
-      type: 'select';
-      /** 是否多选（string | string[]） */
-      multiple?: boolean;
-      /** 选项列表 */
-      options:
-        | T['optionKey'][]
-        | {
-            label: string;
-            value: T['optionKey'];
-          }[];
-    }
-  | {
-      /** 对象模式，识别为对象的 key */
-      type: 'object';
-      /** 对象属性 */
-      properties: TaskArgItem<T>[];
-    }
-);
+/** 任务详情包含不可覆盖的全部执行尝试。 */
+export type TaskDetail = TaskItem & {
+  /** 按 attempt 升序排列的执行记录。 */
+  attempts: TaskAttemptItem[];
+};
 
+/** 任务中心 HTTP 接口集合。 */
 export type TaskAction = ApiMultAction<{
-  /** 添加任务 */
-  add: {
-    req:
-      | {
-          key: string;
-          args: unknown[];
-          trigger_method: TaskItem['trigger_method'];
-        }
-      | {
-          history_task_id: string;
-        };
-    resp: {
-      task_id: string;
-    };
+  /** 查询通用任务详情与全部 attempt。 */
+  detail: {
+    req: { task_id: string };
+    resp: TaskDetail | null;
   };
-  /** 获取所有任务类型 */
-  types: {
-    req: {};
-    resp: {
-      key: string;
-      name: string;
-      /** 参数模式 */
-      argsMode?: TaskArgItem[];
-      /** 是否允许前端添加任务 */
-      allowFrontendSubmit?: boolean;
-    }[];
-  };
-  /** 杀死任务 */
-  kill: {
-    req: {
-      task_id: string | string[];
-    };
-  };
-  /** 数据库操作: 状态计数 */
+  /** 按过滤条件统计状态数量。 */
   counts: {
-    req: {
-      form?: TaskSqlFilter;
-    };
-    resp: {
-      status: TaskItem['status'];
-      count: number;
-    }[];
+    req: { form?: TaskSqlFilter };
+    resp: { status: TaskStatus; count: number }[];
   };
-  /** 数据库操作: 日志 */
+  /** 查询结构化持久日志。 */
   logs: {
-    req: {
-      task_id: string;
-    };
-    resp: string[];
+    req: { task_id: string; attempt?: number };
+    resp: TaskLogItem[];
   };
-  /** 数据库操作: 查询列表 */
+  /** 分页查询通用任务。 */
   list: {
     req: {
       form?: TaskSqlFilter;
       limit?: number[];
       withCount?: boolean;
     };
-    resp: {
-      list: Omit<TaskItem, 'logs' | 'args'>[];
-      count: number;
-    };
+    resp: { list: TaskItem[]; count: number };
   };
   /** ---------- 定时任务相关 ---------- */
   'schedule-list': {
-    req: {};
+    req: Record<string, never>;
     resp: { name: string; cron: string; status: boolean }[];
   };
   'schedule-pause': {

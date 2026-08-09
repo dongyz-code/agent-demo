@@ -6,15 +6,40 @@ export type TaskBaseStatus =
   | 'completed'
   | 'failed';
 
-export type TaskStatus = TaskBaseStatus | 'deleted' | 'killed';
+/** 通用后台任务生命周期状态。 */
+export type TaskStatus =
+  | 'queued'
+  | 'running'
+  | 'retrying'
+  | 'succeeded'
+  | 'failed'
+  | 'canceled'
+  | 'timed_out';
+
+/** 单次任务执行尝试的终态或运行状态。 */
+export type TaskAttemptStatus =
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'canceled'
+  | 'timed_out'
+  | 'interrupted';
+
+/** 任务持久日志支持的级别。 */
+export type TaskLogLevel = 'debug' | 'info' | 'error';
 
 export type TaskTriggerMethod = 'manual' | 'auto';
 
-/** 统一任务关联的业务对象类型。 */
-export type TaskBusinessType = 'file' | 'document' | 'document-version';
+/** 文档处理阶段单次执行状态。 */
+export type FileProcessingStageRunStatus =
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'canceled'
+  | 'interrupted';
 
-/** 文档版本任务类型；页面预览和版本内容处理共用任务运行时。 */
-export type DocumentProcessingTaskType = 'preview' | 'content';
+/** 整体文档任务中可选择执行的版本处理部分。 */
+export type DocumentProcessingTaskPart = 'preview' | 'content';
 
 /** 文件处理任务当前阶段。 */
 export type FileProcessingStage =
@@ -25,8 +50,10 @@ export type FileProcessingStage =
   | 'segmenting'
   | 'embedding'
   | 'content-publishing'
+  | 'content-completed'
   | 'preview-converting'
   | 'preview-publishing'
+  | 'preview-completed'
   | 'completed';
 
 /** 文件处理任务的创建来源。 */
@@ -95,36 +122,88 @@ export type AppItem = BaseCols & {
 };
 
 export type TaskItem = {
+  /** 通用任务标识。 */
   task_id: string;
-  task_key: string;
-  task_name: string | null;
-  search_key: string | null;
-  pending_uuid: string | null;
-  /** 任务关联的业务对象类型。 */
-  business_type: TaskBusinessType | null;
-  /** 任务关联的业务对象标识。 */
-  business_id: string | null;
-  /** 任务当前阶段；系统脚本任务允许为空。 */
+  /** 稳定任务名称。 */
+  task_name: string;
+  /** 任务脚本报告的当前业务阶段。 */
   current_stage: string | null;
-  /** 任务整数进度，范围为 0 到 100。 */
+  /** 整数进度，范围为 0 到 100。 */
   progress: number;
-  /** 当前任务已经处理的项目数量。 */
+  /** 已处理项目数量。 */
   processed_items: number;
-  /** 当前任务需要处理的项目总数。 */
+  /** 待处理项目总数。 */
   total_items: number;
+  /** 任务脚本成功返回的可序列化结果。 */
+  result: unknown;
+  /** 已创建的执行尝试数量。 */
+  attempt_count: number;
+  /** 首次执行以外允许的最大重试次数。 */
+  max_retries: number;
+  /** 固定重试间隔，单位毫秒。 */
+  retry_delay_ms: number;
+  /** 单次执行超时，单位毫秒。 */
+  timeout_ms: number;
+  /** 单实例同名任务并发上限。 */
+  concurrency: number;
+  /** retrying 状态的下次可领取时间。 */
+  next_run_at: Date | null;
   /** 对外稳定错误码。 */
   error_code: string | null;
   /** 面向用户的安全错误摘要。 */
   error_message: string | null;
-  args: string | null;
+  /** 当前生命周期状态。 */
   status: TaskStatus;
-  execution_user_id: string | null;
-  trigger_method: TaskTriggerMethod;
+  /** 入队时间。 */
   create_timestamp: Date;
+  /** 首次开始执行时间。 */
   start_timestamp: Date | null;
+  /** 最终完成时间。 */
   end_timestamp: Date | null;
-  logs: BinaryData | null;
-  last_update_timestamp: Date | null;
+  /** 最近状态、进度或 heartbeat 更新时间。 */
+  last_update_timestamp: Date;
+};
+
+/** 单次任务执行尝试摘要。 */
+export type TaskAttemptItem = {
+  /** attempt 标识。 */
+  attempt_id: string;
+  /** 所属通用任务。 */
+  task_id: string;
+  /** 从 1 开始的执行序号。 */
+  attempt: number;
+  /** 当前或最终执行状态。 */
+  status: TaskAttemptStatus;
+  /** 领取任务的服务实例。 */
+  worker_id: string;
+  /** 子进程 PID，启动前允许为空。 */
+  process_id: number | null;
+  /** 稳定错误码。 */
+  error_code: string | null;
+  /** 安全错误摘要。 */
+  error_message: string | null;
+  /** 本次成功执行返回的可序列化结果。 */
+  result: unknown;
+  /** 本次执行开始时间。 */
+  start_timestamp: Date;
+  /** 本次执行结束时间。 */
+  end_timestamp: Date | null;
+};
+
+/** 单条结构化任务日志。 */
+export type TaskLogItem = {
+  /** 日志标识。 */
+  log_id: string;
+  /** 所属通用任务。 */
+  task_id: string;
+  /** 产生该日志的 attempt，入队日志使用 0。 */
+  attempt: number;
+  /** 日志级别。 */
+  level: TaskLogLevel;
+  /** 已脱敏日志消息。 */
+  message: string;
+  /** 日志产生时间。 */
+  create_timestamp: Date;
 };
 
 export type ApiLogItem = {

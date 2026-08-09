@@ -1,16 +1,15 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type {
-  DocumentProcessingTaskType,
+  DocumentProcessingTaskPart,
   FileProcessingStage,
+  FileProcessingStageRunStatus,
   FileProcessingTriggerSource,
+  TaskAttemptItem,
   TaskStatus,
 } from '../models.js';
 
 /** 文件处理任务可对外展示的状态。 */
-export type FileProcessingTaskStatus = Extract<
-  TaskStatus,
-  'to-be-started' | 'pending' | 'completed' | 'failed' | 'killed'
->;
+export type FileProcessingTaskStatus = TaskStatus;
 
 /** 文件处理阶段执行记录。 */
 export interface FileProcessingStageRunInfo {
@@ -19,7 +18,7 @@ export interface FileProcessingStageRunInfo {
   /** 同一阶段的尝试序号。 */
   attempt: number;
   /** 阶段执行状态。 */
-  status: FileProcessingTaskStatus;
+  status: FileProcessingStageRunStatus;
   /** 阶段处理数量。 */
   processedItems: number;
   /** 阶段总数量。 */
@@ -42,8 +41,8 @@ export interface FileProcessingTaskInfo {
   documentId: string;
   /** 任务绑定的不可变文档版本。 */
   documentVersionId: string;
-  /** 当前任务执行页面预览还是版本内容处理。 */
-  taskType: DocumentProcessingTaskType;
+  /** 当前整体任务选择执行的文档处理部分。 */
+  parts: DocumentProcessingTaskPart[];
   /** 文件显示名称。 */
   filename: string;
   /** 同一文件的执行序号。 */
@@ -76,12 +75,16 @@ export interface FileProcessingTaskInfo {
 
 /** 文件处理任务详情。 */
 export interface FileProcessingTaskDetail extends FileProcessingTaskInfo {
-  /** 处理配置组合版本。 */
-  processingConfigVersion: string;
+  /** 各处理部分使用的配置版本。 */
+  processingConfigVersions: Partial<
+    Record<DocumentProcessingTaskPart, string>
+  >;
   /** 任务结果摘要。 */
   resultSummary: Record<string, unknown> | null;
   /** 阶段执行时间线。 */
   stageRuns: FileProcessingStageRunInfo[];
+  /** 通用运行时按序保存的自动执行尝试。 */
+  attempts: TaskAttemptItem[];
 }
 
 /** documents 域的文件处理任务接口集合。 */

@@ -8,7 +8,7 @@ import {
   getFileExtension,
 } from '@repo/shared';
 import { createDocumentVersionFromFile } from '../document/version.js';
-import { createDocumentPreviewTask } from '../preview/task.js';
+import { createDocumentProcessingTask } from '../tasks/task.js';
 import { objectStorage } from './objects.js';
 import {
   assertTransferableUploadSession,
@@ -54,10 +54,11 @@ export async function completeDocumentUpload(
     userId,
   );
   try {
-    await createDocumentPreviewTask(
+    await createDocumentProcessingTask(
       {
         documentId: binding.document.documentId,
         documentVersionId: binding.documentVersionId,
+        parts: ['preview'],
         triggerSource: 'upload',
       },
       userId,

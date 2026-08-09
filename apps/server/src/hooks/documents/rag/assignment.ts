@@ -1,6 +1,6 @@
 import { documentsConfig } from '../config.js';
-import { createDocumentContentTask } from '../document/content/task.js';
 import { getDocumentDetail } from '../document/read.js';
+import { createDocumentProcessingTask } from '../tasks/task.js';
 import { updateDocumentDatasetRelations } from './relations.js';
 
 import type {
@@ -41,11 +41,12 @@ export async function applyDocumentDatasetAssignment(
     input.mode !== 'remove' &&
     input.datasetIds.length
   ) {
-    await createDocumentContentTask(
+    await createDocumentProcessingTask(
       {
         documentId: input.documentId,
         documentVersionId: input.documentVersionId,
-        processingConfigVersion: input.processingConfigVersion,
+        parts: ['content'],
+        contentConfigVersion: input.processingConfigVersion,
         triggerSource: input.triggerSource ?? 'manual',
       },
       input.userId,

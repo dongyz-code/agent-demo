@@ -35,13 +35,8 @@
           </el-tag>
         </template>
         <template #actions="{ row }">
-          <el-button
-            v-if="canViewLogs"
-            link
-            type="primary"
-            @click="openLogs(row)"
-          >
-            查看日志
+          <el-button link type="primary" @click="openDetail(row)">
+            查看详情
           </el-button>
         </template>
       </v-table>
@@ -52,30 +47,17 @@
       />
     </div>
 
-    <v-dialog
-      v-model="taskLog.visible"
-      :title="taskLog.title"
-      width="80%"
-      top="5vh"
-    >
-      <div class="mb-3 flex justify-end">
-        <el-button
-          :icon="IconParkOutlineRefresh"
-          :loading="logsLoading"
-          @click="getLogs"
-        >
-          刷新日志
-        </el-button>
-      </div>
-      <pre
-        class="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-lg bg-gray-950 p-4 text-xs leading-6 text-gray-100"
-      >{{ taskLog.data.length ? taskLog.data.join('\n') : '暂无日志' }}</pre>
-    </v-dialog>
+    <task-detail-dialog
+      v-model="taskDetail.visible"
+      :task-id="taskDetail.taskId"
+      :title="taskDetail.title"
+      :can-view-logs="canViewLogs"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, shallowRef } from 'vue';
+import { computed, onMounted, reactive, shallowRef } from 'vue';
 import { ElButton, ElTag } from 'element-plus';
 import {
   dayJsformat,
@@ -84,7 +66,6 @@ import {
   numSplit,
 } from '@repo/utils-browser';
 import {
-  VDialog,
   VSchemaForm,
   VTable,
   loadingFunc,
@@ -93,10 +74,12 @@ import {
 
 import { staticMapping, staticOptions } from '@/constants';
 import { useStore } from '@/models';
-import { api, httpCache } from '@/utils';
+import { api } from '@/utils';
 import { adminPermissionKey } from '@repo/shared/permission';
 
 import IconParkOutlineRefresh from '~icons/icon-park-outline/refresh';
+
+import TaskDetailDialog from './components/TaskDetailDialog.vue';
 
 import type { SearchForm, TaskItem } from './types';
 import type { SchemaFormColumn, TableRow } from '@repo/ui';
@@ -115,17 +98,15 @@ const store = useStore();
 const taskForm = shallowRef<SearchForm>({});
 const tasks = shallowRef<TaskItem[]>([]);
 const statusCounts = shallowRef<TaskStatusCount[]>([]);
-const logsLoading = ref(false);
 const canViewLogs = computed(() =>
   store.hasPermission(adminPermissionKey('actions.task.logs')),
 );
 
-/** 当前日志弹窗上下文。 */
-const taskLog = reactive({
+/** 当前任务详情弹窗上下文。 */
+const taskDetail = reactive({
   visible: false,
   taskId: '',
-  title: '任务日志',
-  data: [] as string[],
+  title: '任务详情',
 });
 
 /** 任务列表统一查询字段，不再按实现类型拆分视图。 */
@@ -146,31 +127,6 @@ const taskColumns: SchemaFormColumn<SearchForm>[] = [
     fieldProps: { clearable: true },
   },
   {
-    dataIndex: 'trigger_method',
-    title: '触发方式',
-    valueType: 'select',
-    valueEnum: Object.fromEntries(
-      staticOptions.task_update_mode.map((item) => [item.value, item.label]),
-    ),
-    fieldProps: { clearable: true },
-  },
-  {
-    data: {
-      type: 'select',
-      options: computed(() =>
-        Object.entries(httpCache.user.mapping.value ?? {}).map(
-          ([value, user]) => ({ label: user.nickname, value }),
-        ),
-      ),
-      props: {
-        clearable: true,
-        filterable: true,
-      },
-    },
-    dataIndex: 'execution_user_id',
-    title: '执行用户',
-  },
-  {
     dataIndex: 'create_timestamp',
     title: '创建时间',
     valueType: 'dateRange',
@@ -188,20 +144,13 @@ const tableData = computed(() =>
           new Date(self.start_timestamp).getTime(),
       );
     }
-    let executionUserName = '-';
-    if (self.execution_user_id) {
-      executionUserName =
-        httpCache.user.mapping.value?.[self.execution_user_id]?.nickname ??
-        self.execution_user_id;
-    }
     return {
       self,
-      taskName: self.task_name ?? self.task_key,
+      taskName: self.task_name,
       statusText: staticMapping.task_status.get(self.status),
       stage: self.current_stage ?? '-',
       progress: `${self.progress}%`,
-      triggerMethod: staticMapping.task_update_mode.get(self.trigger_method),
-      executionUserName,
+      attempts: `${self.attempt_count} / ${self.max_retries + 1}`,
       createdAt: dayJsformat(
         self.create_timestamp,
         'YYYY-MM-DD HH:mm:ss',
@@ -218,12 +167,11 @@ const tableRows: TableRow[] = [
   { label: '状态', value: 'status', slot: 'status', width: 110 },
   { label: '当前阶段', value: 'stage', minWidth: 140 },
   { label: '进度', value: 'progress', width: 80 },
-  { label: '触发方式', value: 'triggerMethod', width: 100 },
-  { label: '执行用户', value: 'executionUserName', minWidth: 130 },
+  { label: '执行次数', value: 'attempts', width: 100 },
   { label: '创建时间', value: 'createdAt', width: 180 },
   { label: '累计用时', value: 'duration', width: 120 },
   { label: '错误摘要', value: 'errorMessage', minWidth: 200 },
-  { label: '操作', value: 'actions', slot: 'actions', width: 100, fixed: 'right' },
+  { label: '操作', value: 'actions', slot: 'actions', width: 110, fixed: 'right' },
 ];
 
 /** 任务分页组件固定放在列表底部。 */
@@ -271,45 +219,26 @@ const { getList, getListLoading } = loadingFunc({
 
 const getListDebounce = debounce(getList);
 
-/** 查询当前弹窗任务的通用运行日志。 */
-async function getLogs(): Promise<void> {
-  if (!taskLog.taskId) return;
-  logsLoading.value = true;
-  try {
-    taskLog.data = await api('/sys/task/logs', {
-      task_id: taskLog.taskId,
-    });
-  } finally {
-    logsLoading.value = false;
-  }
-}
-
 /**
- * 打开指定任务的日志弹窗。
+ * 打开指定任务的详情弹窗。
  *
  * @param row 当前通用任务展示行。
+ * @returns 弹窗状态更新后结束。
  */
-async function openLogs(row: (typeof tableData.value)[number]): Promise<void> {
-  taskLog.taskId = row.self.task_id;
-  taskLog.title = `${row.taskName} · 任务日志`;
-  taskLog.data = [];
-  taskLog.visible = true;
-  await getLogs();
+function openDetail(row: (typeof tableData.value)[number]): void {
+  taskDetail.taskId = row.self.task_id;
+  taskDetail.title = `${row.taskName} · 任务详情`;
+  taskDetail.visible = true;
 }
 
 /** 返回任务状态对应的 Element Plus 标签类型。 */
 function getStatusTagType(status: TaskItem['status']) {
-  if (status === 'completed') return 'success';
-  if (status === 'failed') return 'danger';
-  if (status === 'pending') return 'warning';
-  if (status === 'killed') return 'info';
+  if (status === 'succeeded') return 'success';
+  if (status === 'running') return 'primary';
+  if (status === 'queued' || status === 'retrying') return 'warning';
+  if (status === 'failed' || status === 'timed_out') return 'danger';
   return 'info';
 }
 
-onMounted(async () => {
-  await Promise.all([
-    getList(true),
-    httpCache.user.get({ full: true }),
-  ]);
-});
+onMounted(async () => await getList(true));
 </script>

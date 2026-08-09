@@ -1,34 +1,36 @@
-import { index, integer, text, uuid } from 'drizzle-orm/pg-core';
+import {
+  index,
+  integer,
+  jsonb,
+  text,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
-import { bytea, timestamptz, varchar255 } from '../declaration/common-columns.js';
+import { timestamptz, varchar255 } from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 
 import type {
-  TaskBusinessType,
+  TaskAttemptStatus,
+  TaskLogLevel,
   TaskStatus,
-  TaskTriggerMethod,
 } from '@repo/types';
 
+/** 通用后台任务当前状态与执行策略快照。 */
 export const tasks = pgTable(
   'tasks',
   {
-    /** 任务ID */
+    /** UUIDv7 通用任务标识。 */
     task_id: uuid('task_id').primaryKey(),
-    /** 任务执行器标识，用于选择具体运行逻辑。 */
-    task_key: varchar255('task_key').notNull(),
-    /** 可以为空，默认就是 task_key，也可根据 detail 自行生成 */
-    task_name: text('task_name'),
-    /** 用于快速检索的 KEY */
-    search_key: text('search_key'),
-    /** 运行中任务唯一标识，用于避免重复执行同 pending_uuid 任务 */
-    pending_uuid: varchar255('pending_uuid'),
-    /** 历史兼容字段；任务中心不再按固定枚举分类。 */
-    task_category: varchar255('task_category').notNull().default('system'),
-    /** 任务关联的业务对象类型。 */
-    business_type: varchar255('business_type').$type<TaskBusinessType>(),
-    /** 任务关联的业务对象标识。 */
-    business_id: varchar255('business_id'),
-    /** 当前执行阶段；系统脚本任务允许为空。 */
+    /** 稳定任务名称，同时用于同名任务并发分组。 */
+    task_name: varchar255('task_name').notNull(),
+    /** 子进程动态导入的服务端脚本模块 URL。 */
+    script: text('script').notNull(),
+    /** 可被 JSON 序列化的任务数据。 */
+    data: jsonb('data').notNull(),
+    /** 当前生命周期状态。 */
+    status: varchar255('status').$type<TaskStatus>().notNull(),
+    /** 任务脚本报告的当前业务阶段。 */
     current_stage: varchar255('current_stage'),
     /** 整数进度，范围为 0 到 100。 */
     progress: integer('progress').notNull().default(0),
@@ -36,39 +38,113 @@ export const tasks = pgTable(
     processed_items: integer('processed_items').notNull().default(0),
     /** 待处理项目总数。 */
     total_items: integer('total_items').notNull().default(0),
-    /** 对外稳定错误码。 */
+    /** 任务脚本成功返回的可序列化结果。 */
+    result: jsonb('result'),
+    /** 已创建的执行尝试数量。 */
+    attempt_count: integer('attempt_count').notNull().default(0),
+    /** 首次执行之外允许的最大重试次数。 */
+    max_retries: integer('max_retries').notNull().default(0),
+    /** 固定重试间隔，单位毫秒。 */
+    retry_delay_ms: integer('retry_delay_ms').notNull().default(0),
+    /** 单次执行超时，单位毫秒。 */
+    timeout_ms: integer('timeout_ms').notNull(),
+    /** 单实例同名任务并发上限。 */
+    concurrency: integer('concurrency').notNull(),
+    /** retrying 状态的下次可领取时间。 */
+    next_run_at: timestamptz('next_run_at'),
+    /** 当前 attempt 标识，非 running 时为空。 */
+    current_attempt_id: uuid('current_attempt_id'),
+    /** 当前领取生成的 lease，非 running 时为空。 */
+    lease_id: uuid('lease_id'),
+    /** 当前 lease 到期时间。 */
+    lease_expires_at: timestamptz('lease_expires_at'),
+    /** 最终或最近一次执行的稳定错误码。 */
     error_code: varchar255('error_code'),
-    /** 面向用户的安全错误摘要。 */
+    /** 最终或最近一次执行的安全错误摘要。 */
     error_message: text('error_message'),
-    /** 参数列表 */
-    args: text('args'),
-    /** 任务状态：待开始、进行中、完成、失败、删除、主动停止 */
-    status: varchar255('status').$type<TaskStatus>().notNull(),
-    /** 执行用户或添加任务的用户，自动任务可为空 */
-    execution_user_id: varchar255('execution_user_id'),
-    /** 任务触发方式：手动或自动 */
-    trigger_method: varchar255('trigger_method')
-      .$type<TaskTriggerMethod>()
-      .notNull(),
-    /** 添加任务到队列的时间 */
+    /** 入队时间。 */
     create_timestamp: timestamptz('create_timestamp').notNull(),
-    /** 开始执行任务的时间 */
+    /** 首次开始执行时间。 */
     start_timestamp: timestamptz('start_timestamp'),
-    /** 任务结束的时间 */
+    /** 最终完成时间。 */
     end_timestamp: timestamptz('end_timestamp'),
-    /** 任务执行日志，按行写入，gz 压缩 */
-    logs: bytea('logs'),
-    /** 最近更新时间 */
-    last_update_timestamp: timestamptz('last_update_timestamp'),
+    /** 最近状态、进度或 heartbeat 更新时间。 */
+    last_update_timestamp: timestamptz('last_update_timestamp').notNull(),
   },
   (table) => [
-    index('tasks_task_key_idx').on(table.task_key),
-    index('tasks_pending_uuid_idx').on(table.pending_uuid),
-    index('tasks_category_idx').on(table.task_category),
-    index('tasks_business_idx').on(table.business_type, table.business_id),
-    index('tasks_stage_idx').on(table.current_stage),
-    index('tasks_status_idx').on(table.status),
-    index('tasks_trigger_method_idx').on(table.trigger_method),
+    index('tasks_schedule_idx').on(
+      table.status,
+      table.next_run_at,
+      table.create_timestamp,
+    ),
+    index('tasks_name_idx').on(table.task_name),
     index('tasks_create_timestamp_idx').on(table.create_timestamp),
+    index('tasks_lease_expiry_idx').on(table.status, table.lease_expires_at),
+  ],
+);
+
+/** 通用任务每次领取形成的不可覆盖执行记录。 */
+export const task_attempts = pgTable(
+  'task_attempts',
+  {
+    /** UUIDv7 attempt 标识。 */
+    attempt_id: uuid('attempt_id').primaryKey(),
+    /** 所属通用任务。 */
+    task_id: uuid('task_id').notNull(),
+    /** 从 1 开始的执行序号。 */
+    attempt: integer('attempt').notNull(),
+    /** 当前或最终执行状态。 */
+    status: varchar255('status').$type<TaskAttemptStatus>().notNull(),
+    /** 本次领取生成的 lease。 */
+    lease_id: uuid('lease_id').notNull(),
+    /** 领取任务的服务实例。 */
+    worker_id: varchar255('worker_id').notNull(),
+    /** 任务子进程 PID，启动前允许为空。 */
+    process_id: integer('process_id'),
+    /** 稳定错误码。 */
+    error_code: varchar255('error_code'),
+    /** 安全错误摘要。 */
+    error_message: text('error_message'),
+    /** 本次成功执行返回的可序列化结果。 */
+    result: jsonb('result'),
+    /** 本次执行开始时间。 */
+    start_timestamp: timestamptz('start_timestamp').notNull(),
+    /** 本次执行结束时间。 */
+    end_timestamp: timestamptz('end_timestamp'),
+  },
+  (table) => [
+    uniqueIndex('task_attempts_task_attempt_unique').on(
+      table.task_id,
+      table.attempt,
+    ),
+    index('task_attempts_task_idx').on(table.task_id, table.attempt),
+    index('task_attempts_status_idx').on(table.status),
+  ],
+);
+
+/** 与任务和 attempt 关联的结构化持久日志。 */
+export const task_logs = pgTable(
+  'task_logs',
+  {
+    /** UUIDv7 日志标识。 */
+    log_id: uuid('log_id').primaryKey(),
+    /** 所属通用任务。 */
+    task_id: uuid('task_id').notNull(),
+    /** 产生日志的 attempt，入队阶段使用 0。 */
+    attempt: integer('attempt').notNull().default(0),
+    /** debug、info 或 error。 */
+    level: varchar255('level').$type<TaskLogLevel>().notNull(),
+    /** 已脱敏的日志消息。 */
+    message: text('message').notNull(),
+    /** 日志产生时间。 */
+    create_timestamp: timestamptz('create_timestamp').notNull(),
+  },
+  (table) => [
+    index('task_logs_task_time_idx').on(
+      table.task_id,
+      table.create_timestamp,
+      table.log_id,
+    ),
+    index('task_logs_task_attempt_idx').on(table.task_id, table.attempt),
   ],
 );

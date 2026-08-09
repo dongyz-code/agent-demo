@@ -3,7 +3,8 @@ import { eq, inArray, ne, or, sql } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import { FileProcessingLeaseLostError } from '../tasks/runtime.js';
+
+import type { TaskRunInput } from '@/hooks/tasks/task.js';
 
 /** 校验文档存在、未删除且属于当前操作用户。 */
 async function assertOwnedDocument(
@@ -205,12 +206,15 @@ export async function prepareDocumentRagRelationsForReprocessing(input: {
   return rows.length;
 }
 
-/** 将仍以指定版本为 pending 的全部知识库关系标记为处理中。 */
+/**
+ * 将仍以指定版本为 pending 的全部知识库关系标记为处理中。
+ *
+ * @param input 任务上下文、文档版本和审计用户。
+ * @returns 实际更新的知识库关系数量。
+ */
 export async function markDocumentRagRelationsProcessing(input: {
-  /** 当前内容任务标识。 */
-  taskId: string;
-  /** 当前 worker 持有的任务 lease。 */
-  leaseId: string;
+  /** 当前内容任务公共运行上下文。 */
+  task: TaskRunInput;
   /** 文档稳定标识。 */
   documentId: string;
   /** 本次处理的文档版本。 */
@@ -218,13 +222,6 @@ export async function markDocumentRagRelationsProcessing(input: {
   /** 当前操作用户。 */
   userId: string;
 }): Promise<number> {
-  const taskWhere = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.tasks.task_id, input.taskId),
-      eq(schemas.tasks.status, 'pending'),
-      eq(schemas.tasks.pending_uuid, input.leaseId),
-    );
-  });
   const relationWhere = buildWhere((filter) => {
     filter.push(
       eq(schemas.rag_dataset_documents.document_id, input.documentId),
@@ -234,14 +231,9 @@ export async function markDocumentRagRelationsProcessing(input: {
       ),
     );
   });
+  await input.task.throwIfCanceled();
   return await db.transaction(async (tx) => {
     const now = new Date();
-    const [owned] = await tx
-      .update(schemas.tasks)
-      .set({ last_update_timestamp: now })
-      .where(taskWhere)
-      .returning({ taskId: schemas.tasks.task_id });
-    if (!owned) throw new FileProcessingLeaseLostError();
     const rows = await tx
       .update(schemas.rag_dataset_documents)
       .set({
@@ -257,16 +249,14 @@ export async function markDocumentRagRelationsProcessing(input: {
 }
 
 /**
- * 仅在内容任务仍持有 lease 时发布匹配的知识库关系。
+ * 仅在内容任务仍有效时发布匹配的知识库关系。
  *
- * @param input 任务 lease、文档版本和审计用户。
+ * @param input 任务上下文、文档版本和审计用户。
  * @returns 成功切换的知识库关系数量。
  */
 export async function publishDocumentRagRelationsForTask(input: {
-  /** 当前内容任务标识。 */
-  taskId: string;
-  /** 当前 worker 持有的任务 lease。 */
-  leaseId: string;
+  /** 当前内容任务公共运行上下文。 */
+  task: TaskRunInput;
   /** 文档稳定标识。 */
   documentId: string;
   /** 本次成功处理的文档版本。 */
@@ -274,13 +264,6 @@ export async function publishDocumentRagRelationsForTask(input: {
   /** 当前操作用户。 */
   userId: string;
 }): Promise<number> {
-  const taskWhere = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.tasks.task_id, input.taskId),
-      eq(schemas.tasks.status, 'pending'),
-      eq(schemas.tasks.pending_uuid, input.leaseId),
-    );
-  });
   const relationWhere = buildWhere((filter) => {
     filter.push(
       eq(schemas.rag_dataset_documents.document_id, input.documentId),
@@ -290,14 +273,9 @@ export async function publishDocumentRagRelationsForTask(input: {
       ),
     );
   });
+  await input.task.throwIfCanceled();
   return await db.transaction(async (tx) => {
     const now = new Date();
-    const [owned] = await tx
-      .update(schemas.tasks)
-      .set({ last_update_timestamp: now })
-      .where(taskWhere)
-      .returning({ taskId: schemas.tasks.task_id });
-    if (!owned) throw new FileProcessingLeaseLostError();
     const rows = await tx
       .update(schemas.rag_dataset_documents)
       .set({
@@ -350,35 +328,4 @@ export async function publishDocumentRagRelations(input: {
     .where(where)
     .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
   return rows.length;
-}
-
-/** 记录指定版本的全部待处理关系失败，同时保留各自旧 active 版本。 */
-export async function failDocumentRagRelations(input: {
-  /** 文档稳定标识。 */
-  documentId: string;
-  /** 本次失败的目标版本。 */
-  documentVersionId: string;
-  /** 面向用户的安全错误摘要。 */
-  error: string;
-  /** 当前操作用户。 */
-  userId: string;
-}): Promise<void> {
-  const where = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.rag_dataset_documents.document_id, input.documentId),
-      eq(
-        schemas.rag_dataset_documents.pending_version_id,
-        input.documentVersionId,
-      ),
-    );
-  });
-  await db
-    .update(schemas.rag_dataset_documents)
-    .set({
-      rag_status: 'failed',
-      rag_error: input.error,
-      last_update_user_id: input.userId,
-      last_update_timestamp: new Date(),
-    })
-    .where(where);
 }

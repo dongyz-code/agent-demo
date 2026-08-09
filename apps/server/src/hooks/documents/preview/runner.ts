@@ -1,26 +1,19 @@
 import { eq } from 'drizzle-orm';
 
-import { logger } from '@/configs/index.js';
+import { logger, ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { getStoredFile } from '../file/source.js';
-import { getErrorCode } from '../tasks/errors.js';
 import {
-  FileProcessingLeaseLostError,
-  completeTask,
-  failTask,
-  isTaskCanceled,
+  completeFileProcessingTask,
   runTaskStage,
-} from '../tasks/runtime.js';
+} from '../tasks/stage.js';
 import { objectStorage } from '../file/objects.js';
 import {
   DOCUMENT_PREVIEW_CONVERTER_VERSION,
   documentPageConverter,
 } from './converter.js';
 
-import type {
-  FileProcessingTaskContext,
-  FileProcessingTaskLease,
-} from '../tasks/runtime.js';
+import type { FileProcessingTaskContext } from '../tasks/stage.js';
 import type { ConvertedDocumentPage } from './converter.js';
 
 /** 已上传但尚未发布的页面对象。 */
@@ -44,30 +37,27 @@ interface UploadedPreviewPage {
 /**
  * 执行预览页面生成、完整发布和任务状态落库。
  *
- * @param context worker 已校验的文档版本任务上下文。
- * @param lease 当前任务 lease，失效后不得发布页面。
- * @returns 任务完成、失败、取消或失去 lease 后结束。
+ * @param context Worker 已校验的文档版本任务上下文。
+ * @returns 正常返回时由任务框架自动完成；异常清理临时对象后交由框架处理。
  */
 export async function runDocumentPreviewTask(
   context: FileProcessingTaskContext,
-  lease: FileProcessingTaskLease,
 ): Promise<void> {
   const uploadedPages: UploadedPreviewPage[] = [];
   let published = false;
   try {
-    await runTaskStage(context, lease, 'preview-converting', async () => {
-      await markPreviewProcessing(context, lease);
-      await generateAndUploadPages(context, lease, uploadedPages);
+    await runTaskStage(context, 'preview-converting', async () => {
+      await markPreviewProcessing(context);
+      await generateAndUploadPages(context, uploadedPages);
       return uploadedPages;
     });
     const oldPages = await runTaskStage(
       context,
-      lease,
       'preview-publishing',
-      async () => await publishPreviewPages(context, lease, uploadedPages),
+      async () => await publishPreviewPages(context, uploadedPages),
     );
     published = true;
-    await completeTask(context, lease, uploadedPages.length, {
+    await completeFileProcessingTask(context, uploadedPages.length, {
       capability: 'document-preview',
       documentId: context.documentId,
       documentVersionId: context.documentVersionId,
@@ -77,52 +67,20 @@ export async function runDocumentPreviewTask(
     deleteOldPagesInBackground(oldPages);
   } catch (error) {
     if (!published) await deleteUploadedPages(uploadedPages);
-    if (
-      error instanceof FileProcessingLeaseLostError ||
-      (await isTaskCanceled(context.taskId))
-    ) {
-      return;
-    }
-    const message = toSafePreviewError(error);
-    const failed = await failTask(
-      context.taskId,
-      lease.leaseId,
-      getErrorCode(message, 'DOCUMENT_PREVIEW_FAILED'),
-      message,
-    );
-    if (!failed) return;
-    await db
-      .update(schemas.document_versions)
-      .set({
-        preview_status: 'failed',
-        preview_page_count: 0,
-        preview_error: message,
-        last_update_user_id: context.userId,
-        last_update_timestamp: new Date(),
-      })
-      .where(
-        eq(
-          schemas.document_versions.document_version_id,
-          context.documentVersionId,
-        ),
-      );
     throw error;
   }
 }
 
-/** 在生成前确认任务 lease 和文档生命周期仍允许提交。 */
+/**
+ * 在生成前确认任务和文档生命周期仍允许提交。
+ *
+ * @param context 当前预览任务领域上下文。
+ * @returns 版本进入 processing 后结束。
+ */
 async function markPreviewProcessing(
   context: FileProcessingTaskContext,
-  lease: FileProcessingTaskLease,
 ): Promise<void> {
-  await lease.assertActive();
-  const taskWhere = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.tasks.task_id, context.taskId),
-      eq(schemas.tasks.status, 'pending'),
-      eq(schemas.tasks.pending_uuid, lease.leaseId),
-    );
-  });
+  await context.task.throwIfCanceled();
   const documentWhere = buildWhere((filter) => {
     filter.push(
       eq(schemas.documents.document_id, context.documentId),
@@ -139,21 +97,13 @@ async function markPreviewProcessing(
     );
   });
   await db.transaction(async (tx) => {
-    const [owned] = await tx
-      .update(schemas.tasks)
-      .set({ last_update_timestamp: new Date() })
-      .where(taskWhere)
-      .returning({ taskId: schemas.tasks.task_id });
-    if (!owned) throw new FileProcessingLeaseLostError();
     const [document] = await tx
       .select({ id: schemas.documents.document_id })
       .from(schemas.documents)
       .where(documentWhere)
       .limit(1);
     if (!document) {
-      throw new Error(
-        'DOCUMENT_PREVIEW_DOCUMENT_DELETED: 文档已删除，不能生成预览',
-      );
+      throw new ROOT_ERROR('文档已删除，不能生成预览');
     }
     await tx
       .update(schemas.document_versions)
@@ -167,17 +117,20 @@ async function markPreviewProcessing(
   });
 }
 
-/** 逐页转换并上传到本任务独占对象前缀。 */
+/**
+ * 逐页转换并上传到本任务独占对象前缀。
+ *
+ * @param context 当前预览任务领域上下文。
+ * @param pages 用于记录待发布临时页面的可变集合。
+ * @returns 全部页面转换并上传后结束。
+ */
 async function generateAndUploadPages(
   context: FileProcessingTaskContext,
-  lease: FileProcessingTaskLease,
   pages: UploadedPreviewPage[],
 ): Promise<void> {
   const file = await getStoredFile(context.fileId);
   if (file.status !== 'verified') {
-    throw new Error(
-      'DOCUMENT_PREVIEW_SOURCE_INVALID: 只有验证成功的文件可以生成预览',
-    );
+    throw new ROOT_ERROR('只有验证成功的文件可以生成预览');
   }
   const source = {
     filename: file.filename,
@@ -193,11 +146,9 @@ async function generateAndUploadPages(
   };
   let expectedPage = 1;
   for await (const page of documentPageConverter.convert(source)) {
-    await lease.assertActive();
+    await context.task.throwIfCanceled();
     if (page.pageNumber !== expectedPage) {
-      throw new Error(
-        'DOCUMENT_PREVIEW_PAGE_SEQUENCE_INVALID: 转换页面序号不连续',
-      );
+      throw new ROOT_ERROR('转换页面序号不连续');
     }
     const objectKey = buildPreviewObjectKey(context, page.pageNumber);
     await objectStorage.put({
@@ -218,25 +169,23 @@ async function generateAndUploadPages(
     expectedPage++;
   }
   if (!pages.length) {
-    throw new Error('DOCUMENT_PREVIEW_EMPTY: 转换器没有生成任何页面');
+    throw new ROOT_ERROR('转换器没有生成任何页面');
   }
-  await lease.assertActive();
+  await context.task.throwIfCanceled();
 }
 
-/** 在同一事务中替换页面行并把版本标记为 ready。 */
+/**
+ * 在同一事务中替换页面行并把版本标记为 ready。
+ *
+ * @param context 当前预览任务领域上下文。
+ * @param pages 已上传且等待发布的页面集合。
+ * @returns 被新页面替换的旧对象位置。
+ */
 async function publishPreviewPages(
   context: FileProcessingTaskContext,
-  lease: FileProcessingTaskLease,
   pages: UploadedPreviewPage[],
 ) {
-  await lease.assertActive();
-  const taskWhere = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.tasks.task_id, context.taskId),
-      eq(schemas.tasks.status, 'pending'),
-      eq(schemas.tasks.pending_uuid, lease.leaseId),
-    );
-  });
+  await context.task.throwIfCanceled();
   const documentWhere = buildWhere((filter) => {
     filter.push(
       eq(schemas.documents.document_id, context.documentId),
@@ -253,21 +202,13 @@ async function publishPreviewPages(
     );
   });
   return await db.transaction(async (tx) => {
-    const [owned] = await tx
-      .update(schemas.tasks)
-      .set({ last_update_timestamp: new Date() })
-      .where(taskWhere)
-      .returning({ taskId: schemas.tasks.task_id });
-    if (!owned) throw new FileProcessingLeaseLostError();
     const [document] = await tx
       .select({ id: schemas.documents.document_id })
       .from(schemas.documents)
       .where(documentWhere)
       .limit(1);
     if (!document) {
-      throw new Error(
-        'DOCUMENT_PREVIEW_DOCUMENT_DELETED: 文档已删除，不能发布预览',
-      );
+      throw new ROOT_ERROR('文档已删除，不能发布预览');
     }
     const oldPages = await tx
       .select({
@@ -314,7 +255,7 @@ async function publishPreviewPages(
       .where(versionWhere)
       .returning({ id: schemas.document_versions.document_version_id });
     if (!updated) {
-      throw new Error('DOCUMENT_PREVIEW_VERSION_NOT_FOUND: 文档版本不存在');
+      throw new ROOT_ERROR('文档版本不存在');
     }
     return oldPages;
   });
@@ -332,7 +273,7 @@ function buildPreviewObjectKey(
     context.documentVersionId,
     'preview',
     encodeURIComponent(DOCUMENT_PREVIEW_CONVERTER_VERSION),
-    context.taskId,
+    context.task.taskId,
     `page-${String(pageNumber).padStart(6, '0')}.webp`,
   ].join('/');
 }
@@ -379,10 +320,4 @@ function deleteOldPagesInBackground(
       }
     });
   });
-}
-
-/** 将内部异常限制为可安全展示的短错误摘要。 */
-function toSafePreviewError(error: unknown): string {
-  const message = error instanceof Error ? error.message : '文档预览生成失败';
-  return message.slice(0, 500);
 }

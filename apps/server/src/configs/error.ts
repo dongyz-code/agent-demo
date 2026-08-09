@@ -149,5 +149,119 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       key: '文件上传失败',
       code: ROOT_ERROR_CODE_BAD_REQUEST,
     },
+
+    // 文档任务（任务内部错误码，仅写入 tasks/stage_runs 的 error_code，不回 HTTP，statusCode 默认 500）
+    {
+      key: '只有已逻辑删除的文档可以清理',
+      code: 'DOCUMENT_CLEANUP_NOT_DELETED',
+    },
+    {
+      key: '文档状态已恢复，拒绝物理清理',
+      code: 'DOCUMENT_CLEANUP_NOT_DELETED',
+    },
+    {
+      key: '本地文本解析上限为 32 MiB',
+      code: 'DOCUMENT_TEXT_TOO_LARGE',
+    },
+    {
+      key: 'AI.textIn.baseUrl 未配置',
+      code: 'DOCUMENT_PARSER_ENDPOINT_MISSING',
+    },
+    {
+      key: 'AI.textIn.apiKey 未配置',
+      code: 'DOCUMENT_PARSER_AUTH_MISSING',
+    },
+    {
+      key: 'TextIn 异步任务恢复信息无效',
+      code: 'DOCUMENT_PARSER_CHECKPOINT_INVALID',
+    },
+    {
+      key: 'TextIn 未返回有效 job_id',
+      code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
+    },
+    {
+      key: 'TextIn 异步解析等待超时',
+      code: 'DOCUMENT_PARSER_ASYNC_TIMEOUT',
+    },
+    {
+      key: 'TextIn 状态响应 job_id 不匹配',
+      code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
+    },
+    {
+      key: 'TextIn 异步解析任务失败',
+      code: 'DOCUMENT_PARSER_UPSTREAM_FAILED',
+    },
+    {
+      key: 'TextIn 完成任务未返回 result_url',
+      code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
+    },
+    {
+      key: 'TextIn 返回了未知任务状态',
+      code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
+    },
+    {
+      key: 'TextIn 未返回 Markdown 内容',
+      code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
+    },
+    {
+      key: '当前文件类型不支持页面预览',
+      code: 'DOCUMENT_PREVIEW_TYPE_UNSUPPORTED',
+    },
+    {
+      key: '无法读取转换后页面尺寸',
+      code: 'DOCUMENT_PREVIEW_IMAGE_INVALID',
+    },
+    {
+      key: 'PDF 页数超过上限',
+      code: 'DOCUMENT_PREVIEW_PAGE_LIMIT',
+    },
+    {
+      key: '未配置 Office 转换 Worker',
+      code: 'DOCUMENT_PREVIEW_OFFICE_WORKER_MISSING',
+    },
+    {
+      key: 'Office Worker 未返回有效 PDF',
+      code: 'DOCUMENT_PREVIEW_OFFICE_INVALID',
+    },
+    {
+      key: '文本预览页数超过上限',
+      code: 'DOCUMENT_PREVIEW_PAGE_LIMIT',
+    },
+    {
+      key: '源文件超过预览大小上限',
+      code: 'DOCUMENT_PREVIEW_SOURCE_LIMIT',
+    },
+    {
+      key: '文档已删除，不能生成预览',
+      code: 'DOCUMENT_PREVIEW_DOCUMENT_DELETED',
+    },
+    {
+      key: '只有验证成功的文件可以生成预览',
+      code: 'DOCUMENT_PREVIEW_SOURCE_INVALID',
+    },
+    {
+      key: '转换页面序号不连续',
+      code: 'DOCUMENT_PREVIEW_PAGE_SEQUENCE_INVALID',
+    },
+    {
+      key: '转换器没有生成任何页面',
+      code: 'DOCUMENT_PREVIEW_EMPTY',
+    },
+    {
+      key: '文档已删除，不能发布预览',
+      code: 'DOCUMENT_PREVIEW_DOCUMENT_DELETED',
+    },
+    {
+      key: '文档版本不存在',
+      code: 'DOCUMENT_PREVIEW_VERSION_NOT_FOUND',
+    },
+    {
+      key: '阶段恢复信息不是有效 JSON',
+      code: 'FILE_PROCESSING_CHECKPOINT_INVALID',
+    },
+    {
+      key: '阶段恢复信息无法序列化',
+      code: 'FILE_PROCESSING_CHECKPOINT_INVALID',
+    },
   ],
 });

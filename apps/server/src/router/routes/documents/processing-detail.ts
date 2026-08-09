@@ -1,4 +1,4 @@
-import { getFileProcessingTask } from '@/hooks/documents/tasks/detail.js';
+import { getDocumentProcessingTask } from '@/hooks/documents/tasks/task.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -7,7 +7,7 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('pages.sys.sys.task'),
   handler: async ({ body }) => {
-    return await getFileProcessingTask(body.taskId);
+    return await getDocumentProcessingTask(body.taskId);
   },
 });
 
