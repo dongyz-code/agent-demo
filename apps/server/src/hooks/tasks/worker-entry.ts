@@ -1,34 +1,30 @@
-import {
-  appendTaskRuntimeLog,
-  assertTaskLeaseActive,
-  updateTaskRuntimeProgress,
-} from './store.js';
-import { loadTaskScript } from './runtime.js';
+import { taskDatabase } from './database.js';
 import { TaskCanceledError } from './types.js';
 
 import type {
-  TaskProcessInput,
-  TaskProcessResult,
   TaskProgressInput,
   TaskRunInput,
+  TaskScriptModule,
+  TaskWorkerInput,
+  TaskWorkerResult,
 } from './types.js';
 import type { TaskLogLevel } from '@repo/types';
 
-/** 父 Worker 通过 IPC 发送的单次启动命令。 */
-interface TaskProcessStartMessage {
+/** 主进程通过 IPC 发送的单次启动命令。 */
+interface TaskWorkerStartMessage {
   /** 消息类型。 */
   type: 'start';
   /** 已领取任务的完整子进程输入。 */
-  input: TaskProcessInput;
+  input: TaskWorkerInput;
 }
 
-let processCompleted = false;
+let workerCompleted = false;
 
 process.once('message', (message: unknown) => {
   void handleStartMessage(message);
 });
 process.once('disconnect', () => {
-  if (!processCompleted) process.exit(1);
+  if (!workerCompleted) process.exit(1);
 });
 
 /**
@@ -38,8 +34,8 @@ process.once('disconnect', () => {
  * @returns 结果发送完成后结束当前任务子进程。
  */
 async function handleStartMessage(message: unknown): Promise<void> {
-  let result: TaskProcessResult;
-  if (!isTaskProcessStartMessage(message)) {
+  let result: TaskWorkerResult;
+  if (!isTaskWorkerStartMessage(message)) {
     result = {
       type: 'result',
       success: false,
@@ -50,34 +46,57 @@ async function handleStartMessage(message: unknown): Promise<void> {
     result = await runTask(message.input);
   }
   await sendResult(result);
-  processCompleted = true;
+  workerCompleted = true;
   process.exit(result.success ? 0 : 1);
 }
 
 /**
  * 动态导入脚本并执行一个已领取任务。
  *
- * @param input 父 Worker 发送的任务、attempt、lease、script 和 data。
+ * @param input Dispatcher 发送的任务、attempt、lease、script 和 data。
  * @returns 可安全通过 IPC 返回的成功结果或错误摘要。
  */
-async function runTask(input: TaskProcessInput): Promise<TaskProcessResult> {
+async function runTask(input: TaskWorkerInput): Promise<TaskWorkerResult> {
   try {
-    const script = await loadTaskScript(input.script);
+    const script = (await import(input.script)) as TaskScriptModule;
     const runInput = createTaskRunInput(input);
     await runInput.throwIfCanceled();
-    const result = await script.default(runInput);
+    const scriptResult = await script.default(runInput);
     await runInput.throwIfCanceled();
+    let result: unknown = null;
+    if (scriptResult !== undefined) {
+      const serialized = JSON.stringify(scriptResult);
+      if (serialized === undefined) {
+        throw new Error('TASK_RESULT_INVALID: 任务结果无法序列化');
+      }
+      result = JSON.parse(serialized) as unknown;
+    }
     return {
       type: 'result',
       success: true,
-      result: normalizeTaskResult(result),
+      result,
     };
   } catch (error) {
+    let errorCode = 'TASK_SCRIPT_FAILED';
+    if (error && typeof error === 'object' && 'code' in error) {
+      const code = String(error.code).trim();
+      if (code) errorCode = code.slice(0, 255);
+    }
+    if (
+      errorCode === 'TASK_SCRIPT_FAILED' &&
+      error instanceof TaskCanceledError
+    ) {
+      errorCode = 'TASK_CANCELED';
+    }
+    let errorMessage = '任务脚本执行失败';
+    if (error instanceof Error && error.message.trim()) {
+      errorMessage = error.message.trim().slice(0, 1_000);
+    }
     return {
       type: 'result',
       success: false,
-      errorCode: readErrorCode(error),
-      errorMessage: readErrorMessage(error),
+      errorCode,
+      errorMessage,
     };
   }
 }
@@ -88,7 +107,7 @@ async function runTask(input: TaskProcessInput): Promise<TaskProcessResult> {
  * @param input 当前任务、attempt、lease 和业务数据。
  * @returns 只暴露 data、日志、进度和取消检查的运行参数。
  */
-function createTaskRunInput(input: TaskProcessInput): TaskRunInput {
+function createTaskRunInput(input: TaskWorkerInput): TaskRunInput {
   return {
     taskId: input.taskId,
     attempt: input.attempt,
@@ -100,7 +119,11 @@ function createTaskRunInput(input: TaskProcessInput): TaskRunInput {
     },
     progress: async (progress) => await updateContextProgress(input, progress),
     throwIfCanceled: async () => {
-      if (await assertTaskLeaseActive(input.taskId, input.leaseId)) return;
+      if (
+        await taskDatabase.assertTaskLeaseActive(input.taskId, input.leaseId)
+      ) {
+        return;
+      }
       throw new TaskCanceledError();
     },
   };
@@ -115,18 +138,18 @@ function createTaskRunInput(input: TaskProcessInput): TaskRunInput {
  * @returns 日志写入完成后结束，lease 失效时抛出取消异常。
  */
 async function writeContextLog(
-  input: TaskProcessInput,
+  input: TaskWorkerInput,
   level: TaskLogLevel,
   message: string,
 ): Promise<void> {
-  const normalized = message.trim();
-  if (!normalized) return;
-  const appended = await appendTaskRuntimeLog({
+  const logMessage = message.trim();
+  if (!logMessage) return;
+  const appended = await taskDatabase.appendTaskRuntimeLog({
     taskId: input.taskId,
     leaseId: input.leaseId,
     attempt: input.attempt,
     level,
-    message: normalized,
+    message: logMessage,
   });
   if (!appended) throw new TaskCanceledError();
 }
@@ -139,7 +162,7 @@ async function writeContextLog(
  * @returns 更新成功后结束，lease 失效时抛出取消异常。
  */
 async function updateContextProgress(
-  input: TaskProcessInput,
+  input: TaskWorkerInput,
   progress: TaskProgressInput,
 ): Promise<void> {
   if (
@@ -149,7 +172,7 @@ async function updateContextProgress(
   ) {
     throw new Error('TASK_PROGRESS_INVALID: progress 必须是 0 到 100 的整数');
   }
-  const updated = await updateTaskRuntimeProgress({
+  const updated = await taskDatabase.updateTaskRuntimeProgress({
     taskId: input.taskId,
     leaseId: input.leaseId,
     ...progress,
@@ -158,60 +181,19 @@ async function updateContextProgress(
 }
 
 /**
- * 把任务脚本返回值收敛为 IPC 与 PostgreSQL JSONB 都能保存的数据。
- *
- * @param result 任务脚本返回的未知值。
- * @returns JSON 可序列化副本；undefined 统一转换为 null。
- */
-function normalizeTaskResult(result: unknown): unknown {
-  if (result === undefined) return null;
-  const serialized = JSON.stringify(result);
-  if (serialized === undefined) {
-    throw new Error('TASK_RESULT_INVALID: 任务结果无法序列化');
-  }
-  return JSON.parse(serialized) as unknown;
-}
-
-/**
- * 从未知异常读取稳定错误码。
- *
- * @param error 任务脚本抛出的未知值。
- * @returns Error 上的非空 code，缺失时返回 TASK_SCRIPT_FAILED。
- */
-function readErrorCode(error: unknown): string {
-  if (error && typeof error === 'object' && 'code' in error) {
-    const code = String(error.code).trim();
-    if (code) return code.slice(0, 255);
-  }
-  if (error instanceof TaskCanceledError) return 'TASK_CANCELED';
-  return 'TASK_SCRIPT_FAILED';
-}
-
-/**
- * 从未知异常读取不包含堆栈的安全摘要。
- *
- * @param error 任务脚本抛出的未知值。
- * @returns 最多 1,000 字符的错误消息。
- */
-function readErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message.trim().slice(0, 1_000);
-  }
-  return '任务脚本执行失败';
-}
-
-/**
  * 判断未知 IPC 消息是否包含任务启动输入。
  *
  * @param value 父进程发送的未知值。
  * @returns 具有 start 类型和对象 input 时返回 true。
  */
-function isTaskProcessStartMessage(
+function isTaskWorkerStartMessage(
   value: unknown,
-): value is TaskProcessStartMessage {
+): value is TaskWorkerStartMessage {
   if (!value || typeof value !== 'object') return false;
   if (!('type' in value) || value.type !== 'start') return false;
-  return 'input' in value && Boolean(value.input) && typeof value.input === 'object';
+  return (
+    'input' in value && Boolean(value.input) && typeof value.input === 'object'
+  );
 }
 
 /**
@@ -220,7 +202,7 @@ function isTaskProcessStartMessage(
  * @param result 任务脚本的安全执行结果。
  * @returns IPC callback 触发或通道缺失后结束。
  */
-async function sendResult(result: TaskProcessResult): Promise<void> {
+async function sendResult(result: TaskWorkerResult): Promise<void> {
   if (!process.send || !process.connected) return;
   await new Promise<void>((resolve) => {
     process.send?.(result, () => resolve());

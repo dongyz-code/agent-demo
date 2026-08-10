@@ -1,5 +1,5 @@
 import type { db } from '@/database/index.js';
-import type { TaskItem, TaskSqlFilter } from '@repo/types';
+import type { TaskItem, TaskSqlFilter, TaskStatus } from '@repo/types';
 
 /** 脚本生命周期由 task 包注入的内部事务类型，调用 task.add 时不允许传入。 */
 export type TaskScriptTransaction = Parameters<
@@ -34,7 +34,7 @@ export interface TaskAddInput<TData = unknown> {
 export interface TaskSnapshot<TData = unknown> {
   /** 已去除首尾空白的稳定任务名称。 */
   name: string;
-  /** 已规范化的服务端 file URL。 */
+  /** 服务端业务代码提供的内部模块 URL。 */
   script: string;
   /** JSON 序列化往返后的业务数据。 */
   data: TData;
@@ -97,8 +97,9 @@ export interface TaskCreateInput<TData = unknown> {
 }
 
 /** task 包取消任务时传给脚本可选 onCancel 的参数。 */
-export interface TaskCancelLifecycleInput<TData = unknown>
-  extends TaskCreateInput<TData> {
+export interface TaskCancelLifecycleInput<
+  TData = unknown,
+> extends TaskCreateInput<TData> {
   /** 发起取消的用户，系统取消允许为空。 */
   userId: string | null;
   /** 稳定取消错误码。 */
@@ -108,8 +109,9 @@ export interface TaskCancelLifecycleInput<TData = unknown>
 }
 
 /** task 包最终失败时传给脚本可选 onTerminalFailure 的参数。 */
-export interface TaskFailureInput<TData = unknown>
-  extends TaskCreateInput<TData> {
+export interface TaskFailureInput<
+  TData = unknown,
+> extends TaskCreateInput<TData> {
   /** 最终状态使用的稳定错误码。 */
   errorCode: string;
   /** 面向任务中心的安全错误摘要。 */
@@ -169,8 +171,8 @@ export interface TaskCancelOptions {
   message?: string;
 }
 
-/** 父进程传给单任务子进程的最小执行参数。 */
-export interface TaskProcessInput {
+/** Dispatcher 传给 Worker 子进程的最小执行参数。 */
+export interface TaskWorkerInput {
   /** 通用任务标识。 */
   taskId: string;
   /** 子进程需要动态导入的脚本 URL。 */
@@ -185,8 +187,8 @@ export interface TaskProcessInput {
   data: unknown;
 }
 
-/** 子进程通过 IPC 返回的安全执行结果。 */
-export type TaskProcessResult =
+/** Worker 子进程通过 IPC 返回的安全执行结果。 */
+export type TaskWorkerResult =
   | { type: 'result'; success: true; result: unknown }
   | {
       type: 'result';
@@ -195,12 +197,74 @@ export type TaskProcessResult =
       errorMessage: string;
     };
 
-/** 父 Worker 收敛单次执行时支持的结果。 */
+/** Dispatcher 收敛单次执行时支持的结果。 */
 export type TaskAttemptOutcome =
   | 'succeeded'
   | 'failed'
   | 'timed_out'
   | 'interrupted';
+
+/** 领取成功后 Dispatcher 监督 Worker 子进程所需的完整快照。 */
+export interface ClaimedTask {
+  /** 通用任务标识。 */
+  taskId: string;
+  /** 稳定任务名称。 */
+  name: string;
+  /** 子进程动态导入的脚本模块 URL。 */
+  script: string;
+  /** 当前 attempt 标识。 */
+  attemptId: string;
+  /** 当前 attempt 序号。 */
+  attempt: number;
+  /** 当前领取生成的 lease。 */
+  leaseId: string;
+  /** 任务业务数据。 */
+  data: unknown;
+  /** 单次执行超时，单位毫秒。 */
+  timeoutMs: number;
+  /** 单实例同名任务并发上限。 */
+  concurrency: number;
+}
+
+/** 可被当前轮调度尝试领取的任务摘要。 */
+export interface RunnableTaskCandidate {
+  /** 通用任务标识。 */
+  taskId: string;
+  /** 稳定任务名称。 */
+  name: string;
+  /** 单实例同名任务并发上限。 */
+  concurrency: number;
+}
+
+/** 单次执行状态收敛输入。 */
+export interface SettleTaskAttemptInput {
+  /** 通用任务标识。 */
+  taskId: string;
+  /** 当前 attempt 标识。 */
+  attemptId: string;
+  /** 当前领取生成的 lease。 */
+  leaseId: string;
+  /** 本次执行结果。 */
+  outcome: TaskAttemptOutcome;
+  /** 稳定错误码，成功时不提供。 */
+  errorCode?: string;
+  /** 安全错误摘要，成功时不提供。 */
+  errorMessage?: string;
+  /** 任务脚本成功返回的可序列化结果。 */
+  result?: unknown;
+  /** 脚本可选最终失败生命周期函数。 */
+  onTerminalFailure?: TaskScriptModule['onTerminalFailure'];
+}
+
+/** 单次执行状态收敛结果。 */
+export interface SettleTaskAttemptResult {
+  /** 是否仍持有任务并完成状态迁移。 */
+  settled: boolean;
+  /** 是否已经安排下一次自动重试。 */
+  retryScheduled: boolean;
+  /** 没有重试时的任务终态。 */
+  terminalStatus?: Extract<TaskStatus, 'succeeded' | 'failed' | 'timed_out'>;
+}
 
 /** 任务取消或 lease 失效时由运行参数抛出的稳定异常。 */
 export class TaskCanceledError extends Error {

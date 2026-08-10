@@ -1,14 +1,6 @@
 import { logger } from '@/configs/index.js';
-import { loadTaskScript, normalizeTaskInput } from './runtime.js';
-import {
-  addTask,
-  cancelTask,
-  countTasksByStatus,
-  getTask,
-  getTaskScript,
-  listTasks,
-  readTaskLogs,
-} from './store.js';
+import { TaskDatabase, taskDatabase } from './database.js';
+import { TaskDispatcher, taskDispatcher } from './dispatcher.js';
 
 import type {
   TaskAddInput,
@@ -18,8 +10,26 @@ import type {
   TaskScriptModule,
 } from './types.js';
 
+/** 未显式配置时允许的单实例同名任务并发数。 */
+const DEFAULT_TASK_CONCURRENCY = 4;
+/** 未显式配置时使用的固定重试间隔。 */
+const DEFAULT_TASK_RETRY_DELAY_MS = 5_000;
+/** 未显式配置时允许的单次执行时间。 */
+const DEFAULT_TASK_TIMEOUT_MS = 30 * 60 * 1000;
+
 /** 业务模块唯一允许使用的通用任务 API。 */
-class TaskApi {
+export class TaskApi {
+  /**
+   * 创建业务模块使用的任务入口。
+   *
+   * @param database 任务持久化与状态迁移入口。
+   * @param dispatcher 服务实例任务调度入口。
+   */
+  constructor(
+    private readonly database: TaskDatabase = taskDatabase,
+    private readonly dispatcher: TaskDispatcher = taskDispatcher,
+  ) {}
+
   /**
    * 添加持久化后台任务并立即返回任务 ID。
    *
@@ -27,11 +37,49 @@ class TaskApi {
    * @returns 新建任务标识。
    */
   async add<TData>(input: TaskAddInput<TData>): Promise<string> {
-    const snapshot = normalizeTaskInput(input);
-    const script = await loadTaskScript<TData>(snapshot.script);
-    const taskId = await addTask(snapshot, script.onCreate);
-    const { notifyTaskWorker } = await import('./worker.js');
-    notifyTaskWorker();
+    const name = input.name.trim();
+    if (!name) throw new Error('TASK_NAME_REQUIRED: 任务名称不能为空');
+    if (name.length > 255) {
+      throw new Error('TASK_NAME_INVALID: 任务名称不能超过 255 个字符');
+    }
+    if (input.data === undefined) {
+      throw new Error('TASK_DATA_INVALID: 任务数据不能是 undefined');
+    }
+    const serialized = JSON.stringify(input.data);
+    if (serialized === undefined) {
+      throw new Error('TASK_DATA_INVALID: 任务数据无法序列化');
+    }
+    const data = JSON.parse(serialized) as TData;
+    const concurrency = input.concurrency ?? DEFAULT_TASK_CONCURRENCY;
+    const maxRetries = input.retry?.times ?? 0;
+    const retryDelayMs = input.retry?.delay ?? DEFAULT_TASK_RETRY_DELAY_MS;
+    const timeoutMs = input.timeout ?? DEFAULT_TASK_TIMEOUT_MS;
+    if (!Number.isInteger(concurrency) || concurrency <= 0) {
+      throw new Error('TASK_POLICY_INVALID: concurrency 必须是大于零的整数');
+    }
+    if (!Number.isInteger(maxRetries) || maxRetries < 0) {
+      throw new Error('TASK_POLICY_INVALID: retry.times 必须是非负整数');
+    }
+    if (!Number.isInteger(retryDelayMs) || retryDelayMs < 0) {
+      throw new Error('TASK_POLICY_INVALID: retry.delay 必须是非负整数');
+    }
+    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+      throw new Error('TASK_POLICY_INVALID: timeout 必须是大于零的整数');
+    }
+    const script = (await import(input.script)) as TaskScriptModule<TData>;
+    const taskId = await this.database.addTask(
+      {
+        name,
+        script: input.script,
+        data,
+        concurrency,
+        maxRetries,
+        retryDelayMs,
+        timeoutMs,
+      },
+      script.onCreate,
+    );
+    this.dispatcher.notify();
     return taskId;
   }
 
@@ -42,7 +90,7 @@ class TaskApi {
    * @returns 任务不存在时返回 null。
    */
   get(taskId: string) {
-    return getTask(taskId);
+    return this.database.getTask(taskId);
   }
 
   /**
@@ -52,7 +100,7 @@ class TaskApi {
    * @returns 当前页与可选总数。
    */
   list(options: TaskListOptions = {}) {
-    return listTasks(options);
+    return this.database.listTasks(options);
   }
 
   /**
@@ -63,7 +111,7 @@ class TaskApi {
    * @returns 按时间和日志标识排序的日志。
    */
   logs(taskId: string, options: TaskLogOptions = {}) {
-    return readTaskLogs(taskId, options);
+    return this.database.readTaskLogs(taskId, options);
   }
 
   /**
@@ -77,11 +125,11 @@ class TaskApi {
     taskId: string,
     options: TaskCancelOptions = {},
   ): Promise<boolean> {
-    const scriptUrl = await getTaskScript(taskId);
+    const scriptUrl = await this.database.getTaskScript(taskId);
     let onCancel: TaskScriptModule['onCancel'];
     if (scriptUrl) {
       try {
-        const script = await loadTaskScript(scriptUrl);
+        const script = (await import(scriptUrl)) as TaskScriptModule;
         onCancel = script.onCancel;
       } catch (error) {
         logger.warn(
@@ -90,21 +138,19 @@ class TaskApi {
         );
       }
     }
-    const canceled = await cancelTask(taskId, options, onCancel);
+    const canceled = await this.database.cancelTask(taskId, options, onCancel);
     if (!canceled) return false;
-    const { interruptTaskProcess } = await import('./worker.js');
-    interruptTaskProcess(taskId);
+    this.dispatcher.interrupt(taskId);
     return true;
   }
 
   /**
-   * 启动 stale 恢复和统一 Worker。
+   * 启动 stale 恢复和统一 Dispatcher。
    *
-   * @returns Worker 完成启动后结束。
+   * @returns Dispatcher 完成启动后结束。
    */
   async start(): Promise<void> {
-    const { startTaskWorker } = await import('./worker.js');
-    await startTaskWorker();
+    await this.dispatcher.start();
   }
 
   /**
@@ -114,7 +160,7 @@ class TaskApi {
    * @returns 状态及对应数量。
    */
   counts(filter: TaskListOptions['filter'] = {}) {
-    return countTasksByStatus(filter);
+    return this.database.countTasksByStatus(filter);
   }
 }
 
