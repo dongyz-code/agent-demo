@@ -6,30 +6,21 @@ import { TaskCanceledError } from '@/hooks/tasks/task.js';
 import { uuidv7 } from '@/utils/index.js';
 
 import type { TaskRunInput } from '@/hooks/tasks/task.js';
-import type {
-  DocumentProcessingTaskPart,
-  FileProcessingStage,
-} from '@repo/types';
-import type { DocumentTaskData } from './task.js';
+import type { DocumentTaskOperation, FileProcessingStage } from '@repo/types';
+import type { DocumentTaskData } from './types.js';
 
 /** 文件处理阶段对应的任务中心进度。 */
 const STAGE_PROGRESS: Record<FileProcessingStage, number> = {
   queued: 0,
-  reading: 10,
-  parsing: 30,
-  normalizing: 50,
-  segmenting: 80,
-  embedding: 85,
-  'content-publishing': 95,
-  'content-completed': 100,
-  'preview-converting': 70,
-  'preview-publishing': 90,
+  rag: 50,
+  'rag-completed': 100,
+  preview: 50,
   'preview-completed': 100,
   completed: 100,
 };
 
-/** 已领取文件处理任务的完整领域上下文。 */
-export interface FileProcessingTaskContext {
+/** 已领取文档任务当前操作的运行上下文。 */
+export interface DocumentTaskOperationContext {
   /** 通用任务公共运行上下文。 */
   task: TaskRunInput<DocumentTaskData>;
   /** 被处理文件。 */
@@ -38,11 +29,11 @@ export interface FileProcessingTaskContext {
   documentId: string;
   /** 当前文档版本标识。 */
   documentVersionId: string;
-  /** 当前整体任务正在执行的内容或预览部分。 */
-  part: DocumentProcessingTaskPart;
-  /** 当前部分映射到整体任务的起始进度。 */
+  /** 当前整体任务正在执行的 RAG 或预览操作。 */
+  operation: DocumentTaskOperation;
+  /** 当前操作映射到整体任务的起始进度。 */
   progressStart: number;
-  /** 当前部分映射到整体任务的结束进度。 */
+  /** 当前操作映射到整体任务的结束进度。 */
   progressEnd: number;
   /** 创建任务的操作用户。 */
   userId: string;
@@ -65,7 +56,7 @@ export interface FileProcessingStageExecution {
  * @returns 阶段业务动作结果。
  */
 export async function runTaskStage<T>(
-  context: FileProcessingTaskContext,
+  context: DocumentTaskOperationContext,
   stage: FileProcessingStage,
   action: (execution: FileProcessingStageExecution) => Promise<T> | T,
 ): Promise<T> {
@@ -126,7 +117,7 @@ export async function runTaskStage<T>(
   });
   await context.task.progress({
     stage,
-    progress: mapPartProgress(context, STAGE_PROGRESS[stage]),
+    progress: mapOperationProgress(context, STAGE_PROGRESS[stage]),
   });
   await context.task.log.info(`开始阶段：${stage}`);
   try {
@@ -159,7 +150,7 @@ export async function runTaskStage<T>(
     });
     await context.task.progress({
       stage,
-      progress: mapPartProgress(context, STAGE_PROGRESS[stage]),
+      progress: mapOperationProgress(context, STAGE_PROGRESS[stage]),
       processedItems,
       totalItems: processedItems,
     });
@@ -181,8 +172,8 @@ export async function runTaskStage<T>(
  * @param resultSummary 领域结果摘要。
  * @returns 结果摘要和任务 lease 守卫在同一事务提交后结束。
  */
-export async function completeFileProcessingTask(
-  context: FileProcessingTaskContext,
+export async function completeDocumentTaskOperation(
+  context: DocumentTaskOperationContext,
   processedItems: number,
   resultSummary: Record<string, unknown>,
 ): Promise<void> {
@@ -192,12 +183,10 @@ export async function completeFileProcessingTask(
     const [current] = await transaction
       .select({ summary: schemas.file_processing_tasks.result_summary })
       .from(schemas.file_processing_tasks)
-      .where(
-        eq(schemas.file_processing_tasks.task_id, context.task.taskId),
-      )
+      .where(eq(schemas.file_processing_tasks.task_id, context.task.taskId))
       .limit(1);
     const summaries = parseResultSummaries(current?.summary);
-    summaries[context.part] = resultSummary;
+    summaries[context.operation] = resultSummary;
     await transaction
       .update(schemas.file_processing_tasks)
       .set({
@@ -205,12 +194,10 @@ export async function completeFileProcessingTask(
         last_update_user_id: context.userId,
         last_update_timestamp: now,
       })
-      .where(
-        eq(schemas.file_processing_tasks.task_id, context.task.taskId),
-      );
+      .where(eq(schemas.file_processing_tasks.task_id, context.task.taskId));
   });
   await context.task.progress({
-    stage: `${context.part}-completed`,
+    stage: `${context.operation}-completed`,
     progress: context.progressEnd,
     processedItems,
     totalItems: processedItems,
@@ -219,36 +206,38 @@ export async function completeFileProcessingTask(
 }
 
 /**
- * 把单个处理部分的百分比映射到整体任务进度区间。
+ * 把单个文档操作的百分比映射到整体任务进度区间。
  *
- * @param context 当前部分及其整体进度范围。
- * @param partProgress 当前部分内 0 到 100 的进度。
+ * @param context 当前操作及其整体进度范围。
+ * @param operationProgress 当前操作内 0 到 100 的进度。
  * @returns 映射后的整体整数进度。
  */
-function mapPartProgress(
-  context: FileProcessingTaskContext,
-  partProgress: number,
+function mapOperationProgress(
+  context: DocumentTaskOperationContext,
+  operationProgress: number,
 ): number {
   const range = context.progressEnd - context.progressStart;
-  return context.progressStart + Math.floor((range * partProgress) / 100);
+  return context.progressStart + Math.floor((range * operationProgress) / 100);
 }
 
 /**
- * 解析各处理部分已经保存的结果摘要。
+ * 解析各文档操作已经保存的结果摘要。
  *
  * @param value 数据库存储的 JSON 字符串。
  * @returns 可继续合并内容或预览结果的对象。
  */
 function parseResultSummaries(
   value: string | null | undefined,
-): Partial<Record<DocumentProcessingTaskPart, Record<string, unknown>>> {
+): Partial<Record<DocumentTaskOperation, Record<string, unknown>>> {
   if (!value) return {};
   try {
     return JSON.parse(value) as Partial<
-      Record<DocumentProcessingTaskPart, Record<string, unknown>>
+      Record<DocumentTaskOperation, Record<string, unknown>>
     >;
   } catch {
-    throw new Error('FILE_PROCESSING_RESULT_INVALID: 任务结果摘要不是有效 JSON');
+    throw new Error(
+      'FILE_PROCESSING_RESULT_INVALID: 任务结果摘要不是有效 JSON',
+    );
   }
 }
 
@@ -261,7 +250,7 @@ function parseResultSummaries(
  * @returns checkpoint 保存完成后结束，任务失效时抛出取消异常。
  */
 async function saveStageCheckpoint(
-  context: FileProcessingTaskContext,
+  context: DocumentTaskOperationContext,
   stageRunId: string,
   checkpoint: unknown,
 ): Promise<void> {
@@ -276,10 +265,7 @@ async function saveStageCheckpoint(
       .set({ checkpoint: serialized })
       .where(
         and(
-          eq(
-            schemas.file_processing_task_stage_runs.stage_run_id,
-            stageRunId,
-          ),
+          eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
           eq(schemas.file_processing_task_stage_runs.status, 'running'),
         ),
       )
@@ -300,7 +286,7 @@ async function saveStageCheckpoint(
  * @returns 阶段终态和错误日志写入完成后结束。
  */
 async function failStage(
-  context: FileProcessingTaskContext,
+  context: DocumentTaskOperationContext,
   stageRunId: string,
   stage: FileProcessingStage,
   error: unknown,
@@ -318,10 +304,7 @@ async function failStage(
     })
     .where(
       and(
-        eq(
-          schemas.file_processing_task_stage_runs.stage_run_id,
-          stageRunId,
-        ),
+        eq(schemas.file_processing_task_stage_runs.stage_run_id, stageRunId),
         eq(schemas.file_processing_task_stage_runs.status, 'running'),
       ),
     );
@@ -352,6 +335,12 @@ function parseCheckpoint(value: string | null | undefined): unknown {
 function getProcessedItems(value: unknown): number {
   if (Array.isArray(value)) return value.length;
   if (value && typeof value === 'object') {
+    if ('segmentCount' in value && typeof value.segmentCount === 'number') {
+      return value.segmentCount;
+    }
+    if ('pageCount' in value && typeof value.pageCount === 'number') {
+      return value.pageCount;
+    }
     if ('segments' in value && Array.isArray(value.segments)) {
       return value.segments.length;
     }

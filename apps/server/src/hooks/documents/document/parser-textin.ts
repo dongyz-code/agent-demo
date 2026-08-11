@@ -2,12 +2,12 @@ import axios from 'axios';
 import FormData from 'form-data';
 
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
+import { collectMimes } from '@/utils/index.js';
 import { reTryFunc, sleep } from '@repo/utils-node';
-import { documentsConfig } from '../../../config.js';
-import { parseTextContent } from './text.js';
-import { contentTypeConfig } from '@repo/shared';
+import { documentsConfig } from '../config.js';
+import { parseTextContent } from './parser-text.js';
 
-import type { DocumentParser } from '../types.js';
+import type { DocumentParser } from './types.js';
 
 /** TextIn 标准业务响应。 */
 interface TextInResponse<T> {
@@ -45,14 +45,7 @@ const TEXT_IN_PARSE_CONFIG = {
     engine_params: { parse_mode: 'auto' },
   },
 };
-const TEXT_IN_CONTENT_TYPES = [
-  ...new Set([
-    ...contentTypeConfig.pdf.flatMap((item) => item.mime),
-    ...contentTypeConfig.word.flatMap((item) => item.mime),
-    ...contentTypeConfig.ppt.flatMap((item) => item.mime),
-    ...contentTypeConfig.excel.flatMap((item) => item.mime),
-  ]),
-];
+const TEXT_IN_CONTENT_TYPES = collectMimes('pdf', 'word', 'ppt', 'excel');
 
 /** 使用 TextIn xParse 异步接口把 PDF 与 Office 文档转换为 Markdown。 */
 export const textInParser: DocumentParser = {

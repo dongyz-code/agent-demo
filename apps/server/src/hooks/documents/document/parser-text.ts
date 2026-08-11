@@ -1,9 +1,9 @@
 import { ROOT_ERROR } from '@/configs/index.js';
-import { hashToUuid } from '../ids.js';
-import { contentTypeConfig, getFileExtension } from '@repo/shared';
+import { collectMimes, readStreamToBuffer, uuidv5 } from '@/utils/index.js';
+import { getFileExtension } from '@repo/shared';
 
 import type { DocumentParsedBlock } from '@repo/types';
-import type { DocumentParser } from '../types.js';
+import type { DocumentParser } from './types.js';
 
 /** 防止本地文本解析器把异常大文件整体载入内存。 */
 const MAX_LOCAL_TEXT_BYTES = 32 * 1024 * 1024;
@@ -12,9 +12,7 @@ const MAX_LOCAL_TEXT_BYTES = 32 * 1024 * 1024;
 export const textParser: DocumentParser = {
   name: 'text',
   version: '1',
-  contentTypes: [
-    ...new Set(contentTypeConfig.text.flatMap((item) => item.mime)),
-  ],
+  contentTypes: collectMimes('text'),
   async parse({ file }) {
     const source = await readText(file);
     const extension = getFileExtension(file.filename);
@@ -30,12 +28,11 @@ async function readText(file: Parameters<DocumentParser['parse']>[0]['file']) {
   if (file.size > MAX_LOCAL_TEXT_BYTES) {
     throw new ROOT_ERROR('本地文本解析上限为 32 MiB');
   }
-  const chunks: Buffer[] = [];
-  const stream = await file.openStream();
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString('utf8');
+  const buffer = await readStreamToBuffer(
+    await file.openStream(),
+    MAX_LOCAL_TEXT_BYTES,
+  );
+  return buffer.toString('utf8');
 }
 
 /**
@@ -105,7 +102,7 @@ function createBlock(
   headingPath: string[],
 ): DocumentParsedBlock {
   return {
-    blockId: hashToUuid(`${fileId}:local-text:${position}:${text}`),
+    blockId: uuidv5(`${fileId}:local-text:${position}:${text}`),
     type,
     text,
     headingPath: [...headingPath],

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
-import { searchDocuments } from '@/hooks/documents/document/read.js';
+import { documentAction } from '@/hooks/documents/document-action.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -19,7 +19,7 @@ const { api } = routerHandler({
     if (!dataset) {
       throw new ROOT_ERROR('相关文件不存在');
     }
-    return await searchDocuments(
+    return await documentAction.search(
       {
         search: body.search,
         status: body.status,

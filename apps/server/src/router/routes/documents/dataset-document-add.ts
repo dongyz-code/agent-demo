@@ -1,4 +1,4 @@
-import { changeDocumentDatasets } from '@/hooks/documents/rag/assignment.js';
+import { documentAction } from '@/hooks/documents/document-action.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -7,7 +7,7 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.documents.dataset-document-manage'),
   handler: async ({ body, __token }) => {
-    return await changeDocumentDatasets(
+    return await documentAction.changeDatasets(
       body.documentId,
       body.datasetIds,
       'add',

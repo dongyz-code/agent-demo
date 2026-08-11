@@ -1,4 +1,4 @@
-import { cancelDocumentProcessingTask } from '@/hooks/documents/tasks/task.js';
+import { documentAction } from '@/hooks/documents/document-action.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -7,7 +7,7 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.task.kill'),
   handler: async ({ body, __token }) => {
-    await cancelDocumentProcessingTask(body.taskId, __token.user_id);
+    await documentAction.cancelProcessingTask(body.taskId, __token.user_id);
     return 'ok' as const;
   },
 });

@@ -10,7 +10,7 @@ import {
   quoteIdent,
   quoteQualified,
 } from '@/database/postgres/structure/index.js';
-import { db, schemas } from '@/database/index.js';
+import { db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
 import { dayJsformat } from '@repo/utils-node';
 import { randomUUID } from 'node:crypto';
 import { eq, sql, SQL } from 'drizzle-orm';
@@ -182,7 +182,7 @@ export async function applyResetPlan({
       const backupTableName = plan.backupTableName;
 
       await db.transaction(async (tx) => {
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${op_id}))`);
+        await pgAdvisoryXactLock(tx, op_id);
         await tx.execute(sql`set local lock_timeout = '5s'`);
         await tx.execute(sql`set local statement_timeout = '120s'`);
         await tx.execute(sql`
@@ -320,9 +320,7 @@ export async function applySyncPlan({
         throw new ROOT_ERROR('非法参数');
       }
       await db.transaction(async (tx) => {
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtext(${op_id}))`,
-        );
+        await pgAdvisoryXactLock(tx, op_id);
         // 幂等：已有索引 no-op，缺失的补上；complex 在 plan 阶段已进 blocker。
         for (const statement of createTableIndexSqls({
           table: schemaTable.drizzleTable,

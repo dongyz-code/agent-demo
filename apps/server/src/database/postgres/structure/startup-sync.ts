@@ -1,7 +1,7 @@
 import { logger } from '@/configs/index.js';
-import { sql } from 'drizzle-orm';
 
 import { db } from '../client.js';
+import { pgAdvisoryXactLock } from '../locks.js';
 import {
   createTableIndexSqls,
   createTableSql,
@@ -79,9 +79,7 @@ export async function startupTableStructureSync() {
 /** 在 advisory 锁内创建缺失的表及其索引和 trigger，幂等可重入。 */
 async function createMissingTable(descriptor: TableTargetDescriptor) {
   await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${STARTUP_LOCK_TAG}))`,
-    );
+    await pgAdvisoryXactLock(tx, STARTUP_LOCK_TAG);
     await tx.execute(
       createTableSql({
         table: descriptor.table,

@@ -2,7 +2,7 @@ import { eq, ne } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import { getDocumentDetail } from '@/hooks/documents/document/read.js';
+import { documentAction } from '@/hooks/documents/document-action.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -30,7 +30,7 @@ const { api } = routerHandler({
     if (!updated) {
       throw new ROOT_ERROR('相关文件不存在');
     }
-    return await getDocumentDetail(body.documentId, __token.user_id);
+    return await documentAction.getDetail(body.documentId, __token.user_id);
   },
 });
 
