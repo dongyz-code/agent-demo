@@ -92,6 +92,7 @@ class DocumentProcessor {
       if (block.type !== 'code') {
         text = sanitizeHtml(text, { allowedTags: [], allowedAttributes: {} });
       }
+      // eslint-disable-next-line no-control-regex
       text = text.normalize('NFKC').replace(/[\u0000\u00ad\u200b\ufeff]/g, '');
       if (block.type === 'code') {
         text = text.replace(/\r\n?/g, '\n').trim();
