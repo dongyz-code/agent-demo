@@ -1,4 +1,4 @@
-import { signDocumentUploadParts } from '@/hooks/documents/file/multipart.js';
+import { uploadAction } from '@/hooks/documents/upload-action.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -7,7 +7,7 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.documents.upload'),
   handler: async ({ body, __token }) =>
-    await signDocumentUploadParts(body, __token.user_id),
+    await uploadAction.signParts(body, __token.user_id),
 });
 
 export default api;

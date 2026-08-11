@@ -2,19 +2,37 @@ import { eq } from 'drizzle-orm';
 
 import { logger, ROOT_ERROR } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import { getStoredFile } from '../file/source.js';
-import {
-  completeFileProcessingTask,
-  runTaskStage,
-} from '../tasks/stage.js';
-import { objectStorage } from '../file/objects.js';
+import { documentFile } from '../file/index.js';
 import {
   DOCUMENT_PREVIEW_CONVERTER_VERSION,
   documentPageConverter,
 } from './converter.js';
 
-import type { FileProcessingTaskContext } from '../tasks/stage.js';
 import type { ConvertedDocumentPage } from './converter.js';
+
+/** 文档预览生成所需的业务输入。 */
+export interface DocumentPreviewProcessInput {
+  /** 本次执行的稳定标识，用于隔离尚未发布的页面对象。 */
+  executionId: string;
+  /** 已验证源文件标识。 */
+  fileId: string;
+  /** 逻辑文档标识。 */
+  documentId: string;
+  /** 本次生成预览的不可变文档版本。 */
+  documentVersionId: string;
+  /** 写入预览状态的审计用户。 */
+  userId: string;
+  /** 确认当前调用仍允许继续执行，取消或失效时抛出错误。 */
+  assertActive: () => Promise<void>;
+}
+
+/** 文档预览操作返回的稳定摘要。 */
+export interface DocumentPreviewProcessResult {
+  /** 实际发布的页面数量。 */
+  pageCount: number;
+  /** 本次页面集合使用的转换器版本。 */
+  converterVersion: string;
+}
 
 /** 已上传但尚未发布的页面对象。 */
 interface UploadedPreviewPage {
@@ -34,56 +52,66 @@ interface UploadedPreviewPage {
   objectKey: string;
 }
 
-/**
- * 执行预览页面生成、完整发布和任务状态落库。
- *
- * @param context Worker 已校验的文档版本任务上下文。
- * @returns 正常返回时由任务框架自动完成；异常清理临时对象后交由框架处理。
- */
-export async function runDocumentPreviewTask(
-  context: FileProcessingTaskContext,
-): Promise<void> {
-  const uploadedPages: UploadedPreviewPage[] = [];
-  let published = false;
-  try {
-    await runTaskStage(context, 'preview-converting', async () => {
-      await markPreviewProcessing(context);
-      await generateAndUploadPages(context, uploadedPages);
-      return uploadedPages;
-    });
-    const oldPages = await runTaskStage(
-      context,
-      'preview-publishing',
-      async () => await publishPreviewPages(context, uploadedPages),
-    );
-    published = true;
-    await completeFileProcessingTask(context, uploadedPages.length, {
-      capability: 'document-preview',
-      documentId: context.documentId,
-      documentVersionId: context.documentVersionId,
-      pageCount: uploadedPages.length,
-      converterVersion: DOCUMENT_PREVIEW_CONVERTER_VERSION,
-    });
-    deleteOldPagesInBackground(oldPages);
-  } catch (error) {
-    if (!published) await deleteUploadedPages(uploadedPages);
-    throw error;
+/** 文档预览支持检测、版本识别和页面发布的统一能力实现。 */
+class DocumentPreview {
+  /** 当前页面转换规则与底层渲染器组成的稳定版本。 */
+  readonly configVersion = DOCUMENT_PREVIEW_CONVERTER_VERSION;
+
+  /**
+   * 判断可信 MIME 是否具备统一页面转换能力。
+   *
+   * @param contentType 服务端验证后的文件 MIME。
+   * @returns 当前预览转换器是否支持该类型。
+   */
+  supports(contentType: string): boolean {
+    return documentPageConverter.supports(contentType);
+  }
+
+  /**
+   * 生成并原子发布指定文档版本的预览页面。
+   *
+   * @param input 文档版本、源文件、执行标识和通用存活检查。
+   * @returns 已发布页面数量和转换器版本。
+   */
+  async process(
+    input: DocumentPreviewProcessInput,
+  ): Promise<DocumentPreviewProcessResult> {
+    const uploadedPages: UploadedPreviewPage[] = [];
+    let published = false;
+    try {
+      await markPreviewProcessing(input);
+      await generateAndUploadPages(input, uploadedPages);
+      const oldPages = await publishPreviewPages(input, uploadedPages);
+      published = true;
+      const result = {
+        pageCount: uploadedPages.length,
+        converterVersion: this.configVersion,
+      };
+      deleteOldPagesInBackground(oldPages);
+      return result;
+    } catch (error) {
+      if (!published) await deleteUploadedPages(uploadedPages);
+      throw error;
+    }
   }
 }
+
+/** 文档预览支持检测、配置版本与处理流程的统一入口。 */
+export const documentPreview = new DocumentPreview();
 
 /**
  * 在生成前确认任务和文档生命周期仍允许提交。
  *
- * @param context 当前预览任务领域上下文。
+ * @param input 当前预览操作输入。
  * @returns 版本进入 processing 后结束。
  */
 async function markPreviewProcessing(
-  context: FileProcessingTaskContext,
+  input: DocumentPreviewProcessInput,
 ): Promise<void> {
-  await context.task.throwIfCanceled();
+  await input.assertActive();
   const documentWhere = buildWhere((filter) => {
     filter.push(
-      eq(schemas.documents.document_id, context.documentId),
+      eq(schemas.documents.document_id, input.documentId),
       eq(schemas.documents.status, 'active'),
     );
   });
@@ -91,9 +119,9 @@ async function markPreviewProcessing(
     filter.push(
       eq(
         schemas.document_versions.document_version_id,
-        context.documentVersionId,
+        input.documentVersionId,
       ),
-      eq(schemas.document_versions.document_id, context.documentId),
+      eq(schemas.document_versions.document_id, input.documentId),
     );
   });
   await db.transaction(async (tx) => {
@@ -110,7 +138,7 @@ async function markPreviewProcessing(
       .set({
         preview_status: 'processing',
         preview_error: null,
-        last_update_user_id: context.userId,
+        last_update_user_id: input.userId,
         last_update_timestamp: new Date(),
       })
       .where(versionWhere);
@@ -120,15 +148,15 @@ async function markPreviewProcessing(
 /**
  * 逐页转换并上传到本任务独占对象前缀。
  *
- * @param context 当前预览任务领域上下文。
+ * @param input 当前预览操作输入。
  * @param pages 用于记录待发布临时页面的可变集合。
  * @returns 全部页面转换并上传后结束。
  */
 async function generateAndUploadPages(
-  context: FileProcessingTaskContext,
+  input: DocumentPreviewProcessInput,
   pages: UploadedPreviewPage[],
 ): Promise<void> {
-  const file = await getStoredFile(context.fileId);
+  const file = await documentFile.getStored(input.fileId);
   if (file.status !== 'verified') {
     throw new ROOT_ERROR('只有验证成功的文件可以生成预览');
   }
@@ -139,19 +167,19 @@ async function generateAndUploadPages(
     bucket: file.bucket,
     objectKey: file.object_key,
     open: async () =>
-      await objectStorage.open({
+      await documentFile.open({
         bucket: file.bucket,
         objectKey: file.object_key,
       }),
   };
   let expectedPage = 1;
   for await (const page of documentPageConverter.convert(source)) {
-    await context.task.throwIfCanceled();
+    await input.assertActive();
     if (page.pageNumber !== expectedPage) {
       throw new ROOT_ERROR('转换页面序号不连续');
     }
-    const objectKey = buildPreviewObjectKey(context, page.pageNumber);
-    await objectStorage.put({
+    const objectKey = buildPreviewObjectKey(input, page.pageNumber);
+    await documentFile.put({
       bucket: file.bucket,
       objectKey,
       contentType: page.contentType,
@@ -171,24 +199,24 @@ async function generateAndUploadPages(
   if (!pages.length) {
     throw new ROOT_ERROR('转换器没有生成任何页面');
   }
-  await context.task.throwIfCanceled();
+  await input.assertActive();
 }
 
 /**
  * 在同一事务中替换页面行并把版本标记为 ready。
  *
- * @param context 当前预览任务领域上下文。
+ * @param input 当前预览操作输入。
  * @param pages 已上传且等待发布的页面集合。
  * @returns 被新页面替换的旧对象位置。
  */
 async function publishPreviewPages(
-  context: FileProcessingTaskContext,
+  input: DocumentPreviewProcessInput,
   pages: UploadedPreviewPage[],
 ) {
-  await context.task.throwIfCanceled();
+  await input.assertActive();
   const documentWhere = buildWhere((filter) => {
     filter.push(
-      eq(schemas.documents.document_id, context.documentId),
+      eq(schemas.documents.document_id, input.documentId),
       eq(schemas.documents.status, 'active'),
     );
   });
@@ -196,9 +224,9 @@ async function publishPreviewPages(
     filter.push(
       eq(
         schemas.document_versions.document_version_id,
-        context.documentVersionId,
+        input.documentVersionId,
       ),
-      eq(schemas.document_versions.document_id, context.documentId),
+      eq(schemas.document_versions.document_id, input.documentId),
     );
   });
   return await db.transaction(async (tx) => {
@@ -219,7 +247,7 @@ async function publishPreviewPages(
       .where(
         eq(
           schemas.document_preview_pages.document_version_id,
-          context.documentVersionId,
+          input.documentVersionId,
         ),
       );
     await tx
@@ -227,12 +255,12 @@ async function publishPreviewPages(
       .where(
         eq(
           schemas.document_preview_pages.document_version_id,
-          context.documentVersionId,
+          input.documentVersionId,
         ),
       );
     await tx.insert(schemas.document_preview_pages).values(
       pages.map((page) => ({
-        document_version_id: context.documentVersionId,
+        document_version_id: input.documentVersionId,
         page_number: page.pageNumber,
         width: page.width,
         height: page.height,
@@ -249,7 +277,7 @@ async function publishPreviewPages(
         preview_page_count: pages.length,
         preview_error: null,
         preview_converter_version: DOCUMENT_PREVIEW_CONVERTER_VERSION,
-        last_update_user_id: context.userId,
+        last_update_user_id: input.userId,
         last_update_timestamp: new Date(),
       })
       .where(versionWhere)
@@ -263,17 +291,17 @@ async function publishPreviewPages(
 
 /** 构造任务独占且包含转换器版本的页面对象路径。 */
 function buildPreviewObjectKey(
-  context: FileProcessingTaskContext,
+  input: DocumentPreviewProcessInput,
   pageNumber: number,
 ): string {
   return [
     'derived/documents',
-    context.documentId,
+    input.documentId,
     'versions',
-    context.documentVersionId,
+    input.documentVersionId,
     'preview',
     encodeURIComponent(DOCUMENT_PREVIEW_CONVERTER_VERSION),
-    context.task.taskId,
+    input.executionId,
     `page-${String(pageNumber).padStart(6, '0')}.webp`,
   ].join('/');
 }
@@ -285,7 +313,7 @@ async function deleteUploadedPages(
   await Promise.allSettled(
     pages.map(
       async (page) =>
-        await objectStorage.remove({
+        await documentFile.remove({
           bucket: page.bucket,
           objectKey: page.objectKey,
         }),
@@ -302,7 +330,7 @@ function deleteOldPagesInBackground(
     void Promise.allSettled(
       pages.map(
         async (page) =>
-          await objectStorage.remove({
+          await documentFile.remove({
             bucket: page.bucket,
             objectKey: page.objectKey,
           }),

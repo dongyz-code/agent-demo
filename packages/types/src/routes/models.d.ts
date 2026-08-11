@@ -38,21 +38,15 @@ export type FileProcessingStageRunStatus =
   | 'canceled'
   | 'interrupted';
 
-/** 整体文档任务中可选择执行的版本处理部分。 */
-export type DocumentProcessingTaskPart = 'preview' | 'content';
+/** 文档后台任务可选择执行的版本处理操作。 */
+export type DocumentTaskOperation = 'preview' | 'rag';
 
 /** 文件处理任务当前阶段。 */
 export type FileProcessingStage =
   | 'queued'
-  | 'reading'
-  | 'parsing'
-  | 'normalizing'
-  | 'segmenting'
-  | 'embedding'
-  | 'content-publishing'
-  | 'content-completed'
-  | 'preview-converting'
-  | 'preview-publishing'
+  | 'rag'
+  | 'rag-completed'
+  | 'preview'
   | 'preview-completed'
   | 'completed';
 

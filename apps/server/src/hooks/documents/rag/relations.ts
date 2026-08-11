@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { eq, inArray, ne, or, sql } from 'drizzle-orm';
+import { eq, inArray, ne, or } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { buildWhere, db, schemas } from '@/database/index.js';
-
-import type { TaskRunInput } from '@/hooks/tasks/task.js';
+import { buildWhere, db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
 
 /** 校验文档存在、未删除且属于当前操作用户。 */
 async function assertOwnedDocument(
@@ -48,8 +46,8 @@ export interface UpdateDocumentDatasetRelationsInput {
 /**
  * 原子批量加入、移出或替换文档知识库关系。
  *
- * 加入和替换会把目标关系指向同一个待处理版本，但不会创建按知识库重复的内容任务。
- * 移除关系本身就是迟到发布的屏障，不取消可能仍服务其他知识库的版本内容任务。
+ * 加入和替换会把目标关系指向同一个待处理版本，但不会创建按知识库重复的 RAG 任务。
+ * 移除关系本身就是迟到发布的屏障，不取消可能仍服务其他知识库的版本 RAG 任务。
  *
  * @param input 文档版本、知识库集合、变更方式和审计用户。
  * @returns 实际新增和移除的知识库标识。
@@ -76,9 +74,7 @@ export async function updateDocumentDatasetRelations(
   }
 
   return await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${`document-datasets:${input.documentId}`}))`,
-    );
+    await pgAdvisoryXactLock(tx, 'document-datasets', input.documentId);
     const existingRows = await tx
       .select({
         relationId: schemas.rag_dataset_documents.dataset_document_id,
@@ -209,12 +205,10 @@ export async function prepareDocumentRagRelationsForReprocessing(input: {
 /**
  * 将仍以指定版本为 pending 的全部知识库关系标记为处理中。
  *
- * @param input 任务上下文、文档版本和审计用户。
+ * @param input 文档版本和审计用户。
  * @returns 实际更新的知识库关系数量。
  */
 export async function markDocumentRagRelationsProcessing(input: {
-  /** 当前内容任务公共运行上下文。 */
-  task: TaskRunInput;
   /** 文档稳定标识。 */
   documentId: string;
   /** 本次处理的文档版本。 */
@@ -231,57 +225,12 @@ export async function markDocumentRagRelationsProcessing(input: {
       ),
     );
   });
-  await input.task.throwIfCanceled();
   return await db.transaction(async (tx) => {
     const now = new Date();
     const rows = await tx
       .update(schemas.rag_dataset_documents)
       .set({
         rag_status: 'processing',
-        rag_error: null,
-        last_update_user_id: input.userId,
-        last_update_timestamp: now,
-      })
-      .where(relationWhere)
-      .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
-    return rows.length;
-  });
-}
-
-/**
- * 仅在内容任务仍有效时发布匹配的知识库关系。
- *
- * @param input 任务上下文、文档版本和审计用户。
- * @returns 成功切换的知识库关系数量。
- */
-export async function publishDocumentRagRelationsForTask(input: {
-  /** 当前内容任务公共运行上下文。 */
-  task: TaskRunInput;
-  /** 文档稳定标识。 */
-  documentId: string;
-  /** 本次成功处理的文档版本。 */
-  documentVersionId: string;
-  /** 当前操作用户。 */
-  userId: string;
-}): Promise<number> {
-  const relationWhere = buildWhere((filter) => {
-    filter.push(
-      eq(schemas.rag_dataset_documents.document_id, input.documentId),
-      eq(
-        schemas.rag_dataset_documents.pending_version_id,
-        input.documentVersionId,
-      ),
-    );
-  });
-  await input.task.throwIfCanceled();
-  return await db.transaction(async (tx) => {
-    const now = new Date();
-    const rows = await tx
-      .update(schemas.rag_dataset_documents)
-      .set({
-        active_version_id: input.documentVersionId,
-        pending_version_id: null,
-        rag_status: 'ready',
         rag_error: null,
         last_update_user_id: input.userId,
         last_update_timestamp: now,

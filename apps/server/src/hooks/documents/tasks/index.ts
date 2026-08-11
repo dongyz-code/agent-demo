@@ -1,8 +1,12 @@
-import { and, eq, inArray, max, sql } from 'drizzle-orm';
+import { and, eq, inArray, max } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { schemas } from '@/database/index.js';
+import { pgAdvisoryXactLock, schemas } from '@/database/index.js';
 import { documentsConfig } from '../config.js';
+import { documentProcessor } from '../document/index.js';
+import { documentPreview } from '../preview/index.js';
+import { documentRag } from '../rag/index.js';
+import { completeDocumentTaskOperation, runTaskStage } from './stage.js';
 
 import type {
   TaskCancelLifecycleInput,
@@ -10,11 +14,15 @@ import type {
   TaskFailureInput,
   TaskRunInput,
 } from '@/hooks/tasks/task.js';
-import type {
+import type { DocumentFileTaskData, DocumentTaskData } from './types.js';
+import type { DocumentTaskOperationContext } from './stage.js';
+
+export type {
+  AddDocumentProcessingTaskInput,
+  AddDocumentTaskInput,
+  DocumentCleanupTaskData,
   DocumentFileTaskData,
-  DocumentTaskData,
-} from './task.js';
-import type { FileProcessingTaskContext } from './stage.js';
+} from './types.js';
 
 /** 文档处理任务取消时使用的稳定错误码。 */
 export const DOCUMENT_TASK_CANCELED_ERROR_CODE =
@@ -26,42 +34,85 @@ export const DOCUMENT_TASK_CANCELED_MESSAGE = '文件处理任务已取消';
  * 执行 documents 域唯一的整体任务脚本。
  *
  * @param input 通用任务运行信息和文档业务数据组成的单对象参数。
- * @returns 选中的全部文档处理部分完成后结束。
+ * @returns 选中的全部文档操作完成后结束。
  */
 export default async function runDocumentTask(
   input: TaskRunInput<DocumentTaskData>,
 ): Promise<void> {
-  resolveDocumentTaskParts(input.data);
+  const operations = resolveDocumentTaskOperations(input.data);
   if (isCleanupData(input.data)) {
-    const { runDocumentCleanupTask } =
-      await import('../document/cleanup.js');
-    await runDocumentCleanupTask(input.data, input);
+    await input.progress({ stage: 'cleanup', progress: 10 });
+    await input.log.info('开始文档物理清理');
+    const result = await documentProcessor.cleanup({
+      documentId: input.data.documentId,
+      assertActive: input.throwIfCanceled,
+    });
+    await input.progress({
+      stage: 'completed',
+      progress: 100,
+      processedItems: result.deletedObjectCount,
+      totalItems: result.deletedObjectCount,
+    });
+    await input.log.info('文档物理清理完成');
     return;
   }
   if (!documentsConfig.fileProcessing.enabled) {
     throw new Error('FILE_PROCESSING_DISABLED: 文件处理任务未启用');
   }
-  for (const [index, part] of input.data.parts.entries()) {
-    const context: FileProcessingTaskContext = {
+  for (const [index, operation] of operations.entries()) {
+    if (operation === 'cleanup') continue;
+    const context: DocumentTaskOperationContext = {
       task: input,
       fileId: input.data.fileId,
       documentId: input.data.documentId,
       documentVersionId: input.data.documentVersionId,
-      part,
-      progressStart: Math.floor((index * 100) / input.data.parts.length),
-      progressEnd: Math.floor(
-        ((index + 1) * 100) / input.data.parts.length,
-      ),
+      operation,
+      progressStart: Math.floor((index * 100) / operations.length),
+      progressEnd: Math.floor(((index + 1) * 100) / operations.length),
       userId: input.data.userId,
     };
-    if (part === 'content') {
-      const { runDocumentContentTask } =
-        await import('../document/content/runner.js');
-      await runDocumentContentTask(context);
+    if (operation === 'rag') {
+      const result = await runTaskStage(
+        context,
+        'rag',
+        async ({ checkpoint, saveCheckpoint }) =>
+          await documentRag.process({
+            fileId: context.fileId,
+            documentId: context.documentId,
+            documentVersionId: context.documentVersionId,
+            userId: context.userId,
+            checkpoint,
+            saveCheckpoint,
+            assertActive: input.throwIfCanceled,
+          }),
+      );
+      await completeDocumentTaskOperation(context, result.segmentCount, {
+        capability: 'document-rag',
+        documentId: context.documentId,
+        documentVersionId: context.documentVersionId,
+        ...result,
+      });
       continue;
     }
-    const { runDocumentPreviewTask } = await import('../preview/runner.js');
-    await runDocumentPreviewTask(context);
+    const result = await runTaskStage(
+      context,
+      'preview',
+      async () =>
+        await documentPreview.process({
+          executionId: input.taskId,
+          fileId: context.fileId,
+          documentId: context.documentId,
+          documentVersionId: context.documentVersionId,
+          userId: context.userId,
+          assertActive: input.throwIfCanceled,
+        }),
+    );
+    await completeDocumentTaskOperation(context, result.pageCount, {
+      capability: 'document-preview',
+      documentId: context.documentId,
+      documentVersionId: context.documentVersionId,
+      ...result,
+    });
   }
   await input.progress({ stage: 'completed', progress: 100 });
 }
@@ -75,7 +126,7 @@ export default async function runDocumentTask(
 export async function onCreate(
   input: TaskCreateInput<DocumentTaskData>,
 ): Promise<void> {
-  resolveDocumentTaskParts(input.data);
+  resolveDocumentTaskOperations(input.data);
   if (isCleanupData(input.data)) {
     await prepareDocumentCleanup({ ...input, data: input.data });
     return;
@@ -138,14 +189,17 @@ interface FileProcessingTerminalError {
 async function prepareDocumentProcessing(
   input: TaskCreateInput<DocumentFileTaskData>,
 ): Promise<void> {
-  for (const part of input.data.parts) {
-    if (!input.data.processingConfigVersions[part]) {
-      throw new Error(`DOCUMENT_TASK_CONFIG_REQUIRED: ${part} 缺少配置版本`);
+  for (const operation of input.data.operations) {
+    if (!input.data.operationConfigVersions[operation]) {
+      throw new Error(
+        `DOCUMENT_TASK_CONFIG_REQUIRED: ${operation} 缺少配置版本`,
+      );
     }
   }
-  const lockKey = `document-process:${input.data.documentVersionId}`;
-  await input.transaction.execute(
-    sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`,
+  await pgAdvisoryXactLock(
+    input.transaction,
+    'document-process',
+    input.data.documentVersionId,
   );
   const [lastExecution] = await input.transaction
     .select({ value: max(schemas.file_processing_tasks.execution_no) })
@@ -157,7 +211,7 @@ async function prepareDocumentProcessing(
       ),
     );
   const now = new Date();
-  if (input.data.parts.includes('preview')) {
+  if (input.data.operations.includes('preview')) {
     await input.transaction
       .update(schemas.document_versions)
       .set({
@@ -180,13 +234,11 @@ async function prepareDocumentProcessing(
     file_id: input.data.fileId,
     document_id: input.data.documentId,
     document_version_id: input.data.documentVersionId,
-    task_parts: input.data.parts,
+    task_parts: input.data.operations,
     execution_no: (lastExecution?.value ?? 0) + 1,
     trigger_source: input.data.triggerSource,
-    content_config_version:
-      input.data.processingConfigVersions.content ?? null,
-    preview_config_version:
-      input.data.processingConfigVersions.preview ?? null,
+    content_config_version: input.data.operationConfigVersions.rag ?? null,
+    preview_config_version: input.data.operationConfigVersions.preview ?? null,
     result_summary: null,
     create_user_id: input.data.userId,
     create_timestamp: now,
@@ -202,11 +254,14 @@ async function prepareDocumentProcessing(
  * @returns 文档逻辑删除和 RAG 关系移除完成后结束。
  */
 async function prepareDocumentCleanup(
-  input: TaskCreateInput<Extract<DocumentTaskData, { parts: ['cleanup'] }>>,
+  input: TaskCreateInput<
+    Extract<DocumentTaskData, { operations: ['cleanup'] }>
+  >,
 ): Promise<void> {
-  const lockKey = `document-cleanup:${input.data.documentId}`;
-  await input.transaction.execute(
-    sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`,
+  await pgAdvisoryXactLock(
+    input.transaction,
+    'document-cleanup',
+    input.data.documentId,
   );
   const [document] = await input.transaction
     .select({ status: schemas.documents.status })
@@ -269,7 +324,7 @@ async function settleFileProcessingDomain(
         eq(schemas.file_processing_task_stage_runs.status, 'running'),
       ),
     );
-  if (data.parts.includes('preview')) {
+  if (data.operations.includes('preview')) {
     await input.transaction
       .update(schemas.document_versions)
       .set({
@@ -291,7 +346,7 @@ async function settleFileProcessingDomain(
         ),
       );
   }
-  if (data.parts.includes('content')) {
+  if (data.operations.includes('rag')) {
     await input.transaction
       .update(schemas.rag_dataset_documents)
       .set({
@@ -317,33 +372,33 @@ async function settleFileProcessingDomain(
 }
 
 /**
- * 校验并解析从 PostgreSQL JSONB 恢复的文档任务 parts。
+ * 校验并解析从 PostgreSQL JSONB 恢复的文档任务操作。
  *
  * @param data 静态类型为判别式联合、运行时仍需防御非法数据的输入。
- * @returns 按调用方顺序排列的处理部分；非法输入抛出稳定错误。
+ * @returns 按固定顺序排列的处理操作；非法输入抛出稳定错误。
  */
-export function resolveDocumentTaskParts(
+function resolveDocumentTaskOperations(
   data: DocumentTaskData,
-): Array<'content' | 'preview' | 'cleanup'> {
+): Array<'preview' | 'rag' | 'cleanup'> {
   if (!data || typeof data !== 'object') {
     throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务参数无效');
   }
   if (!isNonEmptyString(data.documentId) || !isNonEmptyString(data.userId)) {
     throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务参数不完整');
   }
-  if (!Array.isArray(data.parts) || !data.parts.length) {
-    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务未指定处理部分');
+  if (!Array.isArray(data.operations) || !data.operations.length) {
+    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务未指定处理操作');
   }
-  const invalidPart = data.parts.some(
-    (part) => !['content', 'preview', 'cleanup'].includes(part),
+  const invalidOperation = data.operations.some(
+    (operation) => !['preview', 'rag', 'cleanup'].includes(operation),
   );
-  if (invalidPart) {
-    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务部分无效');
+  if (invalidOperation) {
+    throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文档任务操作无效');
   }
-  const parts = data.parts as Array<'content' | 'preview' | 'cleanup'>;
-  if (parts.includes('cleanup')) {
-    if (parts.length !== 1) {
-      throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 清理部分必须独占任务');
+  const operations = data.operations as Array<'preview' | 'rag' | 'cleanup'>;
+  if (operations.includes('cleanup')) {
+    if (operations.length !== 1) {
+      throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 清理操作必须独占任务');
     }
     return ['cleanup'];
   }
@@ -354,19 +409,21 @@ export function resolveDocumentTaskParts(
   ) {
     throw new Error('DOCUMENT_TASK_CONTEXT_INVALID: 文件处理参数不完整');
   }
-  return [...fileData.parts];
+  return (['preview', 'rag'] as const).filter((operation) =>
+    fileData.operations.includes(operation),
+  );
 }
 
 /**
  * 判断整体任务是否为独占的物理清理任务。
  *
  * @param data 已完成基础校验的文档任务数据。
- * @returns parts 只包含 cleanup 时返回 true。
+ * @returns operations 只包含 cleanup 时返回 true。
  */
 function isCleanupData(
   data: DocumentTaskData,
-): data is Extract<DocumentTaskData, { parts: ['cleanup'] }> {
-  return data.parts.length === 1 && data.parts[0] === 'cleanup';
+): data is Extract<DocumentTaskData, { operations: ['cleanup'] }> {
+  return data.operations.length === 1 && data.operations[0] === 'cleanup';
 }
 
 /**

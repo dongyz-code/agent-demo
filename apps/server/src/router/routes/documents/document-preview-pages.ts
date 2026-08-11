@@ -1,4 +1,4 @@
-import { getDocumentPreviewPages } from '@/hooks/documents/preview/pages.js';
+import { documentAction } from '@/hooks/documents/document-action.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -7,7 +7,7 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.documents.view'),
   handler: async ({ body, __token }) =>
-    await getDocumentPreviewPages(body, __token.user_id),
+    await documentAction.getPreviewPages(body, __token.user_id),
 });
 
 export default api;

@@ -1,7 +1,10 @@
 import crypto from 'node:crypto';
-import { v7 } from 'uuid';
+import { v5, v7 } from 'uuid';
 
 import type { BinaryLike } from 'node:crypto';
+
+/** 由 DNS 命名空间中的 `deploy-console` 派生，禁止修改以免既有稳定 ID 漂移。 */
+const UUID_V5_NAMESPACE = 'e8971f20-b399-511f-9de1-208d43866c81';
 
 /**
  * 计算数据的 SHA-256 十六进制摘要。
@@ -33,4 +36,17 @@ export function getMd5Hex(data: BinaryLike) {
  */
 export function uuidv7(): string {
   return v7();
+}
+
+/**
+ * 根据稳定名称生成 RFC 9562 UUIDv5，适用于需要可重复计算的数据库 UUID。
+ *
+ * 相同名称始终得到相同结果；名称组成发生变化时会得到新的 UUID。该函数不用于
+ * 随机主键、密码摘要或内容完整性校验。
+ *
+ * @param value 参与确定性标识计算的稳定名称。
+ * @returns deploy-console 固定命名空间下生成的 UUIDv5。
+ */
+export function uuidv5(value: string): string {
+  return v5(value, UUID_V5_NAMESPACE);
 }

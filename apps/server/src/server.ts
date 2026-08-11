@@ -9,7 +9,7 @@ import {
 import { startupTableStructureSync } from '@/database/postgres/structure/index.js';
 import { ensureDocumentSegmentsCollection } from '@/database/vector/client.js';
 import { getRoutes, callback } from '@/router/index.js';
-import { objectStorage } from '@/hooks/documents/file/objects.js';
+import { documentFile } from '@/hooks/documents/file/index.js';
 import { task } from '@/hooks/tasks/task.js';
 
 logger.info(
@@ -21,7 +21,7 @@ logger.info(
 );
 
 async function createServer() {
-  await objectStorage.checkBucket();
+  await documentFile.checkBucket();
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
   await startupTableStructureSync();
   // 启动期确保 Qdrant document_segments 集合就绪；Qdrant 不可用时仅告警，不阻塞启动（任务级重试兜底）。

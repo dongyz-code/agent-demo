@@ -15,11 +15,11 @@ import {
 import type { DocumentSegment } from '@repo/types';
 
 /**
- * 文档片段向量化与 Qdrant 索引：content task 的 embedding 阶段。
+ * 文档片段向量化并写入 Qdrant，供 RAG 处理函数调用。
  *
- * 在 `persistContentResult` 落库片段之后、`publishDocumentRagRelationsForTask` 发布之前调用。
+ * 在文档 Segment 落库之后、知识库关系发布之前调用。
  * 按 token 预算 + 条数分批 `embedMany`（bailian 每请求有 token/条数上限），先按 document_version_id
- * 清旧点再 upsert，对齐 persistContentResult 的删后插语义。失败抛错 → content task 失败 → 不 publish，
+ * 清旧点再 upsert，对齐 Segment 的删后插语义。失败时不发布关系，
  * 版本留 pending 不可查询，下次重跑补齐。
  */
 
@@ -37,16 +37,14 @@ const EMBED_BATCH_MAX_ITEMS = 16;
 /** 构造按 document_version_id 过滤的 Qdrant 条件，用于清旧点。 */
 function versionFilter(documentVersionId: string): QdrantFilter {
   return {
-    must: [
-      { key: 'document_version_id', match: { value: documentVersionId } },
-    ],
+    must: [{ key: 'document_version_id', match: { value: documentVersionId } }],
   } as QdrantFilter;
 }
 
 /**
  * 对一批已落库的 Segment 向量化并写入 Qdrant。
  *
- * @param input 文档稳定标识、版本标识、persistContentResult 产出的片段列表。
+ * @param input 文档稳定标识、版本标识和已落库的片段列表。
  */
 export async function embedAndIndexSegments(input: {
   documentId: string;

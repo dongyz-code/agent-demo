@@ -8,12 +8,16 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-import { baseCols, timestamptz, varchar255 } from '../declaration/common-columns.js';
+import {
+  baseCols,
+  timestamptz,
+  varchar255,
+} from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 import { timestampsTrigger } from '../declaration/presets.js';
 
 import type {
-  DocumentProcessingTaskPart,
+  DocumentTaskOperation,
   FileProcessingStage,
   FileProcessingStageRunStatus,
   FileProcessingTriggerSource,
@@ -31,17 +35,15 @@ export const file_processing_tasks = pgTable(
     document_id: uuid('document_id').notNull(),
     /** 本次任务处理的文档版本。 */
     document_version_id: uuid('document_version_id').notNull(),
-    /** 同一整体任务按顺序执行的内容与预览部分。 */
-    task_parts: jsonb('task_parts')
-      .$type<DocumentProcessingTaskPart[]>()
-      .notNull(),
+    /** 同一文档任务选择执行的 RAG 与预览操作。 */
+    task_parts: jsonb('task_parts').$type<DocumentTaskOperation[]>().notNull(),
     /** 同一文件从 1 开始递增的执行序号。 */
     execution_no: integer('execution_no').notNull(),
     /** 上传、手动执行、失败重试或成功后再次执行。 */
     trigger_source: varchar255('trigger_source')
       .$type<FileProcessingTriggerSource>()
       .notNull(),
-    /** 内容处理配置版本；未选择内容部分时为空。 */
+    /** RAG 处理配置版本；未选择 RAG 操作时为空。 */
     content_config_version: varchar255('content_config_version'),
     /** 预览转换器版本；未选择预览部分时为空。 */
     preview_config_version: varchar255('preview_config_version'),

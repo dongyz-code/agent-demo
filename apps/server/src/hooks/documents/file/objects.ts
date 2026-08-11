@@ -13,9 +13,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import { ROOT } from '@/configs/index.js';
-import { documentsConfig } from '../config.js';
-
+import type { ROOT } from '@/configs/index.js';
 import type { Readable } from 'node:stream';
 import type { UploadedPartInfo } from '@repo/types';
 
@@ -73,7 +71,7 @@ interface PresignGetInput extends ContentObjectReference {
  * 该类只封装 S3 客户端状态、对象命令和预签名，不负责文件名清洗、
  * 对象路径生成、分片方案计算或上传会话状态迁移。
  */
-class S3ObjectStorage {
+export class S3ObjectStorage {
   /** 新对象默认写入的 Bucket。 */
   readonly bucket: string;
 
@@ -92,10 +90,7 @@ class S3ObjectStorage {
    * @param config S3 连接、凭证和默认 Bucket 配置。
    * @param presignExpiresSeconds 预签名地址有效秒数。
    */
-  constructor(
-    config: typeof ROOT.storage.s3,
-    presignExpiresSeconds: number,
-  ) {
+  constructor(config: typeof ROOT.storage.s3, presignExpiresSeconds: number) {
     const clientConfig = {
       region: config.region?.trim() || 'us-east-1',
       forcePathStyle: true,
@@ -153,7 +148,9 @@ class S3ObjectStorage {
    * @param input 对象位置和 Multipart uploadId。
    * @returns 按分片编号升序排列的有效分片。
    */
-  async listParts(input: MultipartObjectReference): Promise<UploadedPartInfo[]> {
+  async listParts(
+    input: MultipartObjectReference,
+  ): Promise<UploadedPartInfo[]> {
     const parts: UploadedPartInfo[] = [];
     let marker: string | undefined;
 
@@ -350,9 +347,3 @@ class S3ObjectStorage {
     };
   }
 }
-
-/** documents 域共享的对象存储实例。 */
-export const objectStorage = new S3ObjectStorage(
-  ROOT.storage.s3,
-  documentsConfig.upload.presignExpiresSeconds,
-);

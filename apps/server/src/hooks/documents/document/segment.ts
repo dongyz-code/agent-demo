@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 
+import { uuidv5 } from '@/utils/index.js';
 import type { DocumentSegment, DocumentParsedBlock } from '@repo/types';
 import type { DocumentSegmentProfile } from './types.js';
-import { hashToUuid } from './ids.js';
 
 /**
  * 将标准化块按结构和 token 预算切分为确定性 Segment。
@@ -43,10 +43,11 @@ export function createDocumentSegments({
   }
 
   return groups.map((group, position) => {
-    const headingPath = group.find((item) => item.headingPath.length)?.headingPath ?? [];
+    const headingPath =
+      group.find((item) => item.headingPath.length)?.headingPath ?? [];
     const content = group.map((item) => item.text).join('\n\n');
     const contentHash = createHash('sha256').update(content).digest('hex');
-    const segmentId = hashToUuid(
+    const segmentId = uuidv5(
       `${documentVersionId}:${profile.version}:${position}:${contentHash}`,
     );
     return {
@@ -86,7 +87,7 @@ function splitOversizedBlock(
   ) {
     result.push({
       ...block,
-      blockId: hashToUuid(`${block.blockId}:${index}`),
+      blockId: uuidv5(`${block.blockId}:${index}`),
       text: block.text.slice(start, start + charsPerSegment),
     });
   }

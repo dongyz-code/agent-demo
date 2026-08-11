@@ -5,13 +5,10 @@ import sanitizeHtml from 'sanitize-html';
 import sharp from 'sharp';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import {
-  contentTypeConfig,
-  contentTypesByExtension,
-  getFileExtension,
-} from '@repo/shared';
+import { collectMimes, readStreamToBuffer } from '@/utils/index.js';
+import { contentTypesByExtension, getFileExtension } from '@repo/shared';
 import { documentsConfig } from '../config.js';
-import { objectStorage } from '../file/objects.js';
+import { documentFile } from '../file/index.js';
 
 import type { Readable } from 'node:stream';
 
@@ -19,20 +16,12 @@ Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
-const IMAGE_TYPES: ReadonlySet<string> = new Set(
-  contentTypeConfig.image.flatMap((item) => item.mime),
+const IMAGE_TYPES: ReadonlySet<string> = new Set(collectMimes('image'));
+const PDF_TYPES: ReadonlySet<string> = new Set(collectMimes('pdf'));
+const OFFICE_TYPES: ReadonlySet<string> = new Set(
+  collectMimes('word', 'ppt', 'excel'),
 );
-const PDF_TYPES: ReadonlySet<string> = new Set(
-  contentTypeConfig.pdf.flatMap((item) => item.mime),
-);
-const OFFICE_TYPES: ReadonlySet<string> = new Set([
-  ...contentTypeConfig.word.flatMap((item) => item.mime),
-  ...contentTypeConfig.ppt.flatMap((item) => item.mime),
-  ...contentTypeConfig.excel.flatMap((item) => item.mime),
-]);
-const TEXT_TYPES: ReadonlySet<string> = new Set(
-  contentTypeConfig.text.flatMap((item) => item.mime),
-);
+const TEXT_TYPES: ReadonlySet<string> = new Set(collectMimes('text'));
 const PREVIEW_PAGE_CONTENT_TYPE = contentTypesByExtension.webp.mime[0];
 const MAX_SOURCE_BYTES = documentsConfig.upload.maxFileSizeBytes;
 const MAX_PAGE_COUNT = 1_000;
@@ -123,10 +112,9 @@ export const documentPageConverter: DocumentPageConverter = {
       return;
     }
 
-    const pdf =
-      PDF_TYPES.has(source.contentType)
-        ? await readSourceBuffer(source, MAX_SOURCE_BYTES)
-        : await convertOfficeToPdf(source);
+    const pdf = PDF_TYPES.has(source.contentType)
+      ? await readSourceBuffer(source, MAX_SOURCE_BYTES)
+      : await convertOfficeToPdf(source);
     yield* convertPdf(pdf);
   },
 };
@@ -221,7 +209,7 @@ async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
   if (!endpoint) {
     throw new ROOT_ERROR('未配置 Office 转换 Worker');
   }
-  const signed = await objectStorage.presignGet({
+  const signed = await documentFile.presignGet({
     bucket: source.bucket,
     objectKey: source.objectKey,
     contentType: source.contentType,
@@ -353,17 +341,5 @@ async function readSourceBuffer(
   if (source.size > maxBytes) {
     throw new ROOT_ERROR('源文件超过预览大小上限', { maxBytes });
   }
-  const stream = await source.open();
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of stream) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += buffer.byteLength;
-    if (total > maxBytes) {
-      stream.destroy();
-      throw new ROOT_ERROR('源文件超过预览大小上限', { maxBytes });
-    }
-    chunks.push(buffer);
-  }
-  return Buffer.concat(chunks);
+  return readStreamToBuffer(await source.open(), maxBytes);
 }

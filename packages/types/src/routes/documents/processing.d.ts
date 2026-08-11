@@ -1,6 +1,6 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type {
-  DocumentProcessingTaskPart,
+  DocumentTaskOperation,
   FileProcessingStage,
   FileProcessingStageRunStatus,
   FileProcessingTriggerSource,
@@ -41,8 +41,8 @@ export interface FileProcessingTaskInfo {
   documentId: string;
   /** 任务绑定的不可变文档版本。 */
   documentVersionId: string;
-  /** 当前整体任务选择执行的文档处理部分。 */
-  parts: DocumentProcessingTaskPart[];
+  /** 当前文档任务选择执行的操作。 */
+  operations: DocumentTaskOperation[];
   /** 文件显示名称。 */
   filename: string;
   /** 同一文件的执行序号。 */
@@ -75,10 +75,8 @@ export interface FileProcessingTaskInfo {
 
 /** 文件处理任务详情。 */
 export interface FileProcessingTaskDetail extends FileProcessingTaskInfo {
-  /** 各处理部分使用的配置版本。 */
-  processingConfigVersions: Partial<
-    Record<DocumentProcessingTaskPart, string>
-  >;
+  /** 各处理操作使用的配置版本。 */
+  operationConfigVersions: Partial<Record<DocumentTaskOperation, string>>;
   /** 任务结果摘要。 */
   resultSummary: Record<string, unknown> | null;
   /** 阶段执行时间线。 */
