@@ -120,6 +120,8 @@ export type TaskItem = {
   task_id: string;
   /** 稳定任务名称。 */
   task_name: string;
+  /** 面向任务中心展示的业务名称。 */
+  display_name: string;
   /** 任务脚本报告的当前业务阶段。 */
   current_stage: string | null;
   /** 整数进度，范围为 0 到 100。 */

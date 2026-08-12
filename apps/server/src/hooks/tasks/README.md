@@ -10,6 +10,7 @@
 ```ts
 const taskId = await task.add({
   name: 'pdf.generate',
+  displayName: '生成 PDF',
   script: new URL('./pdf-task.js', import.meta.url).href,
   data: { documentId },
   retry: { times: 3, delay: 5_000 },
@@ -18,7 +19,8 @@ const taskId = await task.add({
 });
 ```
 
-只有 `name`、`script` 和 `data` 必填。未提供的重试、超时和并发使用统一默认值。公共接口没有
+`name`、`displayName`、`script` 和 `data` 必填。`name` 是稳定任务类型并用于同名并发分组，
+`displayName` 是任务中心展示的业务名称。未提供的重试、超时和并发使用统一默认值。公共接口没有
 注册、定义、transaction、去重键、状态或时间字段；任务记录和初始日志由 task 包自己的事务写入。
 
 ## 脚本约定

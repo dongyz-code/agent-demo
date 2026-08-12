@@ -24,6 +24,8 @@ export const tasks = pgTable(
     task_id: uuid('task_id').primaryKey(),
     /** 稳定任务名称，同时用于同名任务并发分组。 */
     task_name: varchar255('task_name').notNull(),
+    /** 面向任务中心展示的业务名称。 */
+    display_name: varchar255('display_name').notNull(),
     /** 子进程动态导入的服务端脚本模块 URL。 */
     script: text('script').notNull(),
     /** 可被 JSON 序列化的任务数据。 */

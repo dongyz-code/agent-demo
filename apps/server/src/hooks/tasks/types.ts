@@ -18,6 +18,8 @@ export interface TaskRetryInput {
 export interface TaskAddInput<TData = unknown> {
   /** 稳定任务名称，同时用于同名任务并发分组。 */
   name: string;
+  /** 面向任务中心展示的业务名称。 */
+  displayName: string;
   /** 子进程动态导入的服务端脚本模块 URL。 */
   script: string;
   /** 可被 PostgreSQL JSONB 保存的业务数据。 */
@@ -34,6 +36,8 @@ export interface TaskAddInput<TData = unknown> {
 export interface TaskSnapshot<TData = unknown> {
   /** 已去除首尾空白的稳定任务名称。 */
   name: string;
+  /** 已去除首尾空白的业务展示名称。 */
+  displayName: string;
   /** 服务端业务代码提供的内部模块 URL。 */
   script: string;
   /** JSON 序列化往返后的业务数据。 */

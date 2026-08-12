@@ -33,7 +33,7 @@ export class TaskApi {
   /**
    * 添加持久化后台任务并立即返回任务 ID。
    *
-   * @param input 名称、脚本、数据和可选执行策略组成的完整对象。
+   * @param input 稳定名称、展示名称、脚本、数据和可选执行策略组成的完整对象。
    * @returns 新建任务标识。
    */
   async add<TData>(input: TaskAddInput<TData>): Promise<string> {
@@ -41,6 +41,15 @@ export class TaskApi {
     if (!name) throw new Error('TASK_NAME_REQUIRED: 任务名称不能为空');
     if (name.length > 255) {
       throw new Error('TASK_NAME_INVALID: 任务名称不能超过 255 个字符');
+    }
+    const displayName = input.displayName.trim();
+    if (!displayName) {
+      throw new Error('TASK_DISPLAY_NAME_REQUIRED: 任务展示名称不能为空');
+    }
+    if (displayName.length > 255) {
+      throw new Error(
+        'TASK_DISPLAY_NAME_INVALID: 任务展示名称不能超过 255 个字符',
+      );
     }
     if (input.data === undefined) {
       throw new Error('TASK_DATA_INVALID: 任务数据不能是 undefined');
@@ -70,6 +79,7 @@ export class TaskApi {
     const taskId = await this.database.addTask(
       {
         name,
+        displayName,
         script: input.script,
         data,
         concurrency,

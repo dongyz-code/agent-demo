@@ -42,7 +42,7 @@ export default async function runDocumentTask(
   const operations = resolveDocumentTaskOperations(input.data);
   if (isCleanupData(input.data)) {
     await input.progress({ stage: 'cleanup', progress: 10 });
-    await input.log.info('开始文档物理清理');
+    await input.log.info('开始删除文档');
     const result = await documentProcessor.cleanup({
       documentId: input.data.documentId,
       assertActive: input.throwIfCanceled,
@@ -53,7 +53,9 @@ export default async function runDocumentTask(
       processedItems: result.deletedObjectCount,
       totalItems: result.deletedObjectCount,
     });
-    await input.log.info('文档物理清理完成');
+    await input.log.info(
+      `文档删除完成，共删除 ${result.deletedObjectCount} 个存储对象`,
+    );
     return;
   }
   if (!documentsConfig.fileProcessing.enabled) {

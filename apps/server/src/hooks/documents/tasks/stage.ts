@@ -39,6 +39,17 @@ export interface DocumentTaskOperationContext {
   userId: string;
 }
 
+/**
+ * 返回文档任务日志使用的业务操作名称。
+ *
+ * @param operation 当前执行的预览或 RAG 操作。
+ * @returns 能直接说明业务动作的中文名称。
+ */
+function getDocumentOperationName(operation: DocumentTaskOperation): string {
+  if (operation === 'preview') return '文档预览生成';
+  return '文档 RAG 预处理';
+}
+
 /** 单个阶段执行期间可恢复的轻量上下文。 */
 export interface FileProcessingStageExecution {
   /** 上一个同阶段 attempt 保存的 checkpoint。 */
@@ -119,7 +130,8 @@ export async function runTaskStage<T>(
     stage,
     progress: mapOperationProgress(context, STAGE_PROGRESS[stage]),
   });
-  await context.task.log.info(`开始阶段：${stage}`);
+  const operationName = getDocumentOperationName(context.operation);
+  await context.task.log.info(`开始${operationName}`);
   try {
     const result = await action({
       checkpoint: parseCheckpoint(previousRun?.checkpoint),
@@ -154,12 +166,9 @@ export async function runTaskStage<T>(
       processedItems,
       totalItems: processedItems,
     });
-    await context.task.log.info(
-      `完成阶段：${stage}，处理数量：${processedItems}`,
-    );
     return result;
   } catch (error) {
-    await failStage(context, stageRunId, stage, error);
+    await failStage(context, stageRunId, error);
     throw error;
   }
 }
@@ -202,7 +211,13 @@ export async function completeDocumentTaskOperation(
     processedItems,
     totalItems: processedItems,
   });
-  await context.task.log.info(`业务处理完成，处理数量：${processedItems}`);
+  let resultCount = `${processedItems} 个 Segment`;
+  if (context.operation === 'preview') {
+    resultCount = `${processedItems} 页`;
+  }
+  await context.task.log.info(
+    `${getDocumentOperationName(context.operation)}完成，共生成 ${resultCount}`,
+  );
 }
 
 /**
@@ -281,14 +296,12 @@ async function saveStageCheckpoint(
  *
  * @param context 当前文件处理任务上下文。
  * @param stageRunId 当前活动阶段记录标识。
- * @param stage 当前业务阶段。
  * @param error 阶段抛出的未知异常。
  * @returns 阶段终态和错误日志写入完成后结束。
  */
 async function failStage(
   context: DocumentTaskOperationContext,
   stageRunId: string,
-  stage: FileProcessingStage,
   error: unknown,
 ): Promise<void> {
   const message = readErrorMessage(error);
@@ -308,7 +321,9 @@ async function failStage(
         eq(schemas.file_processing_task_stage_runs.status, 'running'),
       ),
     );
-  await context.task.log.error(`阶段失败：${stage}，${message}`);
+  await context.task.log.error(
+    `${getDocumentOperationName(context.operation)}失败：${message}`,
+  );
 }
 
 /**

@@ -158,6 +158,24 @@ const DOCUMENT_TASK_NAME = 'document.process';
 const DOCUMENT_TASK_SCRIPT = new URL('./tasks/index.js', import.meta.url).href;
 
 /**
+ * 根据文档处理操作生成任务中心展示名称。
+ *
+ * @param operations 同一任务需要执行的预览或 RAG 操作。
+ * @returns 能直接说明业务动作的中文任务名称。
+ */
+function getDocumentTaskDisplayName(
+  operations: DocumentTaskOperation[],
+): string {
+  if (operations.length === 1 && operations[0] === 'preview') {
+    return '生成文档预览';
+  }
+  if (operations.length === 1 && operations[0] === 'rag') {
+    return '文档 RAG 预处理';
+  }
+  return '生成文档预览并进行 RAG 预处理';
+}
+
+/**
  * 文档查询、版本、预览、知识库和处理任务业务动作。
  *
  * Worker、parser、对象存储和向量写入作为独立执行边界保留。
@@ -1010,6 +1028,7 @@ class DocumentAction {
       }
       return await task.add({
         name: DOCUMENT_TASK_NAME,
+        displayName: '删除文档',
         script: DOCUMENT_TASK_SCRIPT,
         data: {
           operations: ['cleanup'],
@@ -1081,6 +1100,7 @@ class DocumentAction {
     };
     return await task.add({
       name: DOCUMENT_TASK_NAME,
+      displayName: getDocumentTaskDisplayName(operations),
       script: DOCUMENT_TASK_SCRIPT,
       data,
       retry: {

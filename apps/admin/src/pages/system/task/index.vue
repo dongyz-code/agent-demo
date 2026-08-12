@@ -35,8 +35,13 @@
           </el-tag>
         </template>
         <template #actions="{ row }">
-          <el-button link type="primary" @click="openDetail(row)">
-            查看详情
+          <el-button
+            v-if="canViewLogs"
+            link
+            type="primary"
+            @click="openLogs(row)"
+          >
+            查看日志
           </el-button>
         </template>
       </v-table>
@@ -47,17 +52,30 @@
       />
     </div>
 
-    <task-detail-dialog
-      v-model="taskDetail.visible"
-      :task-id="taskDetail.taskId"
-      :title="taskDetail.title"
-      :can-view-logs="canViewLogs"
-    />
+    <v-dialog
+      v-model="taskLog.visible"
+      :title="taskLog.title"
+      width="80%"
+      top="5vh"
+    >
+      <div class="mb-3 flex justify-end">
+        <el-button
+          :icon="IconParkOutlineRefresh"
+          :loading="logsLoading"
+          @click="getLogs"
+        >
+          刷新日志
+        </el-button>
+      </div>
+      <pre
+        class="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-lg bg-gray-950 p-4 text-xs leading-6 text-gray-100"
+      >{{ taskLogText }}</pre>
+    </v-dialog>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, shallowRef } from 'vue';
+import { computed, onMounted, reactive, ref, shallowRef } from 'vue';
 import { ElButton, ElTag } from 'element-plus';
 import {
   dayJsformat,
@@ -66,6 +84,7 @@ import {
   numSplit,
 } from '@repo/utils-browser';
 import {
+  VDialog,
   VSchemaForm,
   VTable,
   loadingFunc,
@@ -79,9 +98,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 
 import IconParkOutlineRefresh from '~icons/icon-park-outline/refresh';
 
-import TaskDetailDialog from './components/TaskDetailDialog.vue';
-
-import type { SearchForm, TaskItem } from './types';
+import type { SearchForm, TaskItem, TaskLogItem } from './types';
 import type { SchemaFormColumn, TableRow } from '@repo/ui';
 
 /** 任务状态统计展示项。 */
@@ -98,15 +115,23 @@ const store = useStore();
 const taskForm = shallowRef<SearchForm>({});
 const tasks = shallowRef<TaskItem[]>([]);
 const statusCounts = shallowRef<TaskStatusCount[]>([]);
+const logsLoading = ref(false);
 const canViewLogs = computed(() =>
   store.hasPermission(adminPermissionKey('actions.task.logs')),
 );
 
-/** 当前任务详情弹窗上下文。 */
-const taskDetail = reactive({
+/** 当前任务日志弹窗上下文。 */
+const taskLog = reactive({
   visible: false,
   taskId: '',
-  title: '任务详情',
+  title: '任务日志',
+  data: [] as TaskLogItem[],
+});
+
+/** 将结构化日志转换为便于复制的逐行文本。 */
+const taskLogText = computed(() => {
+  if (!taskLog.data.length) return '暂无日志';
+  return taskLog.data.map(formatTaskLog).join('\n');
 });
 
 /** 任务列表统一查询字段，不再按实现类型拆分视图。 */
@@ -146,7 +171,7 @@ const tableData = computed(() =>
     }
     return {
       self,
-      taskName: self.task_name,
+      taskName: self.display_name,
       statusText: staticMapping.task_status.get(self.status),
       stage: self.current_stage ?? '-',
       progress: `${self.progress}%`,
@@ -220,15 +245,50 @@ const { getList, getListLoading } = loadingFunc({
 const getListDebounce = debounce(getList);
 
 /**
- * 打开指定任务的详情弹窗。
+ * 查询当前弹窗任务的结构化运行日志。
+ *
+ * @returns 日志加载完成后结束。
+ */
+async function getLogs(): Promise<void> {
+  if (!taskLog.taskId) return;
+  logsLoading.value = true;
+  try {
+    taskLog.data = await api('/sys/task/logs', {
+      task_id: taskLog.taskId,
+    });
+  } finally {
+    logsLoading.value = false;
+  }
+}
+
+/**
+ * 打开指定任务的日志弹窗并加载最新日志。
  *
  * @param row 当前通用任务展示行。
- * @returns 弹窗状态更新后结束。
+ * @returns 日志弹窗打开并完成首次加载后结束。
  */
-function openDetail(row: (typeof tableData.value)[number]): void {
-  taskDetail.taskId = row.self.task_id;
-  taskDetail.title = `${row.taskName} · 任务详情`;
-  taskDetail.visible = true;
+async function openLogs(
+  row: (typeof tableData.value)[number],
+): Promise<void> {
+  taskLog.taskId = row.self.task_id;
+  taskLog.title = `${row.taskName} · 任务日志`;
+  taskLog.data = [];
+  taskLog.visible = true;
+  await getLogs();
+}
+
+/**
+ * 将单条结构化日志格式化为可复制文本。
+ *
+ * @param item 包含时间、attempt、级别和消息的日志记录。
+ * @returns 单行日志文本。
+ */
+function formatTaskLog(item: TaskLogItem): string {
+  const timestamp = dayJsformat(
+    item.create_timestamp,
+    'YYYY-MM-DD HH:mm:ss',
+  );
+  return `[${timestamp}] [Attempt ${item.attempt}] [${item.level}] ${item.message}`;
 }
 
 /** 返回任务状态对应的 Element Plus 标签类型。 */

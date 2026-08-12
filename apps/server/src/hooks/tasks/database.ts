@@ -44,6 +44,7 @@ type TaskInsertExecutor = Pick<typeof db, 'insert' | 'select'>;
 const TASK_PUBLIC_FIELDS = {
   task_id: schemas.tasks.task_id,
   task_name: schemas.tasks.task_name,
+  display_name: schemas.tasks.display_name,
   current_stage: schemas.tasks.current_stage,
   progress: schemas.tasks.progress,
   processed_items: schemas.tasks.processed_items,
@@ -95,7 +96,7 @@ export class TaskDatabase {
   /**
    * 使用 task 包内部事务创建通用任务与初始日志。
    *
-   * @param snapshot 已校验的名称、脚本、数据和策略快照。
+   * @param snapshot 已校验的稳定名称、展示名称、脚本、数据和策略快照。
    * @param onCreate 脚本可选创建生命周期函数。
    * @returns 新建任务标识。
    */
@@ -109,6 +110,7 @@ export class TaskDatabase {
       await transaction.insert(schemas.tasks).values({
         task_id: taskId,
         task_name: snapshot.name,
+        display_name: snapshot.displayName,
         script: snapshot.script,
         data: snapshot.data,
         status: 'queued',
@@ -143,7 +145,7 @@ export class TaskDatabase {
           taskId,
           attempt: 0,
           level: 'info',
-          message: `任务已进入队列：${snapshot.name}`,
+          message: `任务已进入队列：${snapshot.displayName}`,
         },
         transaction,
       );
@@ -510,15 +512,6 @@ export class TaskDatabase {
         start_timestamp: now,
         end_timestamp: null,
       });
-      await this.appendTaskLog(
-        {
-          taskId,
-          attempt: claimed.attempt,
-          level: 'info',
-          message: `开始第 ${claimed.attempt} 次执行`,
-        },
-        tx,
-      );
       return {
         taskId,
         name: claimed.name,
@@ -725,15 +718,6 @@ export class TaskDatabase {
             last_update_timestamp: now,
           })
           .where(eq(schemas.tasks.task_id, input.taskId));
-        await this.appendTaskLog(
-          {
-            taskId: input.taskId,
-            attempt: current.attempt,
-            level: 'info',
-            message: `第 ${current.attempt} 次执行成功`,
-          },
-          tx,
-        );
         return {
           settled: true,
           retryScheduled: false,
@@ -906,7 +890,11 @@ export class TaskDatabase {
     }
     const search = filter.search?.trim();
     if (search) {
-      conditions.push(ilike(schemas.tasks.task_name, `%${search}%`));
+      const nameSearch = or(
+        ilike(schemas.tasks.task_name, `%${search}%`),
+        ilike(schemas.tasks.display_name, `%${search}%`),
+      );
+      if (nameSearch) conditions.push(nameSearch);
     }
     if (filter.create_timestamp?.[0]) {
       conditions.push(

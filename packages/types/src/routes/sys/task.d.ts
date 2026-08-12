@@ -1,6 +1,5 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type {
-  TaskAttemptItem,
   TaskItem,
   TaskLogItem,
   TaskStatus,
@@ -16,25 +15,14 @@ export type TaskSqlFilter = {
   status?: TaskStatus | TaskStatus[];
   /** 当前业务阶段。 */
   current_stage?: string | string[];
-  /** 任务名称模糊匹配。 */
+  /** 稳定任务名称或业务展示名称模糊匹配。 */
   search?: string;
   /** 创建时间闭区间。 */
   create_timestamp?: (Date | null)[];
 };
 
-/** 任务详情包含不可覆盖的全部执行尝试。 */
-export type TaskDetail = TaskItem & {
-  /** 按 attempt 升序排列的执行记录。 */
-  attempts: TaskAttemptItem[];
-};
-
 /** 任务中心 HTTP 接口集合。 */
 export type TaskAction = ApiMultAction<{
-  /** 查询通用任务详情与全部 attempt。 */
-  detail: {
-    req: { task_id: string };
-    resp: TaskDetail | null;
-  };
   /** 按过滤条件统计状态数量。 */
   counts: {
     req: { form?: TaskSqlFilter };
