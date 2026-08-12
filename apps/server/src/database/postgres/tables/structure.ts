@@ -17,7 +17,7 @@ export const table_structure_ops = pgTable(
     type: varchar255('type').$type<TableStructureOpType>().notNull(),
     /** 操作状态，用于审计和失败恢复 */
     status: varchar255('status').$type<TableStructureOpStatus>().notNull(),
-    /** managedTableRegistry 中的表 key */
+    /** tables/index.ts 中的表导出名称 */
     table_key: varchar255('table_key').notNull(),
     /** PostgreSQL schema 名称 */
     table_schema: varchar255('table_schema').notNull(),

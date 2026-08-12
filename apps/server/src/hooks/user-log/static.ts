@@ -17,7 +17,7 @@ export const { CONF: LOG_CONF, CONF_MAP: LOG_MAP } = logHelper({
         op_id: string;
         /** 操作类型：reset 或 sync */
         type: 'reset' | 'sync';
-        /** managedTableRegistry 中的表 key */
+        /** tables/index.ts 中的表导出名称 */
         table: string;
       },
     },
@@ -28,7 +28,7 @@ export const { CONF: LOG_CONF, CONF_MAP: LOG_MAP } = logHelper({
         op_id: string;
         /** 操作类型：reset 或 sync */
         type: 'reset' | 'sync';
-        /** managedTableRegistry 中的表 key */
+        /** tables/index.ts 中的表导出名称 */
         table: string;
         /** 执行后的操作状态 */
         status: 'completed' | 'failed';

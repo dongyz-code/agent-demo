@@ -1,4 +1,7 @@
 import { logger } from '@/configs/index.js';
+import * as tables from '../tables/index.js';
+import { is } from 'drizzle-orm';
+import { PgTable } from 'drizzle-orm/pg-core';
 
 import { db } from '../client.js';
 import { pgAdvisoryXactLock } from '../locks.js';
@@ -9,7 +12,6 @@ import {
   createTriggerSqls,
 } from './ddl.js';
 import { describeTableTarget } from './descriptor.js';
-import { bootstrappedTableRegistry } from '../tables/registry.js';
 import { getTableCatalogSnapshot } from './catalog.js';
 import { compareTableStructure } from './diff.js';
 
@@ -31,7 +33,9 @@ export async function startupTableStructureSync() {
   let drifted = 0;
   let failed = 0;
 
-  for (const drizzleTable of bootstrappedTableRegistry) {
+  for (const drizzleTable of Object.values(tables).filter((table) =>
+    is(table, PgTable),
+  )) {
     const descriptor = describeTableTarget(drizzleTable);
     const catalog = await getTableCatalogSnapshot({
       schemaName: descriptor.schemaName,

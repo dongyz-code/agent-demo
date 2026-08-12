@@ -43,7 +43,7 @@ export async function createResetPlan({
 }: {
   /** 当前用户 ID。 */
   user_id: string;
-  /** managedTableRegistry 中的目标表 key。 */
+  /** tables/index.ts 中的目标表导出名称。 */
   table: string;
   /** 字段复制映射。 */
   columnMappings?: TableColumnMapping[];
@@ -239,7 +239,7 @@ export async function createSyncPlan({
 }: {
   /** 当前用户 ID。 */
   user_id: string;
-  /** managedTableRegistry 中的目标表 key。 */
+  /** tables/index.ts 中的目标表导出名称。 */
   table: string;
 }): Promise<TableOperationPlan> {
   const { schemaTable, catalogTable } = await getAuthorizedTableState({ table });

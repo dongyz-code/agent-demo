@@ -89,7 +89,7 @@ export async function listVisibleTables({
 export async function getVisibleTableDetail({
   table,
 }: {
-  /** managedTableRegistry 中的表 key。 */
+  /** tables/index.ts 中的表导出名称。 */
   table: string;
 }): Promise<TableDetail> {
   const { schemaTable, catalogTable } = await getAuthorizedTableState({

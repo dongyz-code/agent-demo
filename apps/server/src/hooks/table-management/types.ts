@@ -4,7 +4,7 @@ import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 /** 表管理中允许被展示和操作的 schema 表快照。 */
 export type ManagedTableSchema = {
-  /** managedTableRegistry 中的表 key。 */
+  /** tables/index.ts 中的表导出名称。 */
   table: string;
   /** Drizzle 表对象。 */
   drizzleTable: AnyPgTable;
@@ -22,7 +22,7 @@ export type ManagedTableSchema = {
 
 /** 计划内容的公共字段。 */
 type StoredTablePlanBase = {
-  /** managedTableRegistry 中的表 key。 */
+  /** tables/index.ts 中的表导出名称。 */
   table: string;
   /** PostgreSQL schema 名称。 */
   schemaName: string;

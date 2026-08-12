@@ -6,7 +6,7 @@ import { assertManagedTableSchema } from './schema.js';
 export async function getAuthorizedTableState({
   table,
 }: {
-  /** managedTableRegistry 中的表 key。 */
+  /** tables/index.ts 中的表导出名称。 */
   table: string;
 }) {
   const schemaTable = assertManagedTableSchema(table);

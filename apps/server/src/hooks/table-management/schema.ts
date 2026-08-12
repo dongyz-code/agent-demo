@@ -1,5 +1,7 @@
 import { describeTableTarget } from '@/database/postgres/structure/index.js';
-import { managedTableRegistry } from '@/database/postgres/tables/registry.js';
+import * as tables from '@/database/postgres/tables/index.js';
+import { is } from 'drizzle-orm';
+import { PgTable } from 'drizzle-orm/pg-core';
 
 import { isSensitiveColumn } from './sensitive.js';
 
@@ -8,19 +10,18 @@ import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
 /** 返回所有允许表管理功能处理的 Drizzle 表 schema。 */
 export function listManagedTableSchemas(): ManagedTableSchema[] {
-  return Object.entries(managedTableRegistry).map(([table, drizzleTable]) =>
-    getManagedTableSchema(table, drizzleTable as AnyPgTable),
-  );
+  return Object.entries(tables)
+    .filter(([, drizzleTable]) => is(drizzleTable, PgTable))
+    .map(([table, drizzleTable]) =>
+      getManagedTableSchema(table, drizzleTable),
+    );
 }
 
-/** 根据 managedTableRegistry key 返回单张表的 Drizzle 目标结构。 */
+/** 根据 tables/index.ts 导出名称返回单张表的 Drizzle 目标结构。 */
 export function getManagedTableSchemaByKey(table: string) {
-  const drizzleTable =
-    managedTableRegistry[table as keyof typeof managedTableRegistry];
-  if (!drizzleTable) {
-    return;
-  }
-  return getManagedTableSchema(table, drizzleTable as AnyPgTable);
+  const drizzleTable = tables[table as keyof typeof tables];
+  if (!drizzleTable || !is(drizzleTable, PgTable)) return;
+  return getManagedTableSchema(table, drizzleTable);
 }
 
 /** 断言并返回单张表的 Drizzle 目标结构。 */
@@ -36,7 +37,7 @@ export function assertManagedTableSchema(table: string) {
  * 将 Drizzle 表对象转换为表管理内部使用的结构快照。
  *
  * 字段、主键、索引、trigger 取自 describeTableTarget 的统一描述；sensitive 属于展示关注点，
- * 在此业务投影层追加。table 是 managedTableRegistry key，仅用于 UI/审计展示。
+ * 在此业务投影层追加。table 是 tables/index.ts 的导出名称，仅用于 UI/审计展示。
  */
 function getManagedTableSchema(
   table: string,
