@@ -45,9 +45,15 @@ const TEXT_IN_PARSE_CONFIG = {
     engine_params: { parse_mode: 'auto' },
   },
 };
-const TEXT_IN_CONTENT_TYPES = collectMimes('pdf', 'word', 'ppt', 'excel');
+const TEXT_IN_CONTENT_TYPES = collectMimes(
+  'image',
+  'pdf',
+  'word',
+  'ppt',
+  'excel',
+);
 
-/** 使用 TextIn xParse 异步接口把 PDF 与 Office 文档转换为 Markdown。 */
+/** 使用 TextIn xParse 异步接口把图片、PDF 与 Office 文档转换为 Markdown。 */
 export const textInParser: DocumentParser = {
   name: 'textin',
   version: 'textin-xparse-async-1.4.0',
