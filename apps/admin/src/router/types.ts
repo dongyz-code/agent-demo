@@ -23,6 +23,7 @@ export const routeNameMap = {
 
   documents: '文档中心',
   'documents.management': '文档管理',
+  'documents.management.detail': '文档详情',
   'documents.dataset': '知识库管理',
 };
 

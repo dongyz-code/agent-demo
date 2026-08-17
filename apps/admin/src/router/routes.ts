@@ -92,6 +92,14 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             root: true,
           },
           {
+            path: 'management/:documentId',
+            name: 'documents.management.detail',
+            component: () => import('@/pages/document/management/detail.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.documents.management')],
+            },
+          },
+          {
             path: 'dataset',
             name: 'documents.dataset',
             component: () => import('@/pages/rag/dataset/index.vue'),

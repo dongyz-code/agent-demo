@@ -59,6 +59,7 @@ async function main() {
 
     const result = await chatAgent({
       conversation_id,
+      dataset_id: '55a915d5-9890-47c0-a4ae-742325924687',
       system: '你是一个简洁的中文助手，回答不超过两句。',
       message: input,
       userId: TEST_USER_ID,

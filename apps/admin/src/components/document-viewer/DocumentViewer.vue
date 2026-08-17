@@ -3,54 +3,73 @@
     <el-result
       v-if="preview && preview.status !== 'ready'"
       :icon="preview.status === 'failed' ? 'error' : 'info'"
-      :title="previewStatusLabels[preview.status]"
-      :sub-title="preview.status === 'failed' ? '可以重试生成页面，RAG 状态不受影响' : '页面正在由后端生成'"
+      :title="getPendingTitle(preview.status)"
+      :sub-title="
+        preview.status === 'failed'
+          ? '页面生成失败，RAG 状态不受影响'
+          : undefined
+      "
     >
       <template #extra>
-        <el-button v-if="preview.status === 'failed'" type="primary" @click="retry">
-          重试预览
+        <el-button
+          v-if="preview.status === 'failed'"
+          type="primary"
+          @click="retry"
+        >
+          重新生成
         </el-button>
         <el-button v-else @click="load(true)">刷新状态</el-button>
       </template>
     </el-result>
     <template v-else-if="preview">
-      <div class="max-h-[70vh] space-y-4 overflow-auto rounded bg-gray-100 p-3">
+      <div class="h-full space-y-4 overflow-auto rounded bg-gray-100 p-3">
         <figure
           v-for="page in preview.pages"
           :key="`${page.documentVersionId}-${page.pageNumber}`"
           class="mx-auto w-fit max-w-full overflow-hidden rounded bg-white shadow"
         >
-          <img
-            class="block h-auto max-w-full"
+          <el-image
+            class="block h-auto max-w-full cursor-zoom-in"
             :src="page.url"
             :alt="`第 ${page.pageNumber} 页`"
+            :preview-src-list="previewUrls"
+            :initial-index="getPreviewIndex(page.pageNumber)"
+            :infinite="false"
+            :min-scale="0.2"
+            :max-scale="8"
+            :zoom-rate="1.2"
+            fit="contain"
+            preview-teleported
+            show-progress
             loading="lazy"
           />
-          <figcaption class="border-t px-3 py-1 text-center text-xs text-gray-500">
+          <figcaption
+            v-if="preview.pageCount > 1"
+            class="border-t px-3 py-1 text-center text-xs text-gray-500"
+          >
             第 {{ page.pageNumber }} / {{ preview.pageCount }} 页
           </figcaption>
         </figure>
-        <div v-if="preview.pages.length < preview.pageCount" class="text-center">
-          <el-button :loading="loadingMore" @click="load(false)">加载后续页面</el-button>
+        <div
+          v-if="preview.pages.length < preview.pageCount"
+          class="text-center"
+        >
+          <el-button :loading="loadingMore" @click="load(false)"
+            >加载后续页面</el-button
+          >
         </div>
-      </div>
-      <div class="mt-3 flex justify-end">
-        <el-button type="primary" @click="download">下载该版本原文件</el-button>
       </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, shallowRef, watch } from 'vue';
-import { ElButton, ElResult } from 'element-plus';
+import { computed, onBeforeUnmount, shallowRef, watch } from 'vue';
+import { ElButton, ElImage, ElResult } from 'element-plus';
 
 import { api } from '@/utils';
 
-import type {
-  DocumentPreviewStatus,
-  DocumentPreviewWindow,
-} from '@/types';
+import type { DocumentPreviewStatus, DocumentPreviewWindow } from '@/types';
 
 const props = defineProps<{
   /** 文档稳定标识。 */
@@ -59,17 +78,29 @@ const props = defineProps<{
   documentVersionId?: string;
 }>();
 
-const previewStatusLabels: Record<DocumentPreviewStatus, string> = {
-  pending: '等待生成预览',
-  processing: '正在生成预览',
-  ready: '预览已就绪',
-  failed: '预览生成失败',
-};
 const preview = shallowRef<DocumentPreviewWindow>();
 const loading = shallowRef(false);
 const loadingMore = shallowRef(false);
+const previewUrls = computed(
+  () => preview.value?.pages.map((page) => page.url) ?? [],
+);
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
 let pollingAttempts = 0;
+
+/** 返回页面尚未就绪时的简短状态文案。 */
+function getPendingTitle(status: DocumentPreviewStatus): string {
+  if (status === 'pending') return '等待生成页面';
+  if (status === 'processing') return '正在生成页面';
+  return '页面生成失败';
+}
+
+/** 返回当前页面在已加载页面中的索引，供全屏查看器定位。 */
+function getPreviewIndex(pageNumber: number): number {
+  const index =
+    preview.value?.pages.findIndex((page) => page.pageNumber === pageNumber) ??
+    0;
+  return Math.max(0, index);
+}
 
 /** 按 10 页窗口加载页面；首次和轮询刷新会替换已有页面。 */
 async function load(reset: boolean) {
@@ -110,15 +141,6 @@ async function retry(): Promise<void> {
   });
   pollingAttempts = 0;
   await load(true);
-}
-
-/** 下载查看器当前指定的文档版本原文件。 */
-async function download() {
-  const result = await api('/documents/document-download', {
-    documentId: props.documentId,
-    documentVersionId: props.documentVersionId,
-  });
-  window.open(result.url, '_blank', 'noopener,noreferrer');
 }
 
 watch(

@@ -111,8 +111,6 @@
       :max-number-of-files="1"
       @uploaded="handleUploaded"
     />
-    <document-preview-dialog ref="previewRef" />
-    <document-detail-dialog ref="detailRef" @changed="loadDocuments(true)" />
     <document-datasets-dialog ref="datasetsRef" @changed="loadDocuments(true)" />
   </section>
 </template>
@@ -126,19 +124,17 @@ import {
   usePage,
 } from '@repo/ui';
 
-import DocumentPreviewDialog from '@/components/document-viewer/DocumentPreviewDialog.vue';
 import UploadDialog from '@/components/upload/UploadDialog.vue';
 import VActionButtonGroup from '@/components/action-button-group/VActionButtonGroup.vue';
 import type { ActionButtonItem } from '@/components/action-button-group/types';
+import { routerGo } from '@/router';
 import { api, confirm, notify } from '@/utils';
 import DocumentDatasetsDialog from './DocumentDatasetsDialog.vue';
-import DocumentDetailDialog from './DocumentDetailDialog.vue';
 import { formatDateTime, formatFileSize } from '../utils';
 
 import LucideDatabase from '~icons/lucide/database';
 import LucideDownload from '~icons/lucide/download';
-import LucideEye from '~icons/lucide/eye';
-import LucideHistory from '~icons/lucide/history';
+import LucideFileText from '~icons/lucide/file-text';
 import LucideRefreshCw from '~icons/lucide/refresh-cw';
 import LucideTrash2 from '~icons/lucide/trash-2';
 import LucideUpload from '~icons/lucide/upload';
@@ -186,8 +182,6 @@ const datasets = ref<{ datasetId: string; name: string }[]>([]);
 const loading = ref(false);
 const uploadRef = ref<InstanceType<typeof UploadDialog>>();
 const versionUploadRef = ref<InstanceType<typeof UploadDialog>>();
-const previewRef = ref<InstanceType<typeof DocumentPreviewDialog>>();
-const detailRef = ref<InstanceType<typeof DocumentDetailDialog>>();
 const datasetsRef = ref<InstanceType<typeof DocumentDatasetsDialog>>();
 const { pageComponent, pageRange, setPageData } = usePage({ page: { size: 20 } });
 
@@ -237,21 +231,13 @@ const rows: TableRow[] = [
 function getDocumentActions(document: DocumentInfo): ActionButtonItem[] {
   return [
     {
-      key: 'preview',
-      label: '预览',
-      icon: LucideEye,
-      disabled: document.activeVersion?.previewStatus !== 'ready',
-      handler: () =>
-        previewRef.value?.open(
-          document.documentId,
-          document.activeVersion?.documentVersionId,
-        ),
-    },
-    {
       key: 'detail',
-      label: '详情/版本',
-      icon: LucideHistory,
-      handler: () => detailRef.value?.open(document.documentId),
+      label: '查看详情',
+      icon: LucideFileText,
+      handler: () =>
+        routerGo('documents.management.detail', {
+          params: { documentId: document.documentId },
+        }),
     },
     {
       key: 'reprocess',
