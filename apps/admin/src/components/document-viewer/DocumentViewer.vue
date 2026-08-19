@@ -1,7 +1,7 @@
 <template>
   <div v-loading="loading" class="min-h-72">
     <el-result
-      v-if="preview && preview.status !== 'ready'"
+      v-if="preview && preview.status !== 'ready' && !preview.pages.length"
       :icon="preview.status === 'failed' ? 'error' : 'info'"
       :title="getPendingTitle(preview.status)"
       :sub-title="
@@ -23,9 +23,16 @@
     </el-result>
     <template v-else-if="preview">
       <div class="h-full space-y-4 overflow-auto rounded bg-gray-100 p-3">
+        <el-alert
+          v-if="preview.status === 'processing'"
+          :closable="false"
+          title="正在生成清晰预览，当前显示快速预览"
+          type="info"
+          show-icon
+        />
         <figure
           v-for="page in preview.pages"
-          :key="`${page.documentVersionId}-${page.pageNumber}`"
+          :key="`${page.documentVersionId}-${page.variant}-${page.pageNumber}`"
           class="mx-auto w-fit max-w-full overflow-hidden rounded bg-white shadow"
         >
           <el-image
@@ -65,7 +72,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue';
-import { ElButton, ElImage, ElResult } from 'element-plus';
+import { ElAlert, ElButton, ElImage, ElResult } from 'element-plus';
 
 import { api } from '@/utils';
 
@@ -85,7 +92,15 @@ const previewUrls = computed(
   () => preview.value?.pages.map((page) => page.url) ?? [],
 );
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
-let pollingAttempts = 0;
+let pollingStartedAt = 0;
+/** 尚无快速页面时的短轮询间隔。 */
+const WAITING_POLL_INTERVAL_MS = 2_000;
+/** 已显示快速页面后的低频清晰状态轮询间隔。 */
+const CLEAR_POLL_INTERVAL_MS = 10_000;
+/** 覆盖服务端最长任务窗口，同时防止异常状态永久轮询。 */
+const MAX_POLLING_DURATION_MS = 2 * 60 * 60 * 1_000;
+/** 签名地址临近失效时才刷新同层级页面，避免每次轮询重复下载图片。 */
+const PREVIEW_URL_REFRESH_MARGIN_MS = 5 * 60 * 1_000;
 
 /** 返回页面尚未就绪时的简短状态文案。 */
 function getPendingTitle(status: DocumentPreviewStatus): string {
@@ -102,12 +117,44 @@ function getPreviewIndex(pageNumber: number): number {
   return Math.max(0, index);
 }
 
-/** 按 10 页窗口加载页面；首次和轮询刷新会替换已有页面。 */
+/**
+ * 判断轮询结果是否仍可复用已经展示的同层级页面与签名地址。
+ *
+ * @param currentPages 当前已经加载且可能包含后续窗口的页面。
+ * @param nextPages 本次状态轮询返回的第一页窗口。
+ * @returns 层级未变化且所有现有地址仍有充足有效期时返回 true。
+ */
+function canReuseLoadedPages(
+  currentPages: DocumentPreviewWindow['pages'],
+  nextPages: DocumentPreviewWindow['pages'],
+): boolean {
+  const currentFirstPage = currentPages[0];
+  const nextFirstPage = nextPages[0];
+  if (!currentFirstPage || !nextFirstPage) return false;
+  if (currentFirstPage.documentVersionId !== nextFirstPage.documentVersionId) {
+    return false;
+  }
+  if (currentFirstPage.variant !== nextFirstPage.variant) return false;
+  const minimumExpiresAt = Date.now() + PREVIEW_URL_REFRESH_MARGIN_MS;
+  return currentPages.every(
+    (page) => Date.parse(String(page.expiresAt)) > minimumExpiresAt,
+  );
+}
+
+/**
+ * 按 10 页窗口加载页面；首次和轮询刷新会替换已有页面。
+ *
+ * @param reset 是否从第一页重新获取当前层级。
+ * @returns 页面状态写入本地并安排下一次轮询后结束。
+ */
 async function load(reset: boolean) {
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = undefined;
-  if (reset) loading.value = true;
-  else loadingMore.value = true;
+  if (reset) {
+    if (!preview.value) loading.value = true;
+  } else {
+    loadingMore.value = true;
+  }
   try {
     const currentPages = reset ? [] : (preview.value?.pages ?? []);
     const result = await api('/documents/document-preview-pages', {
@@ -116,16 +163,19 @@ async function load(reset: boolean) {
       startPage: currentPages.length + 1,
       pageSize: 10,
     });
-    preview.value = {
-      ...result,
-      pages: reset ? result.pages : [...currentPages, ...result.pages],
-    };
+    let nextPages = result.pages;
+    if (reset && canReuseLoadedPages(currentPages, result.pages)) {
+      nextPages = currentPages;
+    }
+    if (!reset) nextPages = [...currentPages, ...result.pages];
+    preview.value = { ...result, pages: nextPages };
     if (
       ['pending', 'processing'].includes(result.status) &&
-      pollingAttempts < 30
+      Date.now() - pollingStartedAt < MAX_POLLING_DURATION_MS
     ) {
-      pollingAttempts++;
-      pollTimer = setTimeout(() => void load(true), 2000);
+      let interval = WAITING_POLL_INTERVAL_MS;
+      if (result.pages.length) interval = CLEAR_POLL_INTERVAL_MS;
+      pollTimer = setTimeout(() => void load(true), interval);
     }
   } finally {
     loading.value = false;
@@ -139,14 +189,14 @@ async function retry(): Promise<void> {
     documentId: props.documentId,
     documentVersionId: props.documentVersionId,
   });
-  pollingAttempts = 0;
+  pollingStartedAt = Date.now();
   await load(true);
 }
 
 watch(
   () => [props.documentId, props.documentVersionId],
   () => {
-    pollingAttempts = 0;
+    pollingStartedAt = Date.now();
     preview.value = undefined;
     void load(true);
   },

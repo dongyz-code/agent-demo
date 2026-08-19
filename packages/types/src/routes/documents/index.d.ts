@@ -69,6 +69,7 @@ export type DocumentsAction = ApiMultAction<{
 export type {
   DocumentStatus,
   DocumentPreviewStatus,
+  DocumentPreviewPageVariant,
   DocumentBlockType,
   DocumentVersionInfo,
   DocumentPreviewPageInfo,

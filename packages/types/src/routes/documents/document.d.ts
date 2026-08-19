@@ -14,6 +14,9 @@ export type DocumentPreviewStatus =
   | 'ready'
   | 'failed';
 
+/** 页面图片层级；快速层用于占位，清晰层用于常规阅读。 */
+export type DocumentPreviewPageVariant = 'quick' | 'clear';
+
 /** 解析器统一输出块类型。 */
 export type DocumentBlockType =
   | 'heading'
@@ -38,7 +41,7 @@ export interface DocumentVersionInfo {
   size: number;
   /** 页面预览处理状态。 */
   previewStatus: DocumentPreviewStatus;
-  /** ready 页面集合的总页数。 */
+  /** 当前已完整发布层级的总页数；尚无可用页面时为 0。 */
   previewPageCount: number;
   /** 最近一次预览失败的安全错误摘要。 */
   previewError: string | null;
@@ -54,6 +57,8 @@ export interface DocumentPreviewPageInfo {
   documentVersionId: string;
   /** 从 1 开始的页码。 */
   pageNumber: number;
+  /** 当前地址对应的快速或清晰页面层级。 */
+  variant: DocumentPreviewPageVariant;
   /** 页面图片像素宽度。 */
   width: number;
   /** 页面图片像素高度。 */
@@ -104,7 +109,7 @@ export interface DocumentPreviewWindow {
   documentVersionId: string;
   /** 当前版本的预览状态。 */
   status: DocumentPreviewStatus;
-  /** ready 页面集合的总页数。 */
+  /** 当前响应页面层级的总页数；尚无可用页面时为 0。 */
   pageCount: number;
   /** 当前窗口的页面列表。 */
   pages: DocumentPreviewPageInfo[];

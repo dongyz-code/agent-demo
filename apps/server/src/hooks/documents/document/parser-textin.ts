@@ -114,6 +114,7 @@ export const textInParser: DocumentParser = {
               {
                 headers: form.getHeaders(),
                 maxBodyLength: Infinity,
+                timeout: config.textInSubmitTimeoutMs,
               },
             );
           } catch (error) {

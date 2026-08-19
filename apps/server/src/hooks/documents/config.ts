@@ -33,8 +33,10 @@ export const documentsConfig = {
     textInBaseUrl: ROOT.AI?.textIn?.baseUrl
       ? normalizeEndpoint(ROOT.AI.textIn.baseUrl)
       : undefined,
-    /** TextIn 提交、查询或结果下载单次 HTTP 请求超时。 */
+    /** TextIn 查询或结果下载单次 HTTP 请求超时。 */
     textInRequestTimeoutMs: 60 * 1000,
+    /** TextIn 提交上传的单次 HTTP 请求超时，大文件需要更长，覆盖通用超时。 */
+    textInSubmitTimeoutMs: 10 * 60 * 1000,
     /** TextIn 瞬时网络故障的单次调用最大尝试次数。 */
     textInRequestMaxAttempts: 3,
     /** TextIn 瞬时网络故障首次重试前的等待时间。 */

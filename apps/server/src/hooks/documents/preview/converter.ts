@@ -11,6 +11,7 @@ import { documentsConfig } from '../config.js';
 import { documentFile } from '../file/index.js';
 
 import type { Readable } from 'node:stream';
+import type { DocumentPreviewPageVariant } from '@repo/types';
 
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 
@@ -22,12 +23,15 @@ const OFFICE_TYPES: ReadonlySet<string> = new Set(
   collectMimes('word', 'ppt', 'excel'),
 );
 const TEXT_TYPES: ReadonlySet<string> = new Set(collectMimes('text'));
-const PREVIEW_PAGE_CONTENT_TYPE = contentTypesByExtension.webp.mime[0];
+const WEBP_CONTENT_TYPE = contentTypesByExtension.webp.mime[0];
+const JPEG_CONTENT_TYPE = contentTypesByExtension.jpeg.mime[0];
 const MAX_SOURCE_BYTES = documentsConfig.upload.maxFileSizeBytes;
 const MAX_PAGE_COUNT = 1_000;
 const MAX_PAGE_PIXELS = 24_000_000;
-const PDF_RENDER_SCALE = 2.5;
-const PREVIEW_WEBP_QUALITY = 92;
+/** WebP 单维像素硬上限，超过则降级为 JPEG 编码。 */
+const WEBP_MAX_EDGE = 16383;
+/** 图片长短边比值超过该阈值时按超长图处理，保证短边清晰。 */
+const SUPER_LONG_IMAGE_ASPECT = 3;
 const TEXT_PAGE_WIDTH = 1_191;
 const TEXT_PAGE_HEIGHT = 1_684;
 const TEXT_MARGIN = 72;
@@ -35,9 +39,58 @@ const TEXT_FONT_SIZE = 28;
 const TEXT_LINE_HEIGHT = 42;
 const TEXT_LINE_LENGTH = 74;
 
+/** 两个页面层级及其固定生成顺序。 */
+const PREVIEW_PAGE_VARIANTS: readonly DocumentPreviewPageVariant[] = [
+  'quick',
+  'clear',
+];
+
+/** 单个页面层级使用的受控渲染与编码参数。 */
+interface PreviewVariantConfig {
+  /** PDF 基础渲染倍率。 */
+  pdfRenderScale: number;
+  /** PDF 页面可选最大宽度；清晰层不额外限制宽度。 */
+  pdfMaxWidth: number | null;
+  /** 图片最长边像素上限。 */
+  imageMaxEdge: number;
+  /** 超长图短边目标像素，不超过原图短边以避免放大插值。 */
+  imageTargetShortEdge: number;
+  /** 超长图总像素上限，防止文件与内存失控。 */
+  imageMaxPixels: number;
+  /** 文本页面相对现有逻辑纸张的像素倍率。 */
+  textRenderScale: number;
+  /** WebP 有损编码质量。 */
+  webpQuality: number;
+}
+
+/** 各预览层级的固定质量参数，禁止由不可信请求覆盖。 */
+const PREVIEW_VARIANT_CONFIGS: Record<
+  DocumentPreviewPageVariant,
+  PreviewVariantConfig
+> = {
+  quick: {
+    pdfRenderScale: 1.35,
+    pdfMaxWidth: 800,
+    imageMaxEdge: 800,
+    imageTargetShortEdge: 800,
+    imageMaxPixels: 10_000_000,
+    textRenderScale: 2 / 3,
+    webpQuality: 78,
+  },
+  clear: {
+    pdfRenderScale: 4,
+    pdfMaxWidth: null,
+    imageMaxEdge: 3_200,
+    imageTargetShortEdge: 2_000,
+    imageMaxPixels: 60_000_000,
+    textRenderScale: 2,
+    webpQuality: 96,
+  },
+};
+
 /** 当前页面转换器组合版本，规则或底层渲染器变化时必须递增。 */
 export const DOCUMENT_PREVIEW_CONVERTER_VERSION = [
-  'document-pages-v2',
+  'document-pages-v3-progressive',
   `pdfjs-${pdfjs.version}`,
   `sharp-${sharp.versions.sharp}`,
   'office-pdf-v1',
@@ -63,12 +116,14 @@ export interface DocumentPageSource {
 export interface ConvertedDocumentPage {
   /** 从 1 开始且连续的页码。 */
   pageNumber: number;
+  /** 当前页面属于快速或清晰层级。 */
+  variant: DocumentPreviewPageVariant;
   /** 页面图片像素宽度。 */
   width: number;
   /** 页面图片像素高度。 */
   height: number;
-  /** 固定为 WebP 的可信 MIME。 */
-  contentType: typeof PREVIEW_PAGE_CONTENT_TYPE;
+  /** 页面图片可信 MIME，常规为 WebP，单维超限时降级为 JPEG。 */
+  contentType: string;
   /** 待上传的完整页面内容。 */
   content: Buffer;
 }
@@ -104,7 +159,10 @@ export const documentPageConverter: DocumentPageConverter = {
       throw new ROOT_ERROR('当前文件类型不支持页面预览');
     }
     if (IMAGE_TYPES.has(source.contentType)) {
-      yield await convertImage(source);
+      const input = await readSourceBuffer(source, MAX_SOURCE_BYTES);
+      for (const variant of PREVIEW_PAGE_VARIANTS) {
+        yield await convertImage(input, variant);
+      }
       return;
     }
     if (TEXT_TYPES.has(source.contentType)) {
@@ -119,35 +177,138 @@ export const documentPageConverter: DocumentPageConverter = {
   },
 };
 
-/** 将图片校正方向并规范化为单页 WebP。 */
+/**
+ * 将图片校正方向并生成指定层级的单页 WebP。
+ *
+ * @param input 已受文件大小上限约束的可信源图片字节。
+ * @param variant 本次生成的快速或清晰层级。
+ * @returns 包含层级、尺寸和内容的单页图片。
+ */
 async function convertImage(
-  source: DocumentPageSource,
+  input: Buffer,
+  variant: DocumentPreviewPageVariant,
 ): Promise<ConvertedDocumentPage> {
-  const input = await readSourceBuffer(source, MAX_SOURCE_BYTES);
-  const content = await sharp(input)
-    .rotate()
-    .resize({
-      width: 2_400,
-      height: 2_400,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-    .webp({ quality: PREVIEW_WEBP_QUALITY })
-    .toBuffer();
+  const config = PREVIEW_VARIANT_CONFIGS[variant];
+  const sourceMeta = await sharp(input).metadata();
+  // EXIF orientation 5-8 表示 90/270 度旋转，rotate 后宽高互换。
+  const swaps = (sourceMeta.orientation ?? 0) >= 5;
+  const width0 = swaps ? sourceMeta.height : sourceMeta.width;
+  const height0 = swaps ? sourceMeta.width : sourceMeta.height;
+  if (!width0 || !height0) {
+    throw new Error('无法读取图片尺寸');
+  }
+  const { opts, targetWidth, targetHeight } = resolveImageResize(
+    width0,
+    height0,
+    config,
+  );
+  const { content, contentType } = await encodePreviewPage(
+    sharp(input).rotate().resize(opts),
+    targetWidth,
+    targetHeight,
+    config.webpQuality,
+  );
   const metadata = await sharp(content).metadata();
   if (!metadata.width || !metadata.height) {
     throw new ROOT_ERROR('无法读取转换后页面尺寸');
   }
   return {
     pageNumber: 1,
+    variant,
     width: metadata.width,
     height: metadata.height,
-    contentType: PREVIEW_PAGE_CONTENT_TYPE,
+    contentType,
     content,
   };
 }
 
-/** 将 PDF 逐页渲染并规范化为 WebP。 */
+/**
+ * 按目标尺寸选择 WebP 或 JPEG 编码，单维超过 WebP 上限时降级为 JPEG。
+ *
+ * @param pipeline 已完成 resize 的 Sharp pipeline。
+ * @param width 目标像素宽度。
+ * @param height 目标像素高度。
+ * @param quality 编码质量。
+ * @returns 编码后的 buffer 与可信 MIME。
+ */
+async function encodePreviewPage(
+  pipeline: ReturnType<typeof sharp>,
+  width: number,
+  height: number,
+  quality: number,
+): Promise<{ content: Buffer; contentType: string }> {
+  if (width > WEBP_MAX_EDGE || height > WEBP_MAX_EDGE) {
+    const content = await pipeline.jpeg({ quality }).toBuffer();
+    return { content, contentType: JPEG_CONTENT_TYPE };
+  }
+  const content = await pipeline.webp({ quality }).toBuffer();
+  return { content, contentType: WEBP_CONTENT_TYPE };
+}
+
+/**
+ * 按原图长宽比选择图片 resize 策略与目标尺寸。
+ *
+ * 正常图限制最长边；超长图改为短边优先，保证横向清晰，长边按总像素上限等比收敛。
+ *
+ * @param width 原图经方向校正后的像素宽度。
+ * @param height 原图经方向校正后的像素高度。
+ * @param config 当前层级的固定质量参数。
+ * @returns 交给 Sharp 的 resize 选项及用于选择编码格式的目标尺寸。
+ */
+function resolveImageResize(
+  width: number,
+  height: number,
+  config: PreviewVariantConfig,
+) {
+  const longEdge = Math.max(width, height);
+  const shortEdge = Math.min(width, height);
+  if (longEdge / shortEdge <= SUPER_LONG_IMAGE_ASPECT) {
+    return {
+      opts: {
+        width: config.imageMaxEdge,
+        height: config.imageMaxEdge,
+        fit: 'inside' as const,
+        withoutEnlargement: true,
+      },
+      targetWidth: config.imageMaxEdge,
+      targetHeight: config.imageMaxEdge,
+    };
+  }
+  // 超长图：短边优先保证横向清晰，长边按总像素上限等比收敛，且不放大原图短边。
+  const targetShort = Math.min(shortEdge, config.imageTargetShortEdge);
+  const scaledLong = longEdge * (targetShort / shortEdge);
+  const pixelScale = Math.min(
+    1,
+    Math.sqrt(config.imageMaxPixels / (targetShort * scaledLong)),
+  );
+  const finalShort = Math.max(1, Math.round(targetShort * pixelScale));
+  const finalLong = Math.max(1, Math.round(scaledLong * pixelScale));
+  const isPortrait = height >= width;
+  return {
+    opts: isPortrait
+      ? {
+          width: finalShort,
+          height: finalLong,
+          fit: 'inside' as const,
+          withoutEnlargement: true,
+        }
+      : {
+          width: finalLong,
+          height: finalShort,
+          fit: 'inside' as const,
+          withoutEnlargement: true,
+        },
+    targetWidth: isPortrait ? finalShort : finalLong,
+    targetHeight: isPortrait ? finalLong : finalShort,
+  };
+}
+
+/**
+ * 将 PDF 按 quick、clear 顺序逐页渲染并规范化为 WebP。
+ *
+ * @param content 已受文件大小上限约束的可信 PDF 字节。
+ * @returns 先输出完整快速集合、再输出完整清晰集合的异步序列。
+ */
 async function* convertPdf(
   content: Buffer,
 ): AsyncGenerator<ConvertedDocumentPage> {
@@ -160,42 +321,57 @@ async function* convertPdf(
     if (document.numPages < 1 || document.numPages > MAX_PAGE_COUNT) {
       throw new ROOT_ERROR('PDF 页数超过上限', { limit: MAX_PAGE_COUNT });
     }
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
-      const page = await document.getPage(pageNumber);
-      try {
-        const baseViewport = page.getViewport({ scale: PDF_RENDER_SCALE });
-        const pixelScale = Math.min(
-          1,
-          Math.sqrt(
-            MAX_PAGE_PIXELS / (baseViewport.width * baseViewport.height),
-          ),
-        );
-        const viewport = page.getViewport({
-          scale: PDF_RENDER_SCALE * pixelScale,
-        });
-        const width = Math.max(1, Math.ceil(viewport.width));
-        const height = Math.max(1, Math.ceil(viewport.height));
-        const canvas = createCanvas(width, height);
-        const context = canvas.getContext('2d');
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, width, height);
-        await page.render({
-          canvas: canvas as never,
-          canvasContext: context as never,
-          viewport,
-        }).promise;
-        const pageContent = await sharp(await canvas.encode('png'))
-          .webp({ quality: PREVIEW_WEBP_QUALITY })
-          .toBuffer();
-        yield {
-          pageNumber,
-          width,
-          height,
-          contentType: PREVIEW_PAGE_CONTENT_TYPE,
-          content: pageContent,
-        };
-      } finally {
-        page.cleanup();
+    for (const variant of PREVIEW_PAGE_VARIANTS) {
+      const config = PREVIEW_VARIANT_CONFIGS[variant];
+      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+        const page = await document.getPage(pageNumber);
+        try {
+          const defaultViewport = page.getViewport({ scale: 1 });
+          let renderScale = config.pdfRenderScale;
+          if (config.pdfMaxWidth) {
+            renderScale = Math.min(
+              renderScale,
+              config.pdfMaxWidth / defaultViewport.width,
+            );
+          }
+          const baseViewport = page.getViewport({ scale: renderScale });
+          const pixelScale = Math.min(
+            1,
+            Math.sqrt(
+              MAX_PAGE_PIXELS / (baseViewport.width * baseViewport.height),
+            ),
+          );
+          const viewport = page.getViewport({
+            scale: renderScale * pixelScale,
+          });
+          const width = Math.max(1, Math.ceil(viewport.width));
+          const height = Math.max(1, Math.ceil(viewport.height));
+          const canvas = createCanvas(width, height);
+          const context = canvas.getContext('2d');
+          context.fillStyle = '#ffffff';
+          context.fillRect(0, 0, width, height);
+          await page.render({
+            canvas: canvas as never,
+            canvasContext: context as never,
+            viewport,
+          }).promise;
+          const { content: pageContent, contentType } = await encodePreviewPage(
+            sharp(await canvas.encode('png')),
+            width,
+            height,
+            config.webpQuality,
+          );
+          yield {
+            pageNumber,
+            variant,
+            width,
+            height,
+            contentType,
+            content: pageContent,
+          };
+        } finally {
+          page.cleanup();
+        }
       }
     }
   } finally {
@@ -237,7 +413,12 @@ async function convertOfficeToPdf(source: DocumentPageSource): Promise<Buffer> {
   return content;
 }
 
-/** 使用固定纸张、字号和行距把安全文本切分为 WebP 页面。 */
+/**
+ * 使用固定逻辑纸张把安全文本切分，并依次输出两个页面层级。
+ *
+ * @param source 已验证文本源文件及其受控读取函数。
+ * @returns 页码一致且 quick 在 clear 之前的页面异步序列。
+ */
 async function* convertText(
   source: DocumentPageSource,
 ): AsyncGenerator<ConvertedDocumentPage> {
@@ -258,22 +439,37 @@ async function* convertText(
   if (pageCount > MAX_PAGE_COUNT) {
     throw new ROOT_ERROR('文本预览页数超过上限', { limit: MAX_PAGE_COUNT });
   }
-  for (let index = 0; index < pageCount; index++) {
-    const pageLines = lines.slice(
-      index * linesPerPage,
-      (index + 1) * linesPerPage,
-    );
-    const svg = renderTextPageSvg(pageLines);
-    const pageContent = await sharp(Buffer.from(svg))
-      .webp({ quality: PREVIEW_WEBP_QUALITY })
-      .toBuffer();
-    yield {
-      pageNumber: index + 1,
-      width: TEXT_PAGE_WIDTH,
-      height: TEXT_PAGE_HEIGHT,
-      contentType: PREVIEW_PAGE_CONTENT_TYPE,
-      content: pageContent,
-    };
+  for (const variant of PREVIEW_PAGE_VARIANTS) {
+    for (let index = 0; index < pageCount; index++) {
+      const pageLines = lines.slice(
+        index * linesPerPage,
+        (index + 1) * linesPerPage,
+      );
+      const config = PREVIEW_VARIANT_CONFIGS[variant];
+      const width = Math.max(
+        1,
+        Math.round(TEXT_PAGE_WIDTH * config.textRenderScale),
+      );
+      const height = Math.max(
+        1,
+        Math.round(TEXT_PAGE_HEIGHT * config.textRenderScale),
+      );
+      const svg = renderTextPageSvg(pageLines, variant);
+      const { content: pageContent, contentType } = await encodePreviewPage(
+        sharp(Buffer.from(svg)),
+        width,
+        height,
+        config.webpQuality,
+      );
+      yield {
+        pageNumber: index + 1,
+        variant,
+        width,
+        height,
+        contentType,
+        content: pageContent,
+      };
+    }
   }
 }
 
@@ -312,15 +508,30 @@ function wrapTextLines(source: string): string[] {
   return lines.length ? lines : [''];
 }
 
-/** 生成不包含外链、脚本或本地文件引用的纯 SVG 文本页。 */
-function renderTextPageSvg(lines: string[]): string {
+/**
+ * 生成不包含外链、脚本或本地文件引用的指定层级纯 SVG 文本页。
+ *
+ * @param lines 当前逻辑纸张包含的安全文本行。
+ * @param variant 控制 SVG 像素尺寸的页面层级。
+ * @returns 可交给 Sharp 编码的自包含 SVG 字符串。
+ */
+function renderTextPageSvg(
+  lines: string[],
+  variant: DocumentPreviewPageVariant,
+): string {
+  const scale = PREVIEW_VARIANT_CONFIGS[variant].textRenderScale;
+  const width = Math.max(1, Math.round(TEXT_PAGE_WIDTH * scale));
+  const height = Math.max(1, Math.round(TEXT_PAGE_HEIGHT * scale));
+  const margin = TEXT_MARGIN * scale;
+  const fontSize = TEXT_FONT_SIZE * scale;
+  const lineHeight = TEXT_LINE_HEIGHT * scale;
   const text = lines
     .map(
       (line, index) =>
-        `<tspan x="${TEXT_MARGIN}" y="${TEXT_MARGIN + TEXT_FONT_SIZE + index * TEXT_LINE_HEIGHT}">${escapeXml(line || ' ')}</tspan>`,
+        `<tspan x="${margin}" y="${margin + fontSize + index * lineHeight}">${escapeXml(line || ' ')}</tspan>`,
     )
     .join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${TEXT_PAGE_WIDTH}" height="${TEXT_PAGE_HEIGHT}" viewBox="0 0 ${TEXT_PAGE_WIDTH} ${TEXT_PAGE_HEIGHT}"><rect width="100%" height="100%" fill="#fff"/><text font-family="monospace" font-size="${TEXT_FONT_SIZE}" fill="#111">${text}</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#fff"/><text font-family="monospace" font-size="${fontSize}" fill="#111">${text}</text></svg>`;
 }
 
 /** 转义 SVG 文本节点，禁止输入形成标签或实体。 */

@@ -222,7 +222,7 @@ async function loadDocumentCleanupObjects(
   if (!versions.length) return [];
   const versionIds = versions.map((version) => version.id);
   const fileIds = versions.map((version) => version.fileId);
-  const [pages, files] = await Promise.all([
+  const [pages, quickPages, files] = await Promise.all([
     db
       .select({
         bucket: schemas.document_preview_pages.bucket,
@@ -234,13 +234,25 @@ async function loadDocumentCleanupObjects(
       ),
     db
       .select({
+        bucket: schemas.document_preview_quick_pages.bucket,
+        objectKey: schemas.document_preview_quick_pages.object_key,
+      })
+      .from(schemas.document_preview_quick_pages)
+      .where(
+        inArray(
+          schemas.document_preview_quick_pages.document_version_id,
+          versionIds,
+        ),
+      ),
+    db
+      .select({
         bucket: schemas.files.bucket,
         objectKey: schemas.files.object_key,
       })
       .from(schemas.files)
       .where(inArray(schemas.files.file_id, fileIds)),
   ]);
-  return [...pages, ...files];
+  return [...pages, ...quickPages, ...files];
 }
 
 /**
@@ -280,6 +292,14 @@ async function deleteDocumentDatabaseRows(
           .delete(schemas.document_segments)
           .where(
             inArray(schemas.document_segments.document_version_id, versionIds),
+          );
+        await tx
+          .delete(schemas.document_preview_quick_pages)
+          .where(
+            inArray(
+              schemas.document_preview_quick_pages.document_version_id,
+              versionIds,
+            ),
           );
         await tx
           .delete(schemas.document_preview_pages)

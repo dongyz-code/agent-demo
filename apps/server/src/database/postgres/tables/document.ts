@@ -61,7 +61,7 @@ export const document_versions = pgTable(
       .$type<DocumentPreviewStatus>()
       .notNull()
       .default('pending'),
-    /** 当前完整预览页面数量。 */
+    /** 当前已完整发布层级的预览页面数量。 */
     preview_page_count: integer('preview_page_count').notNull().default(0),
     /** 最近一次预览失败的安全错误摘要。 */
     preview_error: text('preview_error'),
@@ -108,6 +108,36 @@ export const document_preview_pages = pgTable(
   (table) => [
     primaryKey({ columns: [table.document_version_id, table.page_number] }),
     uniqueIndex('document_preview_pages_object_unique').on(
+      table.bucket,
+      table.object_key,
+    ),
+  ],
+);
+
+/** 清晰页面生成期间可读取的完整快速预览页面集合。 */
+export const document_preview_quick_pages = pgTable(
+  'document_preview_quick_pages',
+  {
+    /** 页面所属的不可变文档版本。 */
+    document_version_id: uuid('document_version_id').notNull(),
+    /** 从 1 开始且在版本内连续的页码。 */
+    page_number: integer('page_number').notNull(),
+    /** 快速页面图片像素宽度。 */
+    width: integer('width').notNull(),
+    /** 快速页面图片像素高度。 */
+    height: integer('height').notNull(),
+    /** 服务端确认的页面图片 MIME。 */
+    content_type: varchar255('content_type').notNull(),
+    /** 页面图片字节数。 */
+    size: bigint('size', { mode: 'number' }).notNull(),
+    /** 私有页面对象所在 Bucket，仅供服务端使用。 */
+    bucket: varchar255('bucket').notNull(),
+    /** 私有页面对象路径，不得返回普通客户端。 */
+    object_key: text('object_key').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.document_version_id, table.page_number] }),
+    uniqueIndex('document_preview_quick_pages_object_unique').on(
       table.bucket,
       table.object_key,
     ),

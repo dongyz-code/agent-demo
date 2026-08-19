@@ -34,6 +34,7 @@ import type {
   DocumentDetail,
   DocumentInfo,
   DocumentPreviewPageInfo,
+  DocumentPreviewPageVariant,
   DocumentPreviewWindow,
   DocumentTaskOperation,
   DocumentVersionInfo,
@@ -75,6 +76,9 @@ type CurrentDocumentRow = {
   file: typeof schemas.files.$inferSelect;
 };
 
+/** 两个预览层级共用的页面数据库行结构。 */
+type StoredPreviewPage = typeof schemas.document_preview_pages.$inferSelect;
+
 /** 当前页文档使用的固定批量聚合结果。 */
 interface DocumentAggregates {
   /** 每个文档的版本数量。 */
@@ -86,6 +90,8 @@ interface DocumentAggregates {
     string,
     typeof schemas.document_preview_pages.$inferSelect
   >;
+  /** 每个当前版本封面实际使用的页面层级。 */
+  coverVariantByVersion: Map<string, DocumentPreviewPageVariant>;
 }
 
 /** 将已验证源文件绑定为文档版本时需要的输入。 */
@@ -156,6 +162,61 @@ interface ApplyDocumentDatasetAssignmentInput {
 const DOCUMENT_TASK_NAME = 'document.process';
 /** documents 整体任务的子进程脚本模块。 */
 const DOCUMENT_TASK_SCRIPT = new URL('./tasks/index.js', import.meta.url).href;
+
+/** 预览页签名下载文件名扩展名，按页面 MIME 选择。 */
+function previewPageExtension(contentType: string): string {
+  return contentType === 'image/jpeg' ? 'jpg' : 'webp';
+}
+
+/**
+ * 按页面层级读取一个连续窗口，避免公共接口感知内部双表结构。
+ *
+ * @param documentVersionId 不可变文档版本标识。
+ * @param startPage 从 1 开始的窗口起始页。
+ * @param pageSize 受服务端上限约束的窗口大小。
+ * @param variant 本次需要读取的快速或清晰层级。
+ * @returns 按页码升序排列的内部页面行。
+ */
+async function loadPreviewPageRows(
+  documentVersionId: string,
+  startPage: number,
+  pageSize: number,
+  variant: DocumentPreviewPageVariant,
+): Promise<StoredPreviewPage[]> {
+  if (variant === 'quick') {
+    return await db
+      .select()
+      .from(schemas.document_preview_quick_pages)
+      .where(
+        and(
+          eq(
+            schemas.document_preview_quick_pages.document_version_id,
+            documentVersionId,
+          ),
+          gte(schemas.document_preview_quick_pages.page_number, startPage),
+          lt(
+            schemas.document_preview_quick_pages.page_number,
+            startPage + pageSize,
+          ),
+        ),
+      )
+      .orderBy(asc(schemas.document_preview_quick_pages.page_number));
+  }
+  return await db
+    .select()
+    .from(schemas.document_preview_pages)
+    .where(
+      and(
+        eq(
+          schemas.document_preview_pages.document_version_id,
+          documentVersionId,
+        ),
+        gte(schemas.document_preview_pages.page_number, startPage),
+        lt(schemas.document_preview_pages.page_number, startPage + pageSize),
+      ),
+    )
+    .orderBy(asc(schemas.document_preview_pages.page_number));
+}
 
 /**
  * 根据文档处理操作生成任务中心展示名称。
@@ -438,7 +499,12 @@ class DocumentAction {
       .where(where);
   }
 
-  /** 批量读取版本数、知识库关系和当前版本封面。 */
+  /**
+   * 批量读取版本数、知识库关系和与处理状态匹配的当前版本封面。
+   *
+   * @param rows 当前分页已经过数据权限过滤的文档联合行。
+   * @returns 文档列表渲染需要的聚合映射。
+   */
   private async loadDocumentAggregates(
     rows: CurrentDocumentRow[],
   ): Promise<DocumentAggregates> {
@@ -450,32 +516,47 @@ class DocumentAction {
         eq(schemas.document_preview_pages.page_number, 1),
       );
     });
-    const [versionCounts, datasetRows, coverRows] = await Promise.all([
-      db
-        .select({
-          documentId: schemas.document_versions.document_id,
-          value: count(),
-        })
-        .from(schemas.document_versions)
-        .where(inArray(schemas.document_versions.document_id, documentIds))
-        .groupBy(schemas.document_versions.document_id),
-      db
-        .select({
-          documentId: schemas.rag_dataset_documents.document_id,
-          relation: schemas.rag_dataset_documents,
-          dataset: schemas.rag_datasets,
-        })
-        .from(schemas.rag_dataset_documents)
-        .innerJoin(
-          schemas.rag_datasets,
-          eq(
-            schemas.rag_datasets.dataset_id,
-            schemas.rag_dataset_documents.dataset_id,
+    const [versionCounts, datasetRows, coverRows, quickCoverRows] =
+      await Promise.all([
+        db
+          .select({
+            documentId: schemas.document_versions.document_id,
+            value: count(),
+          })
+          .from(schemas.document_versions)
+          .where(inArray(schemas.document_versions.document_id, documentIds))
+          .groupBy(schemas.document_versions.document_id),
+        db
+          .select({
+            documentId: schemas.rag_dataset_documents.document_id,
+            relation: schemas.rag_dataset_documents,
+            dataset: schemas.rag_datasets,
+          })
+          .from(schemas.rag_dataset_documents)
+          .innerJoin(
+            schemas.rag_datasets,
+            eq(
+              schemas.rag_datasets.dataset_id,
+              schemas.rag_dataset_documents.dataset_id,
+            ),
+          )
+          .where(
+            inArray(schemas.rag_dataset_documents.document_id, documentIds),
           ),
-        )
-        .where(inArray(schemas.rag_dataset_documents.document_id, documentIds)),
-      db.select().from(schemas.document_preview_pages).where(coverWhere),
-    ]);
+        db.select().from(schemas.document_preview_pages).where(coverWhere),
+        db
+          .select()
+          .from(schemas.document_preview_quick_pages)
+          .where(
+            and(
+              inArray(
+                schemas.document_preview_quick_pages.document_version_id,
+                versionIds,
+              ),
+              eq(schemas.document_preview_quick_pages.page_number, 1),
+            ),
+          ),
+      ]);
     const datasetsByDocument = new Map<string, RagDatasetDocumentSummary[]>();
     for (const row of datasetRows) {
       const list = datasetsByDocument.get(row.documentId) ?? [];
@@ -489,14 +570,41 @@ class DocumentAction {
       });
       datasetsByDocument.set(row.documentId, list);
     }
+    const clearCoverByVersion = new Map(
+      coverRows.map((row) => [row.document_version_id, row]),
+    );
+    const quickCoverByVersion = new Map(
+      quickCoverRows.map((row) => [row.document_version_id, row]),
+    );
+    const coverByVersion = new Map<
+      string,
+      typeof schemas.document_preview_pages.$inferSelect
+    >();
+    const coverVariantByVersion = new Map<
+      string,
+      DocumentPreviewPageVariant
+    >();
+    for (const row of rows) {
+      const versionId = row.version.document_version_id;
+      const clearCover = clearCoverByVersion.get(versionId);
+      const quickCover = quickCoverByVersion.get(versionId);
+      if (row.version.preview_status === 'ready' && clearCover) {
+        coverByVersion.set(versionId, clearCover);
+        coverVariantByVersion.set(versionId, 'clear');
+        continue;
+      }
+      if (row.version.preview_status === 'processing' && quickCover) {
+        coverByVersion.set(versionId, quickCover);
+        coverVariantByVersion.set(versionId, 'quick');
+      }
+    }
     return {
       versionCountByDocument: new Map(
         versionCounts.map((row) => [row.documentId, row.value]),
       ),
       datasetsByDocument,
-      coverByVersion: new Map(
-        coverRows.map((row) => [row.document_version_id, row]),
-      ),
+      coverByVersion,
+      coverVariantByVersion,
     };
   }
 
@@ -522,7 +630,10 @@ class DocumentAction {
       cover: cover
         ? await this.toPreviewPageInfo(
             cover,
-            `${row.document.name}-page-1.webp`,
+            `${row.document.name}-page-1.${previewPageExtension(cover.content_type)}`,
+            aggregates.coverVariantByVersion.get(
+              row.version.document_version_id,
+            ) ?? 'clear',
           )
         : null,
       datasets:
@@ -551,10 +662,18 @@ class DocumentAction {
     };
   }
 
-  /** 为已通过文档权限校验的页面行签发短期访问地址。 */
+  /**
+   * 为已通过文档权限校验的封面页面签发短期访问地址。
+   *
+   * @param page 快速表或清晰表中的第一页内部行。
+   * @param filename 响应使用的安全下载文件名。
+   * @param variant 当前页面实际所属层级。
+   * @returns 不包含对象存储位置的公共页面描述。
+   */
   private async toPreviewPageInfo(
     page: typeof schemas.document_preview_pages.$inferSelect,
     filename: string,
+    variant: DocumentPreviewPageVariant,
   ): Promise<DocumentPreviewPageInfo> {
     const signed = await documentFile.presignGet({
       bucket: page.bucket,
@@ -566,6 +685,7 @@ class DocumentAction {
     return {
       documentVersionId: page.document_version_id,
       pageNumber: page.page_number,
+      variant,
       width: page.width,
       height: page.height,
       contentType: page.content_type,
@@ -853,7 +973,14 @@ class DocumentAction {
       userId,
     );
     const version = resolved.version;
-    if (version.preview_status !== 'ready') {
+    let variant: DocumentPreviewPageVariant;
+    if (version.preview_status === 'ready') variant = 'clear';
+    else if (
+      version.preview_status === 'processing' &&
+      version.preview_page_count > 0
+    ) {
+      variant = 'quick';
+    } else {
       return {
         documentId: input.documentId,
         documentVersionId: version.document_version_id,
@@ -862,27 +989,19 @@ class DocumentAction {
         pages: [],
       };
     }
-    const where = buildWhere((filter) => {
-      filter.push(
-        eq(
-          schemas.document_preview_pages.document_version_id,
-          version.document_version_id,
-        ),
-        gte(schemas.document_preview_pages.page_number, startPage),
-        lt(schemas.document_preview_pages.page_number, startPage + pageSize),
-      );
-    });
-    const rows = await db
-      .select()
-      .from(schemas.document_preview_pages)
-      .where(where)
-      .orderBy(asc(schemas.document_preview_pages.page_number));
+    const rows = await loadPreviewPageRows(
+      version.document_version_id,
+      startPage,
+      pageSize,
+      variant,
+    );
     const pages = await Promise.all(
       rows.map(
         async (page) =>
           await this.signPreviewPage(
             page,
-            `${resolved.document.name}-page-${page.page_number}.webp`,
+            `${resolved.document.name}-page-${page.page_number}.${previewPageExtension(page.content_type)}`,
+            variant,
           ),
       ),
     );
@@ -928,10 +1047,18 @@ class DocumentAction {
     return await this.getPreviewPages(input, userId);
   }
 
-  /** 为已通过文档权限校验的页面行签发短期内联地址。 */
+  /**
+   * 为已通过文档权限校验的窗口页面签发短期内联地址。
+   *
+   * @param page 快速表或清晰表中的页面内部行。
+   * @param filename 响应使用的安全文件名。
+   * @param variant 当前页面实际所属层级。
+   * @returns 不包含对象存储位置的公共页面描述。
+   */
   private async signPreviewPage(
     page: typeof schemas.document_preview_pages.$inferSelect,
     filename: string,
+    variant: DocumentPreviewPageVariant,
   ): Promise<DocumentPreviewPageInfo> {
     const signed = await documentFile.presignGet({
       bucket: page.bucket,
@@ -943,6 +1070,7 @@ class DocumentAction {
     return {
       documentVersionId: page.document_version_id,
       pageNumber: page.page_number,
+      variant,
       width: page.width,
       height: page.height,
       contentType: page.content_type,
