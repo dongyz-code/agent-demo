@@ -22,6 +22,45 @@ export async function addApiLog({ user_id, ...rest }: ItemAdd) {
 const MAX_DATA_LENGTH = 1e4;
 const MAX_DATA_ERROR_MESSAGE = (length: number) =>
   `体积 ${numSplit(length)} 超过 ${numSplit(MAX_DATA_LENGTH)}，不记录`;
+/** 出站请求/响应头中需要脱敏的 key（小写比较）。 */
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'x-api-key',
+  'x-apikey',
+  'apikey',
+  'x-auth-token',
+]);
+
+/** 二进制、流或表单数据不参与 JSON 序列化，返回体积提示。 */
+function describeOpaqueData(data: unknown): string | null {
+  if (typeof data === 'string' || data == null) return null;
+  if (Buffer.isBuffer(data)) return `[Buffer ${data.length} bytes]`;
+  if (ArrayBuffer.isView(data)) {
+    const name = (data as { constructor?: { name?: string } }).constructor
+      ?.name;
+    return `[${name ?? 'TypedArray'} ${
+      (data as ArrayBufferView).byteLength
+    } bytes]`;
+  }
+  if (typeof data === 'object') {
+    const name = (data as { constructor?: { name?: string } }).constructor
+      ?.name;
+    if (
+      name === 'FormData' ||
+      name === 'ReadStream' ||
+      name === 'Readable' ||
+      name === 'Stream'
+    ) {
+      return `[${name}]`;
+    }
+    if (typeof (data as { pipe?: unknown }).pipe === 'function') {
+      return `[${name ?? 'Stream'}]`;
+    }
+  }
+  return null;
+}
 
 export function hiddenData<
   T extends {
@@ -30,16 +69,21 @@ export function hiddenData<
   },
 >(item: T) {
   if (item.data) {
-    const { headers = {} } = item;
+    const opaque = describeOpaqueData(item.data);
+    if (opaque) {
+      item.data = opaque;
+    } else {
+      const { headers = {} } = item;
 
-    const length = +(
-      headers['Content-Length'] ??
-      headers['content-length'] ??
-      0
-    );
+      const length = +(
+        headers['Content-Length'] ??
+        headers['content-length'] ??
+        0
+      );
 
-    if (!isNaN(length) && length > MAX_DATA_LENGTH) {
-      item.data = MAX_DATA_ERROR_MESSAGE(length);
+      if (!isNaN(length) && length > MAX_DATA_LENGTH) {
+        item.data = MAX_DATA_ERROR_MESSAGE(length);
+      }
     }
   }
 
@@ -63,10 +107,14 @@ async function _addApiSendLog({
     };
 
     const { headers = {}, ...rest } = config;
-    const { Authorization, authorization, ...restHeaders } = headers as Record<
-      string,
-      unknown
-    >;
+    const restHeaders: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(
+      headers as Record<string, unknown>,
+    )) {
+      if (!SENSITIVE_HEADERS.has(key.toLowerCase())) {
+        restHeaders[key] = value;
+      }
+    }
 
     detail.req = hiddenData({
       ...pickObj(rest, [
@@ -89,7 +137,12 @@ async function _addApiSendLog({
     );
   }
   if (error) {
-    detail.error = pickObj(error, ['name', 'code', 'message', 'stack']);
+    detail.error = pickObj(error as Record<string, unknown>, [
+      'name',
+      'code',
+      'message',
+      'stack',
+    ]);
   }
 
   const val: ItemAdd = {

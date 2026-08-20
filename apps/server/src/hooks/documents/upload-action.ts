@@ -32,8 +32,14 @@ interface MultipartPlan {
   partCount: number;
 }
 
-/** 文件签名检测读取的最大前缀，足以覆盖常见格式识别。 */
-const MAGIC_PREFIX_BYTES = 8192;
+/** 文件签名检测读取的最大前缀。
+ *
+ * OOXML（docx/pptx/xlsx）本质是 zip，file-type 需顺序读取 zip 内
+ * [Content_Types].xml 才能判定具体子类型。该条目体积或偏移会随生成工具
+ * 变化（如 WPS 保存的 pptx 常超出 8 KiB），前缀不足时 file-type 退化为
+ * application/zip，与声明的 OOXML MIME 不匹配导致上传被拒。放大到 1 MiB
+ * 覆盖常见 OOXML 的 [Content_Types].xml 完整读取。 */
+const MAGIC_PREFIX_BYTES = 1024 * 1024;
 
 /** 文件内容验证器输入。 */
 interface FileValidationInput {

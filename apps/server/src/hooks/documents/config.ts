@@ -11,8 +11,6 @@ function normalizeEndpoint(value: string): string {
   return value.trim().replace(/\/+$/, '');
 }
 
-/** Office 预览服务地址；留空则预览按缺失处理。 */
-const OFFICE_PREVIEW_ENDPOINT: string = '';
 /** 文件处理总开关。 */
 const FILE_PROCESSING_ENABLED = true;
 
@@ -24,9 +22,6 @@ export const documentsConfig = {
     maxFileSizeBytes: 200 * 1024 * 1024,
     sessionExpiresSeconds: 24 * 60 * 60,
     maxTextPreviewBytes: 1024 * 1024,
-    officePreviewEndpoint: OFFICE_PREVIEW_ENDPOINT
-      ? normalizeEndpoint(OFFICE_PREVIEW_ENDPOINT)
-      : undefined,
   },
   document: {
     /** TextIn xParse API 根地址，不包含具体接口路径。 */
@@ -45,7 +40,7 @@ export const documentsConfig = {
     textInPollIntervalMs: 5 * 1000,
     /** 单次后台任务等待 TextIn 完成的最长时间。 */
     textInMaxWaitMs: 60 * 60 * 1000,
-    /** Office 预览转换 Worker 的单次请求超时。 */
+    /** 本地 soffice 把 Office 文件转 PDF 的单次转换超时。 */
     officePreviewTimeoutMs: 2 * 60 * 1000,
     segmentSizeTokens: 600,
     segmentOverlapTokens: 80,

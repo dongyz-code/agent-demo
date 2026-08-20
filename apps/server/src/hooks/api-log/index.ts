@@ -22,8 +22,6 @@ function handleAxiosError(error: unknown) {
       message,
       stack,
     });
-
-    return Promise.reject(message);
   }
   return Promise.reject(error);
 }
@@ -75,8 +73,14 @@ export function createAxiosInstance<T extends Label | null>({
         return response;
       } catch (error) {
         if (error instanceof AxiosError) {
-          const { response, config } = error;
-          addApiSendLog({ config, response, error, meta });
+          addApiSendLog({
+            config: error.config,
+            response: error.response,
+            error,
+            meta,
+          });
+        } else {
+          addApiSendLog({ error, meta });
         }
         return handleAxiosError(error);
       }

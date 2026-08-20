@@ -3,6 +3,7 @@ import sanitizeHtml from 'sanitize-html';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
+import { NUL } from '@/utils/index.js';
 import { documentsConfig } from '../config.js';
 import { documentFile } from '../file/index.js';
 import { textParser } from './parser-text.js';
@@ -43,6 +44,8 @@ export interface DocumentContentProcessInput {
   fileId: string;
   /** 本次处理的不可变文档版本。 */
   documentVersionId: string;
+  /** 创建任务的审计用户。 */
+  userId: string;
   /** 上次执行保存的远程解析恢复信息。 */
   checkpoint: unknown;
   /** 保存可序列化的远程解析恢复信息。 */
@@ -86,6 +89,11 @@ class DocumentProcessor {
       checkpoint: input.checkpoint,
       saveCheckpoint: input.saveCheckpoint,
       assertActive: input.assertActive,
+      logMeta: {
+        ip: null,
+        user_id: input.userId,
+        search_key: input.documentVersionId,
+      },
     });
     const cleanedBlocks = parsed.map((block) => {
       let text = block.text;
@@ -180,7 +188,7 @@ async function deleteDocumentStoredObjects(
 ): Promise<void> {
   const uniqueObjects = new Map(
     objects.map((object) => [
-      `${object.bucket}\u0000${object.objectKey}`,
+      `${object.bucket}${NUL}${object.objectKey}`,
       object,
     ]),
   );

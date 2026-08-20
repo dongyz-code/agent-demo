@@ -61,6 +61,7 @@ async function processDocumentRag(
   const content = await documentProcessor.process({
     fileId: input.fileId,
     documentVersionId: input.documentVersionId,
+    userId: input.userId,
     checkpoint: input.checkpoint,
     saveCheckpoint: input.saveCheckpoint,
     assertActive: input.assertActive,

@@ -1,3 +1,4 @@
+import type { ApiLogCallMeta } from '@/hooks/api-log/static.js';
 import type { DocumentParsedBlock } from '@repo/types';
 import type { ReadableDocumentSource } from '../file/index.js';
 
@@ -16,6 +17,8 @@ export interface DocumentParserInput {
   saveCheckpoint: (checkpoint: unknown) => Promise<void>;
   /** 确认任务仍由当前 worker 持有，失去 lease 或取消时抛出错误。 */
   assertActive: () => Promise<void>;
+  /** 出站第三方调用日志的可查询标识，解析器按需传给 axios 工厂。 */
+  logMeta?: ApiLogCallMeta;
 }
 
 /** 通用文档解析器。 */

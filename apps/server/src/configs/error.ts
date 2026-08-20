@@ -216,14 +216,6 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       code: 'DOCUMENT_PREVIEW_PAGE_LIMIT',
     },
     {
-      key: '未配置 Office 转换 Worker',
-      code: 'DOCUMENT_PREVIEW_OFFICE_WORKER_MISSING',
-    },
-    {
-      key: 'Office Worker 未返回有效 PDF',
-      code: 'DOCUMENT_PREVIEW_OFFICE_INVALID',
-    },
-    {
       key: '文本预览页数超过上限',
       code: 'DOCUMENT_PREVIEW_PAGE_LIMIT',
     },

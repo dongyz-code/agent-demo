@@ -1,6 +1,6 @@
-import axios from 'axios';
 import FormData from 'form-data';
 
+import { createAxiosInstance } from '@/hooks/api-log/index.js';
 import { ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { collectMimes } from '@/utils/index.js';
 import { reTryFunc, sleep } from '@repo/utils-node';
@@ -70,12 +70,20 @@ export const textInParser: DocumentParser = {
       throw new ROOT_ERROR('AI.textIn.apiKey 未配置');
     }
 
-    const client = axios.create({
-      baseURL: `${baseUrl.replace(/\/+$/, '')}/`,
-      headers: { Authorization: `Bearer ${apiKey}` },
-      timeout: config.textInRequestTimeoutMs,
-      maxContentLength: Infinity,
+    const client = createAxiosInstance({
+      label: 'textin',
+      config: {
+        baseURL: `${baseUrl.replace(/\/+$/, '')}/`,
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: config.textInRequestTimeoutMs,
+        maxContentLength: Infinity,
+      },
     });
+    const meta = input.logMeta ?? {
+      ip: null,
+      user_id: null,
+      search_key: null,
+    };
     const retryOptions = {
       count: config.textInRequestMaxAttempts,
       duration: config.textInRequestRetryDelayMs,
@@ -108,14 +116,16 @@ export const textInParser: DocumentParser = {
           });
           form.append('config', JSON.stringify(TEXT_IN_PARSE_CONFIG));
           try {
-            return await client.post<TextInResponse<TextInJobData>>(
-              TEXT_IN_ASYNC_PATH,
-              form,
+            return await client<TextInResponse<TextInJobData>>(
               {
+                url: TEXT_IN_ASYNC_PATH,
+                method: 'post',
+                data: form,
                 headers: form.getHeaders(),
                 maxBodyLength: Infinity,
                 timeout: config.textInSubmitTimeoutMs,
               },
+              meta,
             );
           } catch (error) {
             source.destroy();
@@ -143,8 +153,12 @@ export const textInParser: DocumentParser = {
       await input.assertActive();
       const query = reTryFunc(
         () =>
-          client.get<TextInResponse<TextInJobData>>(
-            `${TEXT_IN_ASYNC_PATH}/${encodeURIComponent(activeJobId)}`,
+          client<TextInResponse<TextInJobData>>(
+            {
+              url: `${TEXT_IN_ASYNC_PATH}/${encodeURIComponent(activeJobId)}`,
+              method: 'get',
+            },
+            meta,
           ),
         { ...retryOptions, label: 'TextIn 查询异步解析任务' },
       );
@@ -174,7 +188,8 @@ export const textInParser: DocumentParser = {
     await input.assertActive();
     const completedResultUrl = resultUrl;
     const download = reTryFunc(
-      () => client.get<TextInResult>(completedResultUrl),
+      () =>
+        client<TextInResult>({ url: completedResultUrl, method: 'get' }, meta),
       { ...retryOptions, label: 'TextIn 下载解析结果' },
     );
     const result = (await download()).data;
