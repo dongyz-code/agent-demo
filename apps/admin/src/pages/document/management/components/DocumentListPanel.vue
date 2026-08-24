@@ -42,9 +42,13 @@
         </div>
       </template>
       <template #name="{ row }">
-        <div class="max-w-72 truncate font-medium text-gray-800">
+        <button
+          type="button"
+          class="text-primary block max-w-72 cursor-pointer truncate text-left font-medium hover:underline"
+          @click="openDocumentDetail(row.documentId)"
+        >
           {{ row.name }}
-        </div>
+        </button>
         <div
           v-if="row.activeVersion?.filename !== row.name"
           class="mt-1 max-w-72 truncate text-xs text-gray-400"
@@ -57,10 +61,14 @@
           <el-tag size="small" effect="plain">
             V{{ row.activeVersion?.version }}
           </el-tag>
-          <span class="text-xs text-gray-500">共 {{ row.versionCount }} 个版本</span>
+          <span class="text-xs text-gray-500"
+            >共 {{ row.versionCount }} 个版本</span
+          >
         </div>
       </template>
-      <template #size="{ row }">{{ formatFileSize(row.activeVersion?.size) }}</template>
+      <template #size="{ row }">{{
+        formatFileSize(row.activeVersion?.size)
+      }}</template>
       <template #preview="{ row }">
         <div class="flex items-center gap-2 whitespace-nowrap">
           <el-tag :type="getPreviewTagType(row.activeVersion?.previewStatus)">
@@ -87,12 +95,16 @@
         </div>
         <span v-else class="text-gray-400">未加入知识库</span>
       </template>
-      <template #createdAt="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+      <template #createdAt="{ row }">{{
+        formatDateTime(row.createdAt)
+      }}</template>
       <template #actions="{ row }">
-        <v-action-button-group
-          :actions="getDocumentActions(row)"
-          :max-visible="3"
-        />
+        <div class="pr-3">
+          <v-action-button-group
+            :actions="getDocumentActions(row)"
+            :max-visible="2"
+          />
+        </div>
       </template>
     </v-table>
     <div
@@ -111,18 +123,17 @@
       :max-number-of-files="1"
       @uploaded="handleUploaded"
     />
-    <document-datasets-dialog ref="datasetsRef" @changed="loadDocuments(true)" />
+    <document-datasets-dialog
+      ref="datasetsRef"
+      @changed="loadDocuments(true)"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { ElButton, ElTag } from 'element-plus';
-import {
-  VSchemaForm,
-  VTable,
-  usePage,
-} from '@repo/ui';
+import { VSchemaForm, VTable, usePage } from '@repo/ui';
 
 import UploadDialog from '@/components/upload/UploadDialog.vue';
 import VActionButtonGroup from '@/components/action-button-group/VActionButtonGroup.vue';
@@ -134,7 +145,6 @@ import { formatDateTime, formatFileSize } from '../utils';
 
 import LucideDatabase from '~icons/lucide/database';
 import LucideDownload from '~icons/lucide/download';
-import LucideFileText from '~icons/lucide/file-text';
 import LucideRefreshCw from '~icons/lucide/refresh-cw';
 import LucideTrash2 from '~icons/lucide/trash-2';
 import LucideUpload from '~icons/lucide/upload';
@@ -144,10 +154,7 @@ import type {
   DocumentPreviewStatus,
   RagDatasetDocumentStatus,
 } from '@/types';
-import type {
-  SchemaFormColumn,
-  TableRow,
-} from '@repo/ui';
+import type { SchemaFormColumn, TableRow } from '@repo/ui';
 
 /** 文档列表搜索表单。 */
 interface SearchForm extends Record<string, unknown> {
@@ -183,7 +190,9 @@ const loading = ref(false);
 const uploadRef = ref<InstanceType<typeof UploadDialog>>();
 const versionUploadRef = ref<InstanceType<typeof UploadDialog>>();
 const datasetsRef = ref<InstanceType<typeof DocumentDatasetsDialog>>();
-const { pageComponent, pageRange, setPageData } = usePage({ page: { size: 20 } });
+const { pageComponent, pageRange, setPageData } = usePage({
+  page: { size: 20 },
+});
 
 const searchColumns = computed<SchemaFormColumn<SearchForm>[]>(() => [
   {
@@ -217,37 +226,25 @@ const rows: TableRow[] = [
   { label: '版本', value: 'activeVersion', slot: 'version', width: 170 },
   { label: '大小', value: 'size', slot: 'size', width: 110 },
   { label: '预览', value: 'preview', slot: 'preview', width: 160 },
-  { label: '知识库 / RAG', value: 'datasets', slot: 'datasets', minWidth: 230 },
+  { label: '知识库', value: 'datasets', slot: 'datasets', width: 180 },
   { label: '创建时间', value: 'createdAt', slot: 'createdAt', width: 180 },
-  { label: '操作', value: 'actions', slot: 'actions', width: 350, fixed: 'right' },
+  {
+    label: '操作',
+    value: 'actions',
+    slot: 'actions',
+    width: 280,
+    fixed: 'right',
+  },
 ];
 
 /**
- * 生成单行文档操作配置，前三项直接展示，其余由按钮组收纳。
+ * 生成单行文档操作配置，前两项直接展示，其余由按钮组收纳。
  *
  * @param document 当前文档聚合行。
  * @returns 按使用频率排列的操作配置。
  */
 function getDocumentActions(document: DocumentInfo): ActionButtonItem[] {
   return [
-    {
-      key: 'detail',
-      label: '查看详情',
-      icon: LucideFileText,
-      handler: () =>
-        routerGo('documents.management.detail', {
-          params: { documentId: document.documentId },
-        }),
-    },
-    {
-      key: 'reprocess',
-      label: '重新处理',
-      icon: LucideRefreshCw,
-      isShow:
-        document.activeVersion?.previewStatus !== 'pending' &&
-        document.activeVersion?.previewStatus !== 'processing',
-      handler: () => reprocessPreview(document),
-    },
     {
       key: 'upload-version',
       label: '上传新版本',
@@ -259,6 +256,15 @@ function getDocumentActions(document: DocumentInfo): ActionButtonItem[] {
       label: '知识库',
       icon: LucideDatabase,
       handler: () => datasetsRef.value?.open(document),
+    },
+    {
+      key: 'reprocess',
+      label: '重新处理',
+      icon: LucideRefreshCw,
+      isShow:
+        document.activeVersion?.previewStatus !== 'pending' &&
+        document.activeVersion?.previewStatus !== 'processing',
+      handler: () => reprocessPreview(document),
     },
     {
       key: 'download',
@@ -274,6 +280,13 @@ function getDocumentActions(document: DocumentInfo): ActionButtonItem[] {
       handler: () => remove(document.documentId),
     },
   ];
+}
+
+/** 跳转到文档详情页。 */
+function openDocumentDetail(documentId: string): void {
+  routerGo('documents.management.detail', {
+    params: { documentId },
+  });
 }
 
 /** 分页加载 Document 聚合列表。 */
@@ -311,7 +324,9 @@ async function handleUploaded(result: {
 }) {
   notify(
     'success',
-    result.created ? `文档 V${result.version} 上传成功` : `文档 V${result.version} 已存在`,
+    result.created
+      ? `文档 V${result.version} 上传成功`
+      : `文档 V${result.version} 已存在`,
   );
   await loadDocuments(true);
 }

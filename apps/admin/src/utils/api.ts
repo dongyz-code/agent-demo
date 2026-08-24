@@ -1,5 +1,6 @@
 import { getAxios } from '@repo/utils-browser';
 import { routerGoLogin } from '@/router';
+import { logoutHandle } from '@/pages/login/login';
 import { API_BASE } from '@/constants';
 import { AxiosError, AxiosHeaders } from 'axios';
 
@@ -16,11 +17,17 @@ type RespError =
     }
   | undefined;
 
+/**
+ * 统一提示业务错误；认证失效时同步清理本地会话并替换到登录页。
+ *
+ * @param error 服务端响应中的业务错误；没有业务错误时不执行操作。
+ */
 function respErrorHandle(error: RespError) {
   if (error) {
     const { msg, code } = error;
     notify('error', msg);
     if (['401'].includes(code)) {
+      logoutHandle();
       routerGoLogin();
     }
   }

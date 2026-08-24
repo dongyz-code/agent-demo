@@ -78,13 +78,18 @@ export function helperRouterMethod<RouteName extends string = string>({
     }
   }
 
+  /**
+   * 跳转登录页并替换当前历史记录，避免返回到受保护页面。
+   *
+   * @returns 登录页导航完成后结束；外部地址跳转时页面会直接卸载。
+   */
   async function routerGoLogin() {
     const router = useRouter();
     const data = typeof loginPage === 'function' ? loginPage() : loginPage;
     if (typeof data === 'object' && 'url' in data) {
-      location.href = data.url;
+      location.replace(data.url);
     } else {
-      await router.push(data);
+      await router.replace(data);
     }
   }
 
