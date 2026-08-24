@@ -70,4 +70,4 @@ RAG、预览和删除统一通过 `documentAction.addDocumentTask` 入队。该�
 
 ## 验证
 
-服务端类型检查使用 `pnpm --filter @repo/deploy-server lint`，OpenSpec 使用 strict 校验，交付前同时运行 `git diff --check`。
+服务端类型检查使用 `pnpm --filter @repo/server lint`，OpenSpec 使用 strict 校验，交付前同时运行 `git diff --check`。

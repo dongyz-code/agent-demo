@@ -73,6 +73,6 @@ static/logs/
 3. 扩展服务端日志配置类型，提供日志级别、文件开关和保留天数。
 4. 服务端 logger 配置传入 `DIRS.LOG`，文件输出目标自行按写入日期懒轮换。
 5. 回退 requestId、请求上下文和错误响应体相关改动。
-6. 运行 utils-node 和 deploy-server lint，并用临时目录验证文件实际创建。
+6. 运行 utils-node 和 server lint，并用临时目录验证文件实际创建。
 
 回滚时可关闭文件落地配置，保留 stdout Pino 输出；由于不修改数据库 schema，回滚不涉及数据迁移。

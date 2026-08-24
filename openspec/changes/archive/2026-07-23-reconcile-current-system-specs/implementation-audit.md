@@ -65,7 +65,7 @@
 ## 最终验证记录
 
 - `pnpm --filter @repo/ui test`：4 个测试文件、20 个测试通过。
-- `pnpm --filter @repo/deploy-server lint`：TypeScript 检查通过。
+- `pnpm --filter @repo/server lint`：TypeScript 检查通过。
 - `openspec validate --all --strict`：当前 11 个 active/main artifact 全部通过。
 - 语义检索只命中“任务中心 MUST NOT 声明手动添加、任意停止”等否定约束；未发现旧能力被正向要求。
 - `git diff --check` 通过。

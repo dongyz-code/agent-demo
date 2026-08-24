@@ -3,8 +3,8 @@
 - [x] 1.1 在 `packages/types/src` 下建立 `common` 与 `routes` 目录结构。
 - [x] 1.2 将原 `packages/types/src/utils` 内容迁移到 `packages/types/src/common` 并更新导出入口。
 - [x] 1.3 将 `apps/types/src/routes`、API 聚合类型和路由工具类型迁移到 `packages/types/src/routes`。
-- [x] 1.4 去除 `packages/types` 中对 `apps/types` 或 `@repo/deploy-types` 的隐式依赖，并确保顶层 `index.d.ts` 导出公共类型和路由契约。
-- [x] 1.5 将 `apps/client` 与 `apps/server` 中的 `@repo/deploy-types` 引用替换为 `@repo/types`。
+- [x] 1.4 去除 `packages/types` 中对旧共享类型应用包的隐式依赖，并确保顶层 `index.d.ts` 导出公共类型和路由契约。
+- [x] 1.5 将 `apps/client` 与 `apps/server` 中的旧共享类型包引用替换为 `@repo/types`。
 
 ## 2. Drizzle 基础设施
 
@@ -31,7 +31,7 @@
 ## 5. 清理与验证
 
 - [x] 5.1 删除 `apps/types` 包目录并更新 `pnpm-workspace.yaml`、根脚本和相关 package 依赖。
-- [x] 5.2 删除 `apps/tables` 包目录并移除 `@repo/deploy-tables` 依赖。
+- [x] 5.2 删除 `apps/tables` 包目录并移除旧表应用包依赖。
 - [x] 5.3 移除 `apps/server` 对 `@repo/tables` 数据库 helper 的运行时依赖；如 `packages/tables` 无其他用途则同步下线或标记废弃。
 - [x] 5.4 运行类型检查、构建和相关 lint，确保 `apps/client`、`apps/server`、`packages/types` 均通过。
 - [x] 5.5 在测试数据库执行 Drizzle migration，并验证核心路由的查询、写入、事务和日志流程。

@@ -11,5 +11,5 @@
 
 ## 3. 验收
 
-- [x] 3.1 运行 `pnpm --filter @repo/deploy-server lint`
+- [x] 3.1 运行 `pnpm --filter @repo/server lint`
 - [x] 3.2 运行 OpenSpec strict 与 `git diff --check`，记录当前代码已经满足 capability 后完成归档准备

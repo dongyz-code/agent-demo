@@ -33,7 +33,7 @@ RUN npm config set registry https://registry.npmmirror.com && \
 # runner
 FROM base AS runner
 WORKDIR /app
-COPY docker/temp/deploy-server/json .
+COPY docker/temp/server/json .
 RUN pnpm i -r --prod
 COPY apps/server/static-data apps/server/static-data
 COPY apps/server/build apps/server/build

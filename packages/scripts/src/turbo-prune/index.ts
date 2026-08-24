@@ -93,7 +93,7 @@ async function turboPrune({ dir, pkg, modelFile, staticDirs, cmds }: Item) {
     `\n# runner`,
     `FROM ${base} AS runner`,
     `WORKDIR /app`,
-    `COPY docker/temp/deploy-server/json .`,
+    `COPY docker/temp/server/json .`,
     `RUN pnpm i -r --prod`,
     ...staticDataDirsCopys.sort(),
     ...copys.sort(),
@@ -116,8 +116,8 @@ async function turboPrune({ dir, pkg, modelFile, staticDirs, cmds }: Item) {
 run(async () => {
   const items: Item[] = [
     {
-      dir: 'docker/temp/deploy-server',
-      pkg: '@repo/deploy-server',
+      dir: 'docker/temp/server',
+      pkg: '@repo/server',
       modelFile: join(projectDir, 'docker/server-model.Dockerfile'),
       staticDirs: [join(projectDir, 'apps/server/static-data')],
       cmds: [

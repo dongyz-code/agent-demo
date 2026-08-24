@@ -34,4 +34,4 @@
 
 - [ ] 6.1 使用现有 TypeScript 执行入口核对 descriptor、DDL 和 diff 的单列、复合、自引用、循环及漂移输出
 - [ ] 6.2 分别演练空 schema 初始化和已有 schema 启动，确认前者两阶段建外键、后者只报告漂移
-- [ ] 6.3 运行 `pnpm --filter @repo/deploy-server lint`、OpenSpec strict 与 `git diff --check`
+- [ ] 6.3 运行 `pnpm --filter @repo/server lint`、OpenSpec strict 与 `git diff --check`

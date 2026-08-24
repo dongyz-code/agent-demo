@@ -16,11 +16,11 @@
 - **THEN** 代码 MUST NOT 调用 `getHelper`、`insertHelper`、`updateHelper`、`removeHelper` 等自研 table helper
 
 ### Requirement: 移除自研数据库封装运行时依赖
-迁移完成后，`apps/server` SHALL 不再运行时依赖 `apps/tables`、`@repo/deploy-tables` 或 `packages/tables` 提供的数据库 helper。
+迁移完成后，`apps/server` SHALL 不再运行时依赖旧表应用包或 `packages/tables` 提供的数据库 helper。
 
 #### Scenario: 服务端构建依赖检查
 - **WHEN** `apps/server` 构建或启动
-- **THEN** 系统 MUST NOT 需要 `@repo/deploy-tables` 包
+- **THEN** 系统 MUST NOT 需要旧表应用包
 - **THEN** 系统 MUST NOT 需要 `@repo/tables` 中的数据库 helper
 
 ### Requirement: Drizzle 迁移作为数据库结构变更入口

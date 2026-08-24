@@ -11,7 +11,7 @@
 - 将 `apps/types` 合并进 `packages/types`，通过 `common` 与 `routes` 目录表达类型职责。
 - 使用 Drizzle 替换产品数据库表模型和运行时数据库访问。
 - 将 Drizzle schema 放在 `apps/server/src/database/schema`，作为 server 内部数据库实现的一部分。
-- 移除服务端对 `apps/tables`、`@repo/deploy-tables`、`packages/tables` 自研数据库 helper 的运行时依赖。
+- 移除服务端对旧表应用包、`packages/tables` 自研数据库 helper 的运行时依赖。
 - 保持前后端 API 契约从 `@repo/types` 统一导出，避免契约直接依赖数据库 row 类型。
 
 **Non-Goals:**
@@ -27,7 +27,7 @@
 
 `packages/types/src/common` 存放原通用类型工具，`packages/types/src/routes` 存放原 `apps/types/src/routes` 的 API 路由契约，顶层 `index.d.ts` 统一导出公共类型与路由契约。
 
-备选方案是保留单独 `packages/deploy-contracts`，但当前约束希望 `types` 可以合并；因此通过目录分区维持语义边界，而不是增加包数量。
+备选方案是保留单独合同包，但当前约束希望 `types` 可以合并；因此通过目录分区维持语义边界，而不是增加包数量。
 
 ### 2. Drizzle schema 放在 `apps/server/src/database/schema`
 
@@ -43,21 +43,21 @@
 
 ### 4. API 契约不再直接引用数据库 row 类型
 
-原 `apps/types` 会通过 `deploy-tables` 推导 `SqlData`，这会让 API 响应结构被数据库表结构牵引。迁移后 `packages/types/routes` 应定义稳定 DTO 和枚举；server 在数据库 row 与 API DTO 之间做显式映射。
+原 `apps/types` 会通过旧表包推导 `SqlData`，这会让 API 响应结构被数据库表结构牵引。迁移后 `packages/types/routes` 应定义稳定 DTO 和枚举；server 在数据库 row 与 API DTO 之间做显式映射。
 
-短期可先迁移已有类型结构，但不能继续通过 `node_modules/@repo/deploy-tables/build` 或 Drizzle schema 反向导出数据库类型给前端。
+短期可先迁移已有类型结构，但不能继续通过旧表应用包构建产物或 Drizzle schema 反向导出数据库类型给前端。
 
 ## Risks / Trade-offs
 
 - [Risk] Drizzle schema 与现有数据库结构不完全一致，导致迁移生成误判。→ 先用现有表定义逐表对齐，生成迁移前检查 SQL diff，并在测试数据库验证。
 - [Risk] 一次性替换全部 helper 改动面过大。→ 按模块迁移，保留 `apps/server/src/database` 作为唯一过渡入口，业务文件逐步切换到 Drizzle。
 - [Risk] API DTO 与数据库 row 解耦会增加映射代码。→ 只在对外响应边界映射，内部查询仍使用 Drizzle 推导类型。
-- [Risk] 移除 `@repo/deploy-types` 是破坏性变更。→ 先更新所有 workspace import，再删除包目录和 workspace 配置。
+- [Risk] 移除旧共享类型应用包是破坏性变更。→ 先更新所有 workspace import，再删除包目录和 workspace 配置。
 
 ## Migration Plan
 
 1. 重组 `packages/types`：创建 `common`、`routes` 目录，迁移原 `apps/types` 内容并更新导出。
-2. 更新 `apps/client`、`apps/server` 的类型引用，从 `@repo/deploy-types` 切换到 `@repo/types`。
+2. 更新 `apps/client`、`apps/server` 的类型引用，从旧共享类型应用包切换到 `@repo/types`。
 3. 在 `apps/server/src/database/schema` 建立 Drizzle schema，覆盖现有产品表。
 4. 在 `apps/server/src/database` 建立 Drizzle client、事务和迁移入口。
 5. 按业务模块替换 `getHelper`、`insertHelper`、`updateHelper`、`removeHelper`、`pgsql.query` 调用。
@@ -72,5 +72,5 @@
 
 已决策：
 
-- 不保留 `@repo/deploy-types` 的短期兼容导出，迁移时直接更新所有引用到 `@repo/types`。
+- 不保留旧共享类型应用包的短期兼容导出，迁移时直接更新所有引用到 `@repo/types`。
 - 不保留现有 `TABLE_PREFIX` 机制，Drizzle 迁移后的表名保持稳定；环境隔离由部署数据库配置承担。

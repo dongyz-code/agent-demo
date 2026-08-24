@@ -18,7 +18,7 @@ import { compareTableStructure } from './diff.js';
 import type { TableTargetDescriptor } from './types.js';
 
 /** 启动期建表串行化用的 advisory 锁 tag，避免多实例同时补建同一张表的 trigger。 */
-const STARTUP_LOCK_TAG = 'deploy-console:startup-schema-sync';
+const STARTUP_LOCK_TAG = 'console:startup-schema-sync';
 
 /**
  * 启动期表结构自检：缺失的表自动创建，字段不一致的只打印警告不改库。

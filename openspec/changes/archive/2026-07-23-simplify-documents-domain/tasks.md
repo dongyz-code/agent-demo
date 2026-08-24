@@ -60,7 +60,7 @@
 
 - [x] 7.1 运行 documents 依赖边界、纯函数、上传完成和 worker 全部聚焦测试
 - [x] 7.2 在具备 MinIO/数据库配置的测试环境运行完整上传、恢复、预览、处理、知识库关联和任务中心集成测试
-- [x] 7.3 运行 `pnpm --filter @repo/deploy-server lint` 与 `pnpm turbo lint`
+- [x] 7.3 运行 `pnpm --filter @repo/server lint` 与 `pnpm turbo lint`
 - [x] 7.4 静态确认根出口已删除、调用方精确导入、routes 不导入内部原语且死定义不存在
 - [x] 7.5 核对 `/documents/*` 路径、DTO、权限键、错误码和对象 key 未发生变更，并完成管理端关键流程回归
 - [x] 7.6 运行 OpenSpec strict 校验，确认 proposal、specs、design、tasks 与实际交付结构一致

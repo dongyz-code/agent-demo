@@ -22,6 +22,6 @@
 
 - [x] 4.1 检索确认 requestId/request-context 相关实现不在本次变更中残留。
 - [x] 4.2 运行 `pnpm --filter @repo/utils-node lint` 验证通用包构建。
-- [x] 4.3 运行 `pnpm --filter @repo/deploy-server lint` 验证服务端类型检查和构建。
+- [x] 4.3 运行 `pnpm --filter @repo/server lint` 验证服务端类型检查和构建。
 - [x] 4.4 使用 `/tmp` 临时目录运行 logger，确认当天 `fastify.log` 和 `system.log` 实际创建。
 - [x] 4.5 运行 devPretty stdout 验证，确认开发环境输出可读文本。

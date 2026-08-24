@@ -16,5 +16,5 @@
 
 ## 4. 验收
 
-- [x] 4.1 运行 `pnpm --filter @repo/deploy-server lint`
+- [x] 4.1 运行 `pnpm --filter @repo/server lint`
 - [x] 4.2 运行 OpenSpec strict、运行时零引用搜索和 `git diff --check`

@@ -2,7 +2,7 @@
  * Agent 对话调试脚本：交互式多轮对话，验证消息存储。
  *
  * 运行：
- *   pnpm --filter @repo/deploy-server exec tsx src/hooks/agents/agents/debug.ts
+ *   pnpm --filter @repo/server exec tsx src/hooks/agents/agents/debug.ts
  *
  * 前置：apps/server/.conf/conf.json 需配置 AI.bailian（apiKey + baseUrl），否则首轮调用 getModel 会抛错。
  * 用法：输入消息回车发送（首条自动建会话，之后续聊同一会话）；/show 打印已落库消息；空行或 /exit 退出。

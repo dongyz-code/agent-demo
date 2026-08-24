@@ -16,14 +16,14 @@ pnpm pkg:sort                      # 修改任一 package.json 后排序工作�
 pnpm build:prune                   # 生成 turbo prune 部署子集（packages/scripts）
 
 # 启动单个应用（用 --filter 指定 @repo/* 包名）
-pnpm --filter @repo/deploy-client dev   # React + Vite 客户端
-pnpm --filter @repo/deploy-admin  dev   # Vue 3 + Vite 管理端
-pnpm --filter @repo/deploy-server dev   # Node 服务端（tsx 直跑）
+pnpm --filter @repo/client dev   # React + Vite 客户端
+pnpm --filter @repo/admin  dev   # Vue 3 + Vite 管理端
+pnpm --filter @repo/server dev   # Node 服务端（tsx 直跑）
 
 # 测试
-pnpm --filter @repo/deploy-client test                 # Vitest 全量
-pnpm --filter @repo/deploy-client test -- path/to/file # 单个测试文件
-pnpm --filter @repo/deploy-client test -- -t "name"    # 按用例名过滤
+pnpm --filter @repo/client test                 # Vitest 全量
+pnpm --filter @repo/client test -- path/to/file # 单个测试文件
+pnpm --filter @repo/client test -- -t "name"    # 按用例名过滤
 
 # 数据库（apps/server，Drizzle + pg）
 # 启动时自动建缺失表 + 报漂移；已有表索引/trigger 同步走前端 sync，列结构变更走 reset。

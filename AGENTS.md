@@ -11,9 +11,9 @@
 - `pnpm install` 安装工作区依赖。
 - `pnpm turbo build` 按依赖顺序构建工作区包。
 - `pnpm turbo lint` 运行各包的 lint 和类型检查任务。
-- `pnpm --filter @repo/deploy-client dev` 启动 React 客户端。
-- `pnpm --filter @repo/deploy-admin dev` 启动 Vue 管理端。
-- `pnpm --filter @repo/deploy-server dev` 使用 `tsx` 启动服务端。
+- `pnpm --filter @repo/client dev` 启动 React 客户端。
+- `pnpm --filter @repo/admin dev` 启动 Vue 管理端。
+- `pnpm --filter @repo/server dev` 使用 `tsx` 启动服务端。
 - 服务端无独立迁移命令：启动时自动建缺失表并报漂移；已有表的索引/trigger 同步走前端 sync 操作，列结构变更走 reset。
 - 修改依赖后运行 `pnpm pkg:sort` 排序工作区 `package.json`。
 

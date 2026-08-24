@@ -1,5 +1,5 @@
 {
-  "name": "@repo/deploy-client",
+  "name": "@repo/client",
   "version": "0.0.0",
   "private": true,
   "type": "module",

@@ -59,7 +59,7 @@
 ## 8. 验证与收尾
 
 - [x] 8.1 运行 `pnpm --filter @repo/utils-node lint`，验证工具包类型检查和构建
-- [x] 8.2 运行 `pnpm --filter @repo/deploy-server lint`，验证服务端类型检查和路由加载
+- [x] 8.2 运行 `pnpm --filter @repo/server lint`，验证服务端类型检查和路由加载
 - [x] 8.3 运行受影响前端包的类型检查或测试，验证 Axios 错误处理和 API 类型推导兼容
 - [x] 8.4 手动或脚本验证认证失败返回 401、schema 失败返回 400、未知错误返回 500
 - [x] 8.5 手动或脚本验证成功响应包裹、业务 `preSerialization`、上传接口和目录路由加载

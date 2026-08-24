@@ -6,7 +6,7 @@
 
 - Admin 应用列表页面：创建应用、编辑应用、切换启用状态、上传版本、查看版本历史、触发部署。
 - Server `/main/app-*` 接口：应用增删改查、版本上传、版本查询、部署任务提交。
-- 后台任务 `appBuildDeploy`：部署、停止、重启应用容器。
+- 后台任务 `appBuildLifecycle`：部署、停止、重启应用容器。
 - 数据表 `ai_app` 与 `ai_app_version`：应用元数据、版本包哈希、当前部署版本。
 - 部署辅助模板：用于前端静态站点的 nginx Dockerfile 与 nginx 配置。
 

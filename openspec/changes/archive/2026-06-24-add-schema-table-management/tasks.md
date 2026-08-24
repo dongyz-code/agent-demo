@@ -46,4 +46,4 @@
 - [x] 6.2 在测试库验证 list/detail/preview 对系统管理员和普通角色的权限差异。
 - [x] 6.3 在测试库对小表演练 rename apply，并验证事务失败时不会留下半完成状态。
 - [x] 6.4 在测试库对小表演练 reset apply，验证行数一致、备份表保留、目标表结构符合 Drizzle schema。
-- [x] 6.5 运行 `pnpm --filter @repo/deploy-server lint`、`pnpm --filter @repo/deploy-admin lint` 和 `pnpm turbo lint`。
+- [x] 6.5 运行 `pnpm --filter @repo/server lint`、`pnpm --filter @repo/admin lint` 和 `pnpm turbo lint`。

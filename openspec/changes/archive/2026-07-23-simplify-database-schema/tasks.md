@@ -59,7 +59,7 @@
 - [ ] 7.1 运行 documents 上传、Multipart 恢复、预览、处理、知识库关联、删除保护和任务时间线集成测试
 - [ ] 7.2 在空 schema 启动服务，验证二十一张表（含两张 Agent 表）、索引、trigger 和首批外键均成功创建且第二次启动幂等
 - [ ] 7.3 在含历史表的 schema 启动服务，验证只报告五张未注册物理表而不自动删除或改写数据
-- [ ] 7.4 运行 `pnpm --filter @repo/deploy-server lint` 与 `pnpm turbo lint`
+- [ ] 7.4 运行 `pnpm --filter @repo/server lint` 与 `pnpm turbo lint`
 - [ ] 7.5 运行 OpenSpec 校验并核对 proposal、design、specs、tasks 的退役清单、保留清单和迁移顺序一致
 
 ## 8. 数据库访问入口收敛

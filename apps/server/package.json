@@ -1,5 +1,5 @@
 {
-  "name": "@repo/deploy-server",
+  "name": "@repo/server",
   "version": "1.0.0",
   "private": true,
   "type": "module",

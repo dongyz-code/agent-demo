@@ -3,7 +3,7 @@ import { v5, v7 } from 'uuid';
 
 import type { BinaryLike } from 'node:crypto';
 
-/** 由 DNS 命名空间中的 `deploy-console` 派生，禁止修改以免既有稳定 ID 漂移。 */
+/** 由固定 DNS 命名空间派生，禁止修改以免既有稳定 ID 漂移。 */
 const UUID_V5_NAMESPACE = 'e8971f20-b399-511f-9de1-208d43866c81';
 
 /**
@@ -45,7 +45,7 @@ export function uuidv7(): string {
  * 随机主键、密码摘要或内容完整性校验。
  *
  * @param value 参与确定性标识计算的稳定名称。
- * @returns deploy-console 固定命名空间下生成的 UUIDv5。
+ * @returns 固定命名空间下生成的 UUIDv5。
  */
 export function uuidv5(value: string): string {
   return v5(value, UUID_V5_NAMESPACE);

@@ -41,7 +41,7 @@
 - [x] 4.5 通过实际统一权限入口的实现评审确认无权限拒绝、有权限通过、单权限 key、403 语义和授权 key 校验失败。
 - [x] 4.6 回归表管理权限实现，确认页面权限、全局动作权限、表范围权限和 wildcard 权限仍按原规则工作。
 - [x] 4.7 为 admin 角色权限 UI 添加聚焦测试或手动验证清单，覆盖搜索、半选、保存有效 key 和无权限按钮状态。
-- [x] 4.8 运行受影响包的 lint/build 命令，至少覆盖 `@repo/shared`、`@repo/types`、`@repo/deploy-server`、`@repo/deploy-admin`。
+- [x] 4.8 运行受影响包的 lint/build 命令，至少覆盖 `@repo/shared`、`@repo/types`、`@repo/server`、`@repo/admin`。
 
 ## 角色授权 UI 手动验证清单
 

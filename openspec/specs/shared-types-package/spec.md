@@ -16,12 +16,12 @@
 - **THEN** 系统 MUST 在 `packages/types/src/common` 下提供对应类型定义
 
 ### Requirement: 应用统一依赖共享类型包
-前端和后端应用 SHALL 从 `@repo/types` 引用共享类型，不再依赖 `@repo/deploy-types`。
+前端和后端应用 SHALL 从 `@repo/types` 引用共享类型，不再依赖旧类型应用包。
 
 #### Scenario: 应用执行类型检查
 - **WHEN** `apps/client` 或 `apps/server` 执行 TypeScript 类型检查
 - **THEN** 类型引用 MUST 解析到 `@repo/types`
-- **THEN** 类型引用 MUST NOT 依赖 `@repo/deploy-types`
+- **THEN** 类型引用 MUST NOT 依赖旧类型应用包
 
 ### Requirement: API 契约不得依赖数据库实现
 `packages/types/src/routes` SHALL 定义稳定 API DTO、枚举和路由契约，不得通过数据库表 schema 或生成产物直接导出数据库 row 类型。
