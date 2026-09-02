@@ -1,7 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import LucideClock3 from '~icons/lucide/clock-3';
-import LucideServer from '~icons/lucide/server';
-import LucideShieldCheck from '~icons/lucide/shield-check';
+import { Clock3Icon, ServerIcon, ShieldCheckIcon } from 'lucide-react';
 
 import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
@@ -66,10 +64,10 @@ export function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
         <section className="rounded border border-border bg-card p-5">
           <div className="grid gap-3 md:grid-cols-3">
-            <MetricCard icon={LucideServer} label="API" value="/api" />
-            <MetricCard icon={LucideShieldCheck} label="Mode" value="SPA" />
+            <MetricCard icon={ServerIcon} label="API" value="/api" />
+            <MetricCard icon={ShieldCheckIcon} label="Mode" value="SPA" />
             <MetricCard
-              icon={LucideClock3}
+              icon={Clock3Icon}
               label="Checked"
               value={data?.checkedAt ?? '-'}
             />

@@ -1,4 +1,4 @@
-import LucideActivity from '~icons/lucide/activity';
+import { ActivityIcon } from 'lucide-react';
 
 type BrandProps = {
   /** 折叠模式下仅展示图标，用于侧边栏窄态。 */
@@ -14,7 +14,7 @@ type BrandProps = {
 export function Brand({ collapsed = false }: BrandProps) {
   return (
     <div className="flex items-center gap-2 font-semibold text-foreground">
-      <LucideActivity className="size-5 text-link" aria-hidden />
+      <ActivityIcon className="size-5 text-link" aria-hidden />
       {!collapsed && <span>Client</span>}
     </div>
   );

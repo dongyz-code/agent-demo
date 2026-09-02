@@ -1,11 +1,13 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import LucideArrowLeft from '~icons/lucide/arrow-left';
-import LucideLockKeyhole from '~icons/lucide/lock-keyhole';
-import LucideLogIn from '~icons/lucide/log-in';
-import LucideShieldCheck from '~icons/lucide/shield-check';
-import LucideUserRound from '~icons/lucide/user-round';
+import {
+  ArrowLeftIcon,
+  LockKeyholeIcon,
+  LogInIcon,
+  ShieldCheckIcon,
+  UserRoundIcon,
+} from 'lucide-react';
 
 import { api } from '@/utils/api';
 import { useSessionModel } from '@/model/session';
@@ -40,7 +42,7 @@ export function LoginPage() {
     <section className="grid w-full items-center gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
       <div className="hidden lg:block">
         <div className="inline-flex h-10 items-center gap-2 rounded border border-info/30 bg-info/10 px-3 text-sm font-medium text-info">
-          <LucideShieldCheck className="size-4" aria-hidden />
+          <ShieldCheckIcon className="size-4" aria-hidden />
           Client Workspace
         </div>
         <h1 className="mt-6 max-w-xl text-4xl font-semibold text-foreground">
@@ -78,7 +80,7 @@ export function LoginPage() {
             </p>
           </div>
           <div className="inline-flex size-11 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
-            <LucideLogIn className="size-5" aria-hidden />
+            <LogInIcon className="size-5" aria-hidden />
           </div>
         </div>
 
@@ -101,7 +103,7 @@ export function LoginPage() {
           <div className="flex flex-col gap-2">
             <Label htmlFor="username">Username</Label>
             <div className="relative">
-              <LucideUserRound
+              <UserRoundIcon
                 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden
               />
@@ -125,7 +127,7 @@ export function LoginPage() {
           <div className="flex flex-col gap-2">
             <Label htmlFor="password">Password</Label>
             <div className="relative">
-              <LucideLockKeyhole
+              <LockKeyholeIcon
                 className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden
               />
@@ -159,7 +161,7 @@ export function LoginPage() {
             className="h-11 w-full text-sm font-semibold"
             disabled={loginMutation.isPending}
           >
-            <LucideLogIn className="size-4" aria-hidden />
+            <LogInIcon className="size-4" aria-hidden />
             {loginMutation.isPending ? 'Signing in...' : 'Sign in'}
           </Button>
         </form>
@@ -167,7 +169,7 @@ export function LoginPage() {
           to="/"
           className="mt-5 inline-flex items-center gap-2 text-sm text-link hover:text-link/80"
         >
-          <LucideArrowLeft className="size-4" aria-hidden />
+          <ArrowLeftIcon className="size-4" aria-hidden />
           Back to dashboard
         </Link>
       </Card>

@@ -1,5 +1,4 @@
-import LucideMoon from '~icons/lucide/moon';
-import LucideSun from '~icons/lucide/sun';
+import { MoonIcon, SunIcon } from 'lucide-react';
 
 import { applyThemeMode, useThemeModel } from '@/model/theme';
 import { Button } from './ui/button';
@@ -20,11 +19,11 @@ export function ThemeToggle() {
   }, [themeMode]);
 
   let nextThemeLabel = '深色主题';
-  let ThemeIcon = LucideMoon;
+  let ThemeIcon = MoonIcon;
 
   if (themeMode === 'dark') {
     nextThemeLabel = '浅色主题';
-    ThemeIcon = LucideSun;
+    ThemeIcon = SunIcon;
   }
 
   return (

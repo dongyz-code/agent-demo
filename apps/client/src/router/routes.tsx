@@ -1,6 +1,5 @@
 import { lazyRouteComponent } from '@tanstack/react-router';
-import LucideLayoutDashboard from '~icons/lucide/layout-dashboard';
-import LucideSettings from '~icons/lucide/settings';
+import { LayoutDashboardIcon, SettingsIcon } from 'lucide-react';
 
 import type {
   PermissionKey,
@@ -40,7 +39,7 @@ export const routes = [
       title: 'Dashboard',
       auth: true,
       nav: {
-        icon: LucideLayoutDashboard,
+        icon: LayoutDashboardIcon,
         order: 10,
       },
     },
@@ -55,7 +54,7 @@ export const routes = [
       auth: true,
       permissions: [permissionKeys.settingsView],
       nav: {
-        icon: LucideSettings,
+        icon: SettingsIcon,
         order: 20,
       },
     },
@@ -80,7 +79,7 @@ export const routes = [
       title: 'Not Found',
       auth: false,
       nav: {
-        icon: LucideLayoutDashboard,
+        icon: LayoutDashboardIcon,
         hidden: true,
       },
     },

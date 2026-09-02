@@ -4,6 +4,8 @@
 
 Client 使用 shadcn/ui 官方 `radix-nova` preset：Radix 提供无障碍交互原语，Nova 提供组件的结构化视觉风格（圆角、间距、字体和交互状态），业务主题只负责颜色和明暗模式。
 
+Client 图标统一使用 Lucide 官方 React 包 `lucide-react`；Admin 保留 Vue 侧的 Iconify（`unplugin-icons`）方案。Client 不再使用 `~icons/lucide/*`，以便与 shadcn CLI 生成的组件保持一致。
+
 本规范适用于 `apps/client` 的页面、布局和 `components/ui` 组件。`packages/ui` 是共享包，保留历史业务色阶供 Admin/Element Plus 使用；Client 页面不得绕过自己的语义 token 直接使用共享色阶。
 
 ## 主题分层
@@ -75,6 +77,7 @@ Client 使用 shadcn/ui 官方 `radix-nova` preset：Radix 提供无障碍交互
 - 输入控件只保留一层边界：外层容器不得再添加 `border` 或 `ring`，焦点由组件自身的 `focus-visible:ring-*` 处理。
 - 组件变体优先于调用处样式覆盖；确需产品差异时，新增语义 variant，而不是新增 `success-green`、`app-success-text` 等平行命名。
 - 图标只表达辅助信息，不能作为状态唯一载体；装饰图标可使用低对比度 `text-muted-foreground`，重要状态必须同时有文字或可访问名称。
+- 通用图标从 `lucide-react` 导入（例如 `import { SettingsIcon } from 'lucide-react'`）；自定义 SVG 放在 `apps/client/src/components/icons`，组件 API 使用 `ComponentProps<'svg'>` 并保持 `currentColor`。
 
 ## 可访问性与视觉验收
 
@@ -90,6 +93,7 @@ Client 使用 shadcn/ui 官方 `radix-nova` preset：Radix 提供无障碍交互
 - 不在业务页面直接读取 `--app-*` 或 `--theme-*`；装饰性渐变除外，且只能读取语义变量。
 - 不把 `bg-black/10`、`bg-white` 等原始颜色带入业务页面；官方生成的 Dialog/Sheet 遮罩等基础实现若需要固定遮罩色，可保留上游代码。
 - 不在 `components/ui` 外复制 shadcn 组件源码；需要新组件时使用官方 CLI：`pnpm dlx shadcn@latest add <component>`，并检查生成文件是否匹配当前 Radix/Nova 配置。
+- 不在 Client 业务代码中引入 `~icons/*`、Iconify 图标或第二套图标集合；自定义图标不得通过字符串动态渲染，后端图标名称必须先经过白名单映射。
 
 ## 新增主题角色流程
 

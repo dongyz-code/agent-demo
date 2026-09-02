@@ -1,8 +1,10 @@
 import { Link } from '@tanstack/react-router';
-import LucidePanelLeftClose from '~icons/lucide/panel-left-close';
-import LucidePanelLeftOpen from '~icons/lucide/panel-left-open';
-import LucideLogOut from '~icons/lucide/log-out';
-import LucideUserCircle from '~icons/lucide/user-circle';
+import {
+  LogOutIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  UserCircleIcon,
+} from 'lucide-react';
 
 import { Brand } from '@/components/Brand';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -102,9 +104,9 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 }
               >
                 {navCollapsed ? (
-                  <LucidePanelLeftOpen className="size-4" aria-hidden />
+                  <PanelLeftOpenIcon className="size-4" aria-hidden />
                 ) : (
-                  <LucidePanelLeftClose className="size-4" aria-hidden />
+                  <PanelLeftCloseIcon className="size-4" aria-hidden />
                 )}
               </Button>
               <div className="lg:hidden">
@@ -112,7 +114,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <LucideUserCircle className="size-4" aria-hidden />
+              <UserCircleIcon className="size-4" aria-hidden />
               <span>{user?.nickname ?? user?.username ?? 'Guest'}</span>
               <ThemeToggle />
               <Button
@@ -124,7 +126,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 disabled={loggingOut}
                 onClick={() => void handleLogout()}
               >
-                <LucideLogOut className="size-4" aria-hidden />
+                <LogOutIcon className="size-4" aria-hidden />
               </Button>
             </div>
           </div>

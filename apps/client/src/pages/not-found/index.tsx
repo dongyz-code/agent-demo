@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { PageHeader } from '@/components/PageHeader';
 
-import LucideSearchX from '~icons/lucide/search-x';
+import { SearchXIcon } from 'lucide-react';
 
 /**
  * 渲染 404 页面。
@@ -15,7 +15,7 @@ export function NotFoundPage() {
         title="Not Found"
         description="The page you requested does not exist."
         actions={
-          <LucideSearchX className="size-5 text-muted-foreground" aria-hidden />
+          <SearchXIcon className="size-5 text-muted-foreground" aria-hidden />
         }
       />
       <Link to="/" className="text-sm text-link hover:text-link/80">

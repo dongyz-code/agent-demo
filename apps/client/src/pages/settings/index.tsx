@@ -1,5 +1,4 @@
-import LucidePanelLeftClose from '~icons/lucide/panel-left-close';
-import LucidePanelLeftOpen from '~icons/lucide/panel-left-open';
+import { PanelLeftCloseIcon, PanelLeftOpenIcon } from 'lucide-react';
 
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -21,9 +20,9 @@ export function SettingsPage() {
         onClick={toggleNav}
       >
         {navCollapsed ? (
-          <LucidePanelLeftOpen className="size-4" aria-hidden />
+          <PanelLeftOpenIcon className="size-4" aria-hidden />
         ) : (
-          <LucidePanelLeftClose className="size-4" aria-hidden />
+          <PanelLeftCloseIcon className="size-4" aria-hidden />
         )}
         {navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
       </Button>

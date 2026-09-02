@@ -34,7 +34,6 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "@iconify/json": "^2.2.464",
     "@svgr/core": "^8.1.0",
     "@svgr/plugin-jsx": "^8.1.0",
     "@tailwindcss/vite": "^4.2.3",
@@ -47,7 +46,6 @@
     "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss": "^4.2.3",
     "typescript": "~6.0.3",
-    "unplugin-icons": "^23.0.1",
     "vite": "^8.0.9"
   }
 }
