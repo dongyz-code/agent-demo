@@ -23,7 +23,7 @@
   --color-primary-lighter: var(--theme-primary-3);
   --color-primary-white: var(--theme-primary-1);
   --color-primary-soft: color-mix(
-    in srgb,
+    in oklch,
     var(--theme-primary-6) 12%,
     transparent
   );
@@ -44,7 +44,7 @@
   --color-success-lighter: var(--theme-success-3);
   --color-success-white: var(--theme-success-1);
   --color-success-soft: color-mix(
-    in srgb,
+    in oklch,
     var(--theme-success-6) 12%,
     transparent
   );
@@ -65,7 +65,7 @@
   --color-error-lighter: var(--theme-error-3);
   --color-error-white: var(--theme-error-1);
   --color-error-soft: color-mix(
-    in srgb,
+    in oklch,
     var(--theme-error-6) 12%,
     transparent
   );
@@ -91,7 +91,7 @@
   --color-warning-lighter: var(--theme-warning-3);
   --color-warning-white: var(--theme-warning-1);
   --color-warning-soft: color-mix(
-    in srgb,
+    in oklch,
     var(--theme-warning-6) 12%,
     transparent
   );
@@ -160,49 +160,49 @@
   --theme-error-base: #f53f3f;
   --app-background: #f7f8fb;
 
-  --theme-primary-1: color-mix(in srgb, var(--theme-primary-base) 8%, white);
-  --theme-primary-2: color-mix(in srgb, var(--theme-primary-base) 16%, white);
-  --theme-primary-3: color-mix(in srgb, var(--theme-primary-base) 28%, white);
-  --theme-primary-4: color-mix(in srgb, var(--theme-primary-base) 44%, white);
-  --theme-primary-5: color-mix(in srgb, var(--theme-primary-base) 68%, white);
+  --theme-primary-1: color-mix(in oklch, var(--theme-primary-base) 8%, white);
+  --theme-primary-2: color-mix(in oklch, var(--theme-primary-base) 16%, white);
+  --theme-primary-3: color-mix(in oklch, var(--theme-primary-base) 28%, white);
+  --theme-primary-4: color-mix(in oklch, var(--theme-primary-base) 44%, white);
+  --theme-primary-5: color-mix(in oklch, var(--theme-primary-base) 68%, white);
   --theme-primary-6: var(--theme-primary-base);
-  --theme-primary-7: color-mix(in srgb, var(--theme-primary-base) 86%, black);
-  --theme-primary-8: color-mix(in srgb, var(--theme-primary-base) 74%, black);
-  --theme-primary-9: color-mix(in srgb, var(--theme-primary-base) 62%, black);
-  --theme-primary-10: color-mix(in srgb, var(--theme-primary-base) 50%, black);
+  --theme-primary-7: color-mix(in oklch, var(--theme-primary-base) 86%, black);
+  --theme-primary-8: color-mix(in oklch, var(--theme-primary-base) 74%, black);
+  --theme-primary-9: color-mix(in oklch, var(--theme-primary-base) 62%, black);
+  --theme-primary-10: color-mix(in oklch, var(--theme-primary-base) 50%, black);
 
-  --theme-success-1: color-mix(in srgb, var(--theme-success-base) 8%, white);
-  --theme-success-2: color-mix(in srgb, var(--theme-success-base) 16%, white);
-  --theme-success-3: color-mix(in srgb, var(--theme-success-base) 28%, white);
-  --theme-success-4: color-mix(in srgb, var(--theme-success-base) 44%, white);
-  --theme-success-5: color-mix(in srgb, var(--theme-success-base) 68%, white);
+  --theme-success-1: color-mix(in oklch, var(--theme-success-base) 8%, white);
+  --theme-success-2: color-mix(in oklch, var(--theme-success-base) 16%, white);
+  --theme-success-3: color-mix(in oklch, var(--theme-success-base) 28%, white);
+  --theme-success-4: color-mix(in oklch, var(--theme-success-base) 44%, white);
+  --theme-success-5: color-mix(in oklch, var(--theme-success-base) 68%, white);
   --theme-success-6: var(--theme-success-base);
-  --theme-success-7: color-mix(in srgb, var(--theme-success-base) 86%, black);
-  --theme-success-8: color-mix(in srgb, var(--theme-success-base) 74%, black);
-  --theme-success-9: color-mix(in srgb, var(--theme-success-base) 62%, black);
-  --theme-success-10: color-mix(in srgb, var(--theme-success-base) 50%, black);
+  --theme-success-7: color-mix(in oklch, var(--theme-success-base) 86%, black);
+  --theme-success-8: color-mix(in oklch, var(--theme-success-base) 74%, black);
+  --theme-success-9: color-mix(in oklch, var(--theme-success-base) 62%, black);
+  --theme-success-10: color-mix(in oklch, var(--theme-success-base) 50%, black);
 
-  --theme-warning-1: color-mix(in srgb, var(--theme-warning-base) 8%, white);
-  --theme-warning-2: color-mix(in srgb, var(--theme-warning-base) 16%, white);
-  --theme-warning-3: color-mix(in srgb, var(--theme-warning-base) 28%, white);
-  --theme-warning-4: color-mix(in srgb, var(--theme-warning-base) 44%, white);
-  --theme-warning-5: color-mix(in srgb, var(--theme-warning-base) 68%, white);
+  --theme-warning-1: color-mix(in oklch, var(--theme-warning-base) 8%, white);
+  --theme-warning-2: color-mix(in oklch, var(--theme-warning-base) 16%, white);
+  --theme-warning-3: color-mix(in oklch, var(--theme-warning-base) 28%, white);
+  --theme-warning-4: color-mix(in oklch, var(--theme-warning-base) 44%, white);
+  --theme-warning-5: color-mix(in oklch, var(--theme-warning-base) 68%, white);
   --theme-warning-6: var(--theme-warning-base);
-  --theme-warning-7: color-mix(in srgb, var(--theme-warning-base) 86%, black);
-  --theme-warning-8: color-mix(in srgb, var(--theme-warning-base) 74%, black);
-  --theme-warning-9: color-mix(in srgb, var(--theme-warning-base) 62%, black);
-  --theme-warning-10: color-mix(in srgb, var(--theme-warning-base) 50%, black);
+  --theme-warning-7: color-mix(in oklch, var(--theme-warning-base) 86%, black);
+  --theme-warning-8: color-mix(in oklch, var(--theme-warning-base) 74%, black);
+  --theme-warning-9: color-mix(in oklch, var(--theme-warning-base) 62%, black);
+  --theme-warning-10: color-mix(in oklch, var(--theme-warning-base) 50%, black);
 
-  --theme-error-1: color-mix(in srgb, var(--theme-error-base) 8%, white);
-  --theme-error-2: color-mix(in srgb, var(--theme-error-base) 16%, white);
-  --theme-error-3: color-mix(in srgb, var(--theme-error-base) 28%, white);
-  --theme-error-4: color-mix(in srgb, var(--theme-error-base) 44%, white);
-  --theme-error-5: color-mix(in srgb, var(--theme-error-base) 68%, white);
+  --theme-error-1: color-mix(in oklch, var(--theme-error-base) 8%, white);
+  --theme-error-2: color-mix(in oklch, var(--theme-error-base) 16%, white);
+  --theme-error-3: color-mix(in oklch, var(--theme-error-base) 28%, white);
+  --theme-error-4: color-mix(in oklch, var(--theme-error-base) 44%, white);
+  --theme-error-5: color-mix(in oklch, var(--theme-error-base) 68%, white);
   --theme-error-6: var(--theme-error-base);
-  --theme-error-7: color-mix(in srgb, var(--theme-error-base) 86%, black);
-  --theme-error-8: color-mix(in srgb, var(--theme-error-base) 74%, black);
-  --theme-error-9: color-mix(in srgb, var(--theme-error-base) 62%, black);
-  --theme-error-10: color-mix(in srgb, var(--theme-error-base) 50%, black);
+  --theme-error-7: color-mix(in oklch, var(--theme-error-base) 86%, black);
+  --theme-error-8: color-mix(in oklch, var(--theme-error-base) 74%, black);
+  --theme-error-9: color-mix(in oklch, var(--theme-error-base) 62%, black);
+  --theme-error-10: color-mix(in oklch, var(--theme-error-base) 50%, black);
 }
 
 @layer base {

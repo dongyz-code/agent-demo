@@ -1,9 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { applyThemeBaseColors, defaultThemeBaseColors } from '@repo/ui/theme';
 
 import { APP } from './APP';
-import { applyThemeBaseColors, defaultThemeBaseColors } from '@/theme/colors';
-import './styles.css';
+import { applyThemeMode, useThemeModel } from './model/theme';
+import '@/styles/index.css';
 
 const root = document.getElementById('root');
 
@@ -12,6 +13,9 @@ if (!root) {
 }
 
 applyThemeBaseColors(defaultThemeBaseColors);
+
+const initialThemeMode = useThemeModel.getState().themeMode;
+applyThemeMode(initialThemeMode);
 
 createRoot(root).render(
   <StrictMode>

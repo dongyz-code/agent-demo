@@ -1,14 +1,19 @@
 import { Link } from '@tanstack/react-router';
 import LucidePanelLeftClose from '~icons/lucide/panel-left-close';
 import LucidePanelLeftOpen from '~icons/lucide/panel-left-open';
+import LucideLogOut from '~icons/lucide/log-out';
 import LucideUserCircle from '~icons/lucide/user-circle';
 
 import { Brand } from '@/components/Brand';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Button } from '@/components/ui/button';
+import { api } from '@/utils/api';
+import { routerGoLogin } from '@/router/methods';
 import { workspaceNavigation } from './navigation';
 import { useAppModel } from '@/model/app';
 import { useSessionModel } from '@/model/session';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 type WorkspaceLayoutProps = {
   /** 工作区页面主体内容。 */
@@ -25,16 +30,40 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const navCollapsed = useAppModel((state) => state.navCollapsed);
   const toggleNav = useAppModel((state) => state.toggleNav);
   const user = useSessionModel((state) => state.user);
+  const clearSession = useSessionModel((state) => state.clearSession);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  /**
+   * 调用服务端清除 Cookie，并同步清理客户端会话。
+   *
+   * @returns 服务端请求、本地清理和登录页跳转完成后结束。
+   */
+  async function handleLogout() {
+    if (loggingOut) {
+      return;
+    }
+
+    setLoggingOut(true);
+    try {
+      await api('/login/logout', {});
+    } catch {
+      // 服务端不可用时也要清理本地状态，避免继续使用旧会话。
+    } finally {
+      clearSession();
+      await routerGoLogin({ replace: true });
+      setLoggingOut(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-app-bg text-app-text">
+    <div className="min-h-screen bg-background text-foreground">
       <aside
         className={[
-          'fixed inset-y-0 left-0 z-20 hidden border-r border-app-border bg-app-bg lg:block',
+          'fixed inset-y-0 left-0 z-20 hidden border-r border-border bg-background lg:block',
           navCollapsed ? 'w-16' : 'w-64',
         ].join(' ')}
       >
-        <div className="flex h-14 items-center border-b border-app-border px-4">
+        <div className="flex h-14 items-center border-b border-border px-4">
           <Brand collapsed={navCollapsed} />
         </div>
         <nav className="space-y-1 p-3">
@@ -44,8 +73,8 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
               to={to}
               title={navCollapsed ? label : undefined}
               className={[
-                'flex h-10 items-center gap-3 rounded px-3 text-sm text-app-muted hover:bg-app-surface hover:text-app-text',
-                '[&.active]:bg-primary-soft [&.active]:text-primary-2',
+                'flex h-10 items-center gap-3 rounded px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
+                '[&.active]:bg-primary/10 [&.active]:text-link',
                 navCollapsed ? 'justify-center' : '',
               ].join(' ')}
             >
@@ -57,29 +86,46 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       </aside>
 
       <div className={navCollapsed ? 'lg:pl-16' : 'lg:pl-64'}>
-        <header className="sticky top-0 z-10 border-b border-app-border bg-app-bg/90 backdrop-blur">
+        <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
           <div className="flex h-14 items-center justify-between px-4">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="inline-flex size-9 items-center justify-center rounded border border-app-border-strong text-app-muted hover:bg-app-surface"
+              <Button
+                variant="outline"
+                size="icon"
+                className="text-muted-foreground"
                 onClick={toggleNav}
-                aria-label={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-                title={navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                aria-label={
+                  navCollapsed ? 'Expand navigation' : 'Collapse navigation'
+                }
+                title={
+                  navCollapsed ? 'Expand navigation' : 'Collapse navigation'
+                }
               >
                 {navCollapsed ? (
                   <LucidePanelLeftOpen className="size-4" aria-hidden />
                 ) : (
                   <LucidePanelLeftClose className="size-4" aria-hidden />
                 )}
-              </button>
+              </Button>
               <div className="lg:hidden">
                 <Brand />
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-app-muted">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <LucideUserCircle className="size-4" aria-hidden />
               <span>{user?.nickname ?? user?.username ?? 'Guest'}</span>
+              <ThemeToggle />
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                aria-label="Sign out"
+                title="Sign out"
+                disabled={loggingOut}
+                onClick={() => void handleLogout()}
+              >
+                <LucideLogOut className="size-4" aria-hidden />
+              </Button>
             </div>
           </div>
         </header>

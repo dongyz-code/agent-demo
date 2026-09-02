@@ -1,6 +1,9 @@
 import { getAxios } from '@repo/utils-browser';
 import { AxiosError } from 'axios';
 
+import { API_BASE } from '@/constants/env';
+import { useSessionModel } from '@/model/session';
+
 import type { API } from '@repo/types';
 
 type ApiErrorPayload = {
@@ -19,6 +22,7 @@ export class ApiResponseError extends Error {
 }
 
 export const { api, axios: http } = getAxios<API>({
+  origin: API_BASE,
   prefix: '/api',
   config: {
     withCredentials: true,
@@ -40,8 +44,19 @@ export const { api, axios: http } = getAxios<API>({
         }
         return response;
       },
-      (error: AxiosError) => {
-        const responseError = handleErrorPayload(error.response?.data);
+      (error: AxiosError | ApiResponseError) => {
+        let responseError: ApiResponseError | undefined;
+
+        if (error instanceof ApiResponseError) {
+          responseError = error;
+        } else {
+          responseError = handleErrorPayload(error.response?.data);
+        }
+
+        if (responseError?.code === '401') {
+          useSessionModel.getState().clearSession();
+        }
+
         return Promise.reject(responseError ?? error);
       },
     );

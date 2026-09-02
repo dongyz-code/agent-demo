@@ -1,7 +1,7 @@
 *.log
 .turbo
+.agents
 .claude
-.codex
 node_modules
 /.omc
 

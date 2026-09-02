@@ -1,4 +1,8 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from '@tanstack/react-router';
 import { Suspense, type ReactNode } from 'react';
 
 import { AuthLayout } from '@/layouts/auth/AuthLayout';
@@ -17,7 +21,7 @@ import type { RouteConfig } from './type';
 function RoutePending() {
   return (
     <div
-      className="h-24 animate-pulse rounded border border-app-border bg-app-surface"
+      className="h-24 animate-pulse rounded border border-border bg-card"
       aria-label="Loading page"
     />
   );

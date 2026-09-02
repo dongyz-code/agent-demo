@@ -22,12 +22,12 @@ export const useSessionModel = create<SessionState>()(
       permission: [],
       isAuthenticated: false,
       setSession: ({ token, user, permission }) =>
-        set({
-          token: token ?? null,
+        set((state) => ({
+          token: token ?? state.token,
           user,
           permission,
           isAuthenticated: true,
-        }),
+        })),
       clearSession: () =>
         set({
           token: null,

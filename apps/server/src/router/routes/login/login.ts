@@ -53,6 +53,7 @@ async function getUserItem(
     filter.push(
       eq(schemas.user.username, username),
       eq(schemas.user.password, password),
+      eq(schemas.user.available, true),
     );
   });
   const [item] = await db

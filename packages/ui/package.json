@@ -8,6 +8,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./tailwind.css": "./src/styles/tailwind.css",
+    "./theme": {
+      "types": "./src/plugins/theme/index.ts",
+      "default": "./src/plugins/theme/index.ts"
+    },
     "./dist.css": "./dist/index.css",
     "./index.css": "./src/index.css"
   },

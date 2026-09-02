@@ -1,0 +1,42 @@
+:root {
+  color-scheme: dark;
+
+  /** 客户端壳层色，与共享语义主题色分开维护。 */
+  --app-bg: #0b0c10;
+  --app-surface: #141821;
+  --app-raised: #1a1f2b;
+  --app-border: #334155;
+  --app-border-strong: #46526a;
+  --app-text: #f8fafc;
+  --app-muted: #a7b0c0;
+  --app-subtle: #7c879b;
+  --app-inverse: #071018;
+  --app-background: var(--app-bg);
+  --app-primary-text: var(--theme-primary-3);
+  --app-primary-soft-text: var(--theme-primary-2);
+  --app-success-text: var(--theme-success-3);
+  --app-warning-text: var(--theme-warning-3);
+  --app-error-text: var(--theme-error-3);
+  --app-info-text: var(--theme-primary-3);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --app-bg: #f7f8fb;
+  --app-surface: #ffffff;
+  --app-raised: #f1f3f7;
+  --app-border: #d1d5db;
+  --app-border-strong: #b8c2d0;
+  --app-text: #1f2937;
+  --app-muted: #475569;
+  --app-subtle: #64748b;
+  --app-inverse: #ffffff;
+  --app-background: var(--app-bg);
+  --app-primary-text: var(--theme-primary-7);
+  --app-primary-soft-text: var(--theme-primary-7);
+  --app-success-text: var(--theme-success-9);
+  --app-warning-text: var(--theme-warning-9);
+  --app-error-text: var(--theme-error-8);
+  --app-info-text: var(--theme-primary-7);
+}

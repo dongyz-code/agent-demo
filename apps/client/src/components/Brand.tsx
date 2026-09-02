@@ -13,8 +13,8 @@ type BrandProps = {
  */
 export function Brand({ collapsed = false }: BrandProps) {
   return (
-    <div className="flex items-center gap-2 font-semibold text-app-text">
-      <LucideActivity className="size-5 text-primary-3" aria-hidden />
+    <div className="flex items-center gap-2 font-semibold text-foreground">
+      <LucideActivity className="size-5 text-link" aria-hidden />
       {!collapsed && <span>Client</span>}
     </div>
   );

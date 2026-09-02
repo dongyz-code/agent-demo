@@ -4,7 +4,7 @@ import LucideServer from '~icons/lucide/server';
 import LucideShieldCheck from '~icons/lucide/shield-check';
 
 import { PageHeader } from '@/components/PageHeader';
-import { StatusBadge } from '@/components/StatusBadge';
+import { Badge } from '@/components/ui/badge';
 
 import type { IconComponent } from '@/router/type';
 
@@ -21,44 +21,6 @@ function useRuntimeSummary() {
       checkedAt: new Date().toLocaleTimeString(),
     }),
   });
-}
-
-/**
- * 渲染客户端仪表盘首页。
- *
- * @returns 仪表盘页面节点。
- */
-export function DashboardPage() {
-  const { data } = useRuntimeSummary();
-
-  return (
-    <>
-      <PageHeader
-        title="Dashboard"
-        description="Client application workspace"
-        actions={<StatusBadge tone="success">{data?.status ?? 'loading'}</StatusBadge>}
-      />
-      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-        <section className="rounded border border-app-border bg-app-surface p-5">
-          <div className="grid gap-3 md:grid-cols-3">
-            <MetricCard icon={LucideServer} label="API" value="/api" />
-            <MetricCard icon={LucideShieldCheck} label="Mode" value="SPA" />
-            <MetricCard icon={LucideClock3} label="Checked" value={data?.checkedAt ?? '-'} />
-          </div>
-        </section>
-        <aside className="rounded border border-app-border bg-app-surface p-5">
-          <h2 className="text-sm font-semibold uppercase text-app-muted">Stack</h2>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {['React 19', 'Vite 8', 'TypeScript', 'TanStack', 'Tailwind'].map(
-              (item) => (
-                <StatusBadge key={item}>{item}</StatusBadge>
-              ),
-            )}
-          </div>
-        </aside>
-      </div>
-    </>
-  );
 }
 
 type MetricCardProps = {
@@ -78,10 +40,56 @@ type MetricCardProps = {
  */
 function MetricCard({ icon: Icon, label, value }: MetricCardProps) {
   return (
-    <div className="rounded border border-app-border bg-app-bg p-4">
-      <Icon className="mb-3 size-5 text-primary-3" aria-hidden />
-      <div className="text-sm text-app-muted">{label}</div>
-      <div className="mt-1 font-medium text-app-text">{value}</div>
+    <div className="rounded border border-border bg-background p-4">
+      <Icon className="mb-3 size-5 text-primary" aria-hidden />
+      <div className="text-sm text-muted-foreground">{label}</div>
+      <div className="mt-1 font-medium text-foreground">{value}</div>
     </div>
+  );
+}
+
+/**
+ * 渲染客户端仪表盘首页。
+ *
+ * @returns 仪表盘页面节点。
+ */
+export function DashboardPage() {
+  const { data } = useRuntimeSummary();
+
+  return (
+    <>
+      <PageHeader
+        title="Dashboard"
+        description="Client application workspace"
+        actions={<Badge variant="success">{data?.status ?? 'loading'}</Badge>}
+      />
+      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+        <section className="rounded border border-border bg-card p-5">
+          <div className="grid gap-3 md:grid-cols-3">
+            <MetricCard icon={LucideServer} label="API" value="/api" />
+            <MetricCard icon={LucideShieldCheck} label="Mode" value="SPA" />
+            <MetricCard
+              icon={LucideClock3}
+              label="Checked"
+              value={data?.checkedAt ?? '-'}
+            />
+          </div>
+        </section>
+        <aside className="rounded border border-border bg-card p-5">
+          <h2 className="text-sm font-semibold uppercase text-muted-foreground">
+            Stack
+          </h2>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {['React 19', 'Vite 8', 'TypeScript', 'TanStack', 'Tailwind'].map(
+              (item) => (
+                <Badge key={item} variant="outline">
+                  {item}
+                </Badge>
+              ),
+            )}
+          </div>
+        </aside>
+      </div>
+    </>
   );
 }

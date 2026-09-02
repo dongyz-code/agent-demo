@@ -2,6 +2,7 @@ import LucidePanelLeftClose from '~icons/lucide/panel-left-close';
 import LucidePanelLeftOpen from '~icons/lucide/panel-left-open';
 
 import { PageHeader } from '@/components/PageHeader';
+import { Button } from '@/components/ui/button';
 import { useAppModel } from '@/model/app';
 
 /**
@@ -14,11 +15,9 @@ export function SettingsPage() {
   const toggleNav = useAppModel((state) => state.toggleNav);
 
   return (
-    <section className="max-w-2xl rounded border border-app-border bg-app-surface p-5">
+    <section className="max-w-2xl rounded border border-border bg-card p-5">
       <PageHeader title="Settings" description="Client shell preferences" />
-      <button
-        type="button"
-        className="inline-flex h-10 items-center gap-2 rounded bg-primary px-3 text-sm font-medium text-app-inverse hover:bg-primary-hover"
+      <Button
         onClick={toggleNav}
       >
         {navCollapsed ? (
@@ -27,7 +26,7 @@ export function SettingsPage() {
           <LucidePanelLeftClose className="size-4" aria-hidden />
         )}
         {navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-      </button>
+      </Button>
     </section>
   );
 }
