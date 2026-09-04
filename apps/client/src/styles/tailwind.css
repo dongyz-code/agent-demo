@@ -1,4 +1,4 @@
-@import '@repo/ui/tailwind.css';
+@import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
@@ -7,83 +7,15 @@
 
 @source '../';
 
-/** shadcn/ui 语义主题变量；组件只依赖这些 token，不直接依赖业务色值。 */
-:root {
-  --background: var(--app-bg);
-  --foreground: var(--app-text);
-  --card: var(--app-surface);
-  --card-foreground: var(--app-text);
-  --popover: var(--app-surface);
-  --popover-foreground: var(--app-text);
-  --primary: var(--theme-primary-6);
-  --secondary: var(--app-raised);
-  --secondary-foreground: var(--app-text);
-  --muted: var(--app-raised);
-  --muted-foreground: var(--app-muted);
-  --accent: var(--app-raised);
-  --accent-foreground: var(--app-text);
-  --destructive: var(--app-error-text);
-  --destructive-foreground: var(--app-inverse);
-  --success: var(--app-success-text);
-  --success-foreground: var(--app-inverse);
-  --warning: var(--app-warning-text);
-  --warning-foreground: var(--app-inverse);
-  --info: var(--app-info-text);
-  --info-foreground: var(--app-inverse);
-  --link: var(--app-primary-text);
-  --border: var(--app-border);
-  --input: var(--app-border-strong);
-  --ring: var(--theme-primary-6);
-  --surface: var(--app-raised);
-  --surface-foreground: var(--app-text);
-  --chart-1: var(--theme-primary-6);
-  --chart-2: var(--theme-success-6);
-  --chart-3: var(--theme-warning-6);
-  --chart-4: var(--theme-error-6);
-  --chart-5: var(--theme-primary-7);
-  --sidebar: var(--app-surface);
-  --sidebar-foreground: var(--app-text);
-  --sidebar-primary: var(--theme-primary-6);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--app-raised);
-  --sidebar-accent-foreground: var(--app-text);
-  --sidebar-border: var(--app-border);
-  --sidebar-ring: var(--theme-primary-6);
-  --radius: 0.625rem;
-
-  /** 浅色模式使用 ai-pptx 的实色按钮和深色文字配对。 */
-  --primary-foreground: #ffffff;
-  --destructive-foreground: #ffffff;
-  --success-foreground: #ffffff;
-  --warning-foreground: #ffffff;
-  --info-foreground: #ffffff;
-  --link: var(--app-primary-text);
-  --sidebar-primary-foreground: #ffffff;
-}
-
-/** 深色模式将主色提亮，匹配 ai-pptx PrimeVue 的 dark colorScheme。 */
-:root[data-theme='dark'] {
-  --primary: var(--theme-primary-1);
-  --primary-foreground: var(--theme-primary-9);
-  --ring: var(--theme-primary-3);
-  --chart-1: var(--theme-primary-1);
-  --sidebar-primary: var(--theme-primary-1);
-  --sidebar-primary-foreground: var(--theme-primary-9);
-  --sidebar-ring: var(--theme-primary-3);
-  --destructive-foreground: var(--app-inverse);
-  --success-foreground: var(--app-inverse);
-  --warning-foreground: var(--app-inverse);
-  --info-foreground: var(--app-inverse);
-}
-
+/** shadcn 语义 token → Tailwind utility 别名;色值与 mode 切换全在 variables.css。 */
 @theme inline {
-  /** shadcn/ui 语义别名，底层复用客户端和共享主题 token。 */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -92,37 +24,31 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-subtle: var(--destructive-subtle);
   --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
   --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
   --color-info: var(--info);
-  --color-info-foreground: var(--info-foreground);
+  --color-info-subtle: var(--info-subtle);
   --color-link: var(--link);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-surface: var(--surface);
-  --color-surface-foreground: var(--surface-foreground);
-
-  /** 圆角和字体沿用 Nova preset，应用层只提供语义 token 映射。 */
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-ring: var(--sidebar-ring);
   --color-chart-1: var(--chart-1);
-  --color-primary: var(--primary);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --font-sans: 'Geist Variable', sans-serif;
+  --font-heading: var(--font-sans);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -131,6 +57,7 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

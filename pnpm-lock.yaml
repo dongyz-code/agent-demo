@@ -144,9 +144,6 @@ importers:
       '@repo/types':
         specifier: workspace:^
         version: link:../../packages/types
-      '@repo/ui':
-        specifier: workspace:^
-        version: link:../../packages/ui
       '@repo/utils-browser':
         specifier: workspace:^
         version: link:../../packages/utils/browser

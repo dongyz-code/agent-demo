@@ -14,11 +14,11 @@ Client 图标统一使用 Lucide 官方 React 包 `lucide-react`；Admin 保留 
 
 | 文件 | 责任 | 允许修改的内容 |
 | --- | --- | --- |
-| `apps/client/src/styles/variables.css` | 应用外壳的明暗模式 | 页面底色、表面层级、文字层级、边界、状态文字和品牌色引用 |
-| `apps/client/src/styles/tailwind.css` | shadcn token 到 Tailwind utility 的映射 | `--background`、`--card`、`--primary`、`--border` 等语义角色及其前景配对 |
+| `apps/client/src/styles/variables.css` | 唯一色源与唯一明暗模式切换点 | `--brand-*` 调色板、中性外壳、全部语义角色 token 及 `:root[data-theme='dark']` 翻转 |
+| `apps/client/src/styles/tailwind.css` | `@theme inline` 别名与 `@layer base` | `--color-*` 到 Tailwind utility 的映射、圆角与字体注册；零色值、零 mode |
 | `apps/client/src/styles/reset.css` | 浏览器默认样式和页面基础行为 | margin、字体回退、点击高亮等 reset；不放颜色体系 |
 
-入口文件 `apps/client/src/styles/index.css` 固定按 `tailwind → variables → reset` 引入。组件和页面只使用语义类名（例如 `bg-card`、`text-muted-foreground`）；`--app-*`、`--theme-*` 是实现细节，只能在主题 CSS 或运行时主题 API 中使用。装饰性背景允许使用 `var(--primary)`、`var(--warning)` 和 `var(--border)` 等语义变量。
+入口文件 `apps/client/src/styles/index.css` 固定按 `tailwind → variables → reset` 引入。组件和页面只使用语义类名（例如 `bg-card`、`text-muted-foreground`）；`--brand-*`、`--surface`、`--raised`、`--primary-ink` 是实现细节，只能在 `variables.css` 中使用。装饰性背景允许使用 `var(--primary)`、`var(--warning)` 和 `var(--border)` 等语义变量。
 
 ## Token 体系
 
@@ -39,36 +39,27 @@ Client 图标统一使用 Lucide 官方 React 包 `lucide-react`；Admin 保留 
 
 ### 状态角色
 
-| 状态 | 实色背景 | 浅色提示背景 | 文字/前景 | 推荐组件 |
+状态色走**软底语言**：文字用 ink（`text-success` 等），软底用 `*-subtle` token（`bg-success-subtle` 等，即 ink @10% 透明），不再用 `bg-success/10` 透明度修饰。状态色不定义实色背景与 `*-foreground`（产品无实色状态按钮；若将来需要，再补 `--<色>-foreground`）。
+
+| 状态 | 软底背景 | 文字 | hover 增强 | 推荐组件 |
 | --- | --- | --- | --- | --- |
-| 成功 | `bg-success` | `bg-success/10` | `text-success` / `text-success-foreground` | `Badge variant="success"` |
-| 警告 | `bg-warning` | `bg-warning/10` | `text-warning` / `text-warning-foreground` | `Badge variant="warning"` |
-| 信息 | `bg-info` | `bg-info/10` | `text-info` / `text-info-foreground` | `Badge variant="info"` |
-| 错误/危险 | `bg-destructive` | `bg-destructive/10` | `text-destructive` / `text-destructive-foreground` | `Alert variant="destructive"` |
-| 链接 | — | — | `text-link` | 原生链接或路由链接 |
+| 成功 | `bg-success-subtle` | `text-success` | `hover:bg-success/20` | `Badge variant="success"` |
+| 警告 | `bg-warning-subtle` | `text-warning` | `hover:bg-warning/20` | `Badge variant="warning"` |
+| 信息 | `bg-info-subtle` | `text-info` | `hover:bg-info/20` | `Badge variant="info"` |
+| 错误/危险 | `bg-destructive-subtle` | `text-destructive` | `hover:bg-destructive/20` | `Alert variant="destructive"` |
+| 链接 | — | `text-link` | — | 原生链接或路由链接 |
 
-优先使用组件内置 variant，例如 `Badge`、`Alert`、`Button` 的 variant；调用处只负责布局，不重新拼接状态颜色。没有对应 variant 时，使用上述语义 token，不使用原始色值。
+`primary` 是唯一的**实色角色**（按钮/选中态用 `bg-primary` + `text-primary-foreground`）；状态色一律软底。优先使用组件内置 variant，例如 `Badge`、`Alert`、`Button` 的 variant；调用处只负责布局，不重新拼接状态颜色。hover 增强、软底描边（`border-success/30`）、焦点环（`ring-ring/50`）、aria-invalid（`ring-destructive/20`）等状态性强度保留透明度修饰，不收敛成 token。
 
-### 品牌色阶
+### 调色板与派生
 
-品牌色由 `packages/ui/src/styles/tailwind.css` 中的 `--theme-*-base` 提供，当前默认值为：
-
-```css
---theme-primary-base: #165dff;
---theme-success-base: #00b42a;
---theme-warning-base: #ff7d00;
---theme-error-base: #f53f3f;
-```
-
-Client 入口会在运行时注入与 `ai-pptx` 对齐的完整基础色板：Purple `#a855f7`、Green `#22c55e`、Amber `#f59e0b` 和 Red `#ef4444`。共享包中的默认色板仍只作为未覆盖时的回退值，不会影响 Admin。
-
-`1–5` 为向白色混合的浅阶，`6` 为基础色，`7–10` 为向黑色混合的深阶，使用 OKLCH `color-mix` 派生。业务换肤只调用 `applyThemeBaseColors` 或修改基础色，不在页面中复制色阶。
+Client 在 `apps/client/src/styles/variables.css` 的 `:root` 用 `--brand-*` 定义与 `ai-pptx` 对齐的基础色板（Purple `#a855f7`、Green `#22c55e`、Amber `#f59e0b`、Red `#ef4444`），各语义角色就地 `color-mix(in oklch, ...)` 派生：状态 ink 朝 `black`/`white` 混（浅色取深阶、暗色取浅阶），`*-subtle` 软底为 ink @10% `transparent`。不再运行时注入，不依赖 `@repo/ui`，不复制共享色阶（共享包 `--theme-*-N` 仅供 Admin）。改一个 `--brand-*` 即重算全部相关角色；不在页面复制色值。如需运行时换肤，对 `<html>` 设 `--brand-*` 即可（`variables.css` 已是声明点）。
 
 ## 明暗模式
 
 - 当前默认模式为 `light`，与 `ai-pptx` 工作台一致；用户选择持久化在 `client-theme`。如果产品改为跟随系统，必须新增 `system` 模式并明确无持久化值时的回退规则。
 - `applyThemeMode` 是唯一的 DOM 同步入口，同时维护根节点的 `data-theme`、`.dark`、`.light` 和 `color-scheme`。
-- 浅色模式使用根节点默认 token，深色模式通过 `:root[data-theme='dark']` 调整表面、文字和主色配对；组件代码不写颜色用途的 `dark:` 覆盖。官方生成的 shadcn 原语若包含必要的 `dark:` 状态样式，保留上游实现，不在业务调用处追加覆盖。
+- 浅色模式使用 `:root` 默认 token，深色模式**只**在 `variables.css` 的 `:root[data-theme='dark']` 一处翻转需变角色（中性外壳、`--primary`、状态 ink、`--ring` 等）；`tailwind.css` 不得出现 `[data-theme]` 选择器。组件代码不写颜色用途的 `dark:` 覆盖，官方生成的 shadcn 原语若包含必要的 `dark:` 状态样式，保留上游实现。
 - 每个新增颜色角色必须同时提供暗色、浅色和 `*-foreground` 配对，并验证实色背景上的对比度。
 - 主题切换按钮必须有中文 `aria-label`，图标表示将要切换的模式；Sonner 的 toaster 主题必须读取同一个 `themeMode`。
 
@@ -92,17 +83,17 @@ Client 入口会在运行时注入与 `ai-pptx` 对齐的完整基础色板：Pu
 
 - 不在页面或组件中使用 `bg-blue-500`、`text-[#...]`、`border-gray-*` 等原始颜色。
 - 业务调用处不通过 `dark:` 重写颜色语义；修改 `:root` 与 `:root[data-theme='light']` 的 token 配对。官方生成的基础组件若包含必要的 `dark:` 交互状态，保留上游实现。
-- 不在业务页面直接读取 `--app-*` 或 `--theme-*`；装饰性渐变除外，且只能读取语义变量。
+- 不在业务页面直接读取 `--brand-*`、`--surface`、`--raised`、`--primary-ink`；装饰性渐变除外，且只能读取语义变量。
 - 不把 `bg-black/10`、`bg-white` 等原始颜色带入业务页面；官方生成的 Dialog/Sheet 遮罩等基础实现若需要固定遮罩色，可保留上游代码。
 - 不在 `components/ui` 外复制 shadcn 组件源码；需要新组件时使用官方 CLI：`pnpm dlx shadcn@latest add <component>`，并检查生成文件是否匹配当前 Radix/Nova 配置。
 - 不在 Client 业务代码中引入 `~icons/*`、Iconify 图标或第二套图标集合；自定义图标不得通过字符串动态渲染，后端图标名称必须先经过白名单映射。
 
-## 新增主题角色流程
+## 新增状态色流程
 
-1. 先确认现有 token 无法表达该语义，并为角色命名（例如 `info`），不要按颜色命名。
-2. 在 `tailwind.css` 的 `:root` 中定义角色及 `*-foreground`，在浅色模式中补充必要的对比度配对。
-3. 在 `@theme inline` 中暴露 `--color-*` 别名，使 Tailwind 生成对应 utility。
-4. 在组件 variant 或页面中使用语义类名，并补充 hover、focus、disabled 和错误状态。
+1. 先确认现有 token 无法表达该语义，并为角色命名（例如 `notice`），不要按颜色命名。
+2. 在 `variables.css` 的 `:root` 加 `--brand-notice`、`--notice`（ink，浅色朝 black 混）、`--notice-subtle`（`color-mix(in oklch, var(--notice) 10%, transparent)`）；在 `:root[data-theme='dark']` 翻转 `--notice`（朝 white 混）。`*-subtle` 随 ink 自动翻，无需重写。
+3. 在 `tailwind.css` 的 `@theme inline` 暴露 `--color-notice` 与 `--color-notice-subtle`。
+4. 在组件 variant 用 `bg-notice-subtle text-notice`，hover 用 `hover:bg-notice/20`。
 5. 用浏览器分别检查两种模式和对比度，再运行验证命令。
 
 ## 变更验收

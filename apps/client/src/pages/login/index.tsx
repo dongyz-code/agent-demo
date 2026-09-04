@@ -70,7 +70,7 @@ export function LoginPage() {
   return (
     <section className="grid w-full items-center gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
       <div className="hidden lg:block">
-        <div className="inline-flex h-10 items-center gap-2 rounded border border-info/30 bg-info/10 px-3 text-sm font-medium text-info">
+        <div className="inline-flex h-10 items-center gap-2 rounded border border-info/30 bg-info-subtle px-3 text-sm font-medium text-info">
           <ShieldCheckIcon className="size-4" aria-hidden />
           Agent 工作台
         </div>

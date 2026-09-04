@@ -1,49 +1,92 @@
 :root {
   color-scheme: light;
 
-  /** ai-pptx 的完整基础色板；共享包只提供其他应用的默认回退值。 */
-  --theme-primary-base: #a855f7;
-  --theme-success-base: #22c55e;
-  --theme-warning-base: #f59e0b;
-  --theme-error-base: #ef4444;
+  /* === 品牌调色板(原子):改一处,全角色重算 === */
+  --brand-primary: #a855f7;
+  --brand-success: #22c55e;
+  --brand-warning: #f59e0b;
+  --brand-error: #ef4444;
 
-  /** ai-pptx 浅色工作台的页面、表面、文字和边界层级。 */
-  --app-bg: #f3f4f6;
-  --app-surface: #ffffff;
-  --app-raised: #fafafa;
-  --app-border: #e5e7eb;
-  --app-border-strong: #d1d5db;
-  --app-text: #1a1a2e;
-  --app-muted: #4b5563;
-  --app-subtle: #9ca3af;
-  --app-inverse: #ffffff;
-  --app-background: var(--app-bg);
-  --app-primary-text: var(--theme-primary-7);
-  --app-primary-soft-text: var(--theme-primary-7);
-  --app-success-text: var(--theme-success-9);
-  --app-warning-text: var(--theme-warning-9);
-  --app-error-text: var(--theme-error-8);
-  --app-info-text: var(--theme-primary-7);
+  /* === 中性外壳(浅色):页面底色、表面层级、文字与边界 === */
+  --background: #f3f4f6;
+  --foreground: #1a1a2e;
+  --surface: #ffffff; /* card/popover/sidebar 共用(私有,不暴露 utility) */
+  --raised: #fafafa; /* secondary/muted/accent/sidebar-accent 共用 */
+  --border: #e5e7eb;
+  --input: #d1d5db; /* 边界加强 */
+  --muted-foreground: #4b5563;
+  --inverse: #ffffff; /* 实色背景上的前景 */
+
+  /* === primary:唯一实色角色(按钮/选中态) === */
+  --primary: var(--brand-primary);
+  --primary-foreground: var(--inverse);
+
+  /* === 状态色:软底语言(ink=文字色, subtle=软底) === */
+  --success: color-mix(in oklch, var(--brand-success) 62%, black);
+  --success-subtle: color-mix(in oklch, var(--success) 10%, transparent);
+  --warning: color-mix(in oklch, var(--brand-warning) 62%, black);
+  --warning-subtle: color-mix(in oklch, var(--warning) 10%, transparent);
+  --destructive: color-mix(in oklch, var(--brand-error) 74%, black);
+  --destructive-subtle: color-mix(in oklch, var(--destructive) 10%, transparent);
+  --primary-ink: color-mix(in oklch, var(--brand-primary) 86%, black); /* 主色文字(link/info) */
+  --info: var(--primary-ink);
+  --info-subtle: color-mix(in oklch, var(--info) 10%, transparent);
+  --link: var(--primary-ink);
+
+  /* === 焦点环与数据可视化 === */
+  --ring: var(--brand-primary);
+  --chart-1: var(--brand-primary);
+  --chart-2: var(--brand-success);
+  --chart-3: var(--brand-warning);
+  --chart-4: var(--brand-error);
+  --chart-5: var(--primary-ink);
+
+  /* === shadcn 语义映射(指向上面角色,mode-agnostic) === */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --secondary: var(--raised);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--raised);
+  --accent: var(--raised);
+  --accent-foreground: var(--foreground);
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-accent: var(--raised);
+  --sidebar-border: var(--border);
+  --sidebar-primary: var(--primary);
+  --sidebar-ring: var(--ring);
+
+  --radius: 0.625rem;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  /** 深色模式沿用 ai-pptx 的中性紫色体系，同时保持足够的层级对比。 */
-  --app-bg: #09090b;
-  --app-surface: #18181b;
-  --app-raised: #27272a;
-  --app-border: #3f3f46;
-  --app-border-strong: #52525b;
-  --app-text: #fafafa;
-  --app-muted: #a1a1aa;
-  --app-subtle: #71717a;
-  --app-inverse: #09090b;
-  --app-background: var(--app-bg);
-  --app-primary-text: var(--theme-primary-3);
-  --app-primary-soft-text: var(--theme-primary-2);
-  --app-success-text: var(--theme-success-3);
-  --app-warning-text: var(--theme-warning-3);
-  --app-error-text: var(--theme-error-3);
-  --app-info-text: var(--theme-primary-3);
+  /* === 中性外壳(暗色) === */
+  --background: #09090b;
+  --foreground: #fafafa;
+  --surface: #18181b;
+  --raised: #27272a;
+  --border: #3f3f46;
+  --input: #52525b;
+  --muted-foreground: #a1a1aa;
+  --inverse: #09090b;
+
+  /* === primary 提浅:暗色实色背景改用浅阶 === */
+  --primary: color-mix(in oklch, var(--brand-primary) 8%, white);
+  --primary-foreground: color-mix(in oklch, var(--brand-primary) 62%, black);
+
+  /* === 状态色提浅(subtle 随 ink 自动翻) === */
+  --success: color-mix(in oklch, var(--brand-success) 28%, white);
+  --warning: color-mix(in oklch, var(--brand-warning) 28%, white);
+  --destructive: color-mix(in oklch, var(--brand-error) 28%, white);
+  --primary-ink: color-mix(in oklch, var(--brand-primary) 28%, white);
+
+  /* === 焦点环与数据可视化(暗色) === */
+  --ring: color-mix(in oklch, var(--brand-primary) 28%, white);
+  --chart-1: var(--primary);
+  --sidebar-primary: var(--primary);
+  --sidebar-ring: var(--ring);
 }
