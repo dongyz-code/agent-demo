@@ -60,13 +60,15 @@ Client 图标统一使用 Lucide 官方 React 包 `lucide-react`；Admin 保留 
 --theme-error-base: #f53f3f;
 ```
 
+Client 入口会在运行时注入与 `ai-pptx` 对齐的完整基础色板：Purple `#a855f7`、Green `#22c55e`、Amber `#f59e0b` 和 Red `#ef4444`。共享包中的默认色板仍只作为未覆盖时的回退值，不会影响 Admin。
+
 `1–5` 为向白色混合的浅阶，`6` 为基础色，`7–10` 为向黑色混合的深阶，使用 OKLCH `color-mix` 派生。业务换肤只调用 `applyThemeBaseColors` 或修改基础色，不在页面中复制色阶。
 
 ## 明暗模式
 
-- 当前默认模式为 `dark`，用户选择持久化在 `client-theme`；如果产品改为跟随系统，必须新增 `system` 模式并明确无持久化值时的回退规则。
+- 当前默认模式为 `light`，与 `ai-pptx` 工作台一致；用户选择持久化在 `client-theme`。如果产品改为跟随系统，必须新增 `system` 模式并明确无持久化值时的回退规则。
 - `applyThemeMode` 是唯一的 DOM 同步入口，同时维护根节点的 `data-theme`、`.dark`、`.light` 和 `color-scheme`。
-- 浅色模式通过 `:root[data-theme='light']` 调整 token 配对；组件代码不写颜色用途的 `dark:` 覆盖。官方生成的 shadcn 原语若包含必要的 `dark:` 状态样式，保留上游实现，不在业务调用处追加覆盖。
+- 浅色模式使用根节点默认 token，深色模式通过 `:root[data-theme='dark']` 调整表面、文字和主色配对；组件代码不写颜色用途的 `dark:` 覆盖。官方生成的 shadcn 原语若包含必要的 `dark:` 状态样式，保留上游实现，不在业务调用处追加覆盖。
 - 每个新增颜色角色必须同时提供暗色、浅色和 `*-foreground` 配对，并验证实色背景上的对比度。
 - 主题切换按钮必须有中文 `aria-label`，图标表示将要切换的模式；Sonner 的 toaster 主题必须读取同一个 `themeMode`。
 

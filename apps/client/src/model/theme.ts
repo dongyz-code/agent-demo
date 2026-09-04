@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-/** 客户端支持的主题模式。默认使用暗色，以保持现有界面外观。 */
+/** 客户端支持的主题模式，默认使用 ai-pptx 的浅色工作台风格。 */
 export type ThemeMode = 'dark' | 'light';
 
 /**
@@ -52,7 +52,7 @@ type ThemeState = {
 export const useThemeModel = create<ThemeState>()(
   persist(
     (set) => ({
-      themeMode: 'dark',
+      themeMode: 'light',
       toggleTheme: () =>
         set((state) => ({
           themeMode: getNextThemeMode(state.themeMode),

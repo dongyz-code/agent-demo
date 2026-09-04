@@ -65,7 +65,7 @@ export const routes = [
     layout: 'auth',
     component: LazyLoginPage,
     meta: {
-      title: 'Sign In',
+      title: '登录',
       auth: false,
       guestOnly: true,
     },

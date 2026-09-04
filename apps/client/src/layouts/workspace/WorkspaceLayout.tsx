@@ -9,6 +9,14 @@ import {
 import { Brand } from '@/components/Brand';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { api } from '@/utils/api';
 import { routerGoLogin } from '@/router/methods';
 import { workspaceNavigation } from './navigation';
@@ -58,80 +66,127 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-svh bg-sidebar text-foreground">
       <aside
-        className={[
-          'fixed inset-y-0 left-0 z-20 hidden border-r border-border bg-background lg:block',
+        className={cn(
+          'fixed inset-y-0 left-0 z-20 hidden overflow-hidden p-2 text-sidebar-foreground transition-[width] duration-200 lg:flex lg:flex-col',
           navCollapsed ? 'w-16' : 'w-64',
-        ].join(' ')}
+        )}
       >
-        <div className="flex h-14 items-center border-b border-border px-4">
+        <div
+          className={cn(
+            'flex h-14 shrink-0 items-center px-3',
+            navCollapsed ? 'justify-center' : 'justify-start',
+          )}
+        >
           <Brand collapsed={navCollapsed} />
         </div>
-        <nav className="space-y-1 p-3">
-          {workspaceNavigation.map(({ icon: Icon, label, to }) => (
-            <Link
-              key={to}
-              to={to}
-              title={navCollapsed ? label : undefined}
-              className={[
-                'flex h-10 items-center gap-3 rounded px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                '[&.active]:bg-primary/10 [&.active]:text-link',
-                navCollapsed ? 'justify-center' : '',
-              ].join(' ')}
-            >
-              <Icon className="size-4 shrink-0" aria-hidden />
-              {!navCollapsed && <span>{label}</span>}
-            </Link>
-          ))}
-        </nav>
+        <TooltipProvider>
+          <nav
+            aria-label="Workspace navigation"
+            className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-1 py-2"
+          >
+            {workspaceNavigation.map(({ icon: Icon, label, to }) => {
+              const link = (
+                <Button
+                  asChild
+                  variant="ghost"
+                  className={cn(
+                    'h-10 w-full justify-start gap-3 rounded-lg px-3 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                    navCollapsed && 'justify-center px-2',
+                  )}
+                >
+                  <Link
+                    to={to}
+                    aria-label={navCollapsed ? label : undefined}
+                    activeProps={{
+                      className:
+                        'bg-sidebar-primary/10 font-medium text-sidebar-primary hover:bg-sidebar-primary/10 hover:text-sidebar-primary',
+                    }}
+                  >
+                    <Icon aria-hidden data-icon="inline-start" />
+                    {!navCollapsed && <span>{label}</span>}
+                  </Link>
+                </Button>
+              );
+
+              if (!navCollapsed) {
+                return <div key={to}>{link}</div>;
+              }
+
+              return (
+                <Tooltip key={to}>
+                  <TooltipTrigger asChild>{link}</TooltipTrigger>
+                  <TooltipContent side="right" sideOffset={8}>
+                    {label}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </nav>
+        </TooltipProvider>
       </aside>
 
-      <div className={navCollapsed ? 'lg:pl-16' : 'lg:pl-64'}>
-        <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
-          <div className="flex h-14 items-center justify-between px-4">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="icon"
-                className="text-muted-foreground"
-                onClick={toggleNav}
-                aria-label={
-                  navCollapsed ? 'Expand navigation' : 'Collapse navigation'
-                }
-                title={
-                  navCollapsed ? 'Expand navigation' : 'Collapse navigation'
-                }
-              >
-                {navCollapsed ? (
-                  <PanelLeftOpenIcon className="size-4" aria-hidden />
-                ) : (
-                  <PanelLeftCloseIcon className="size-4" aria-hidden />
-                )}
-              </Button>
-              <div className="lg:hidden">
-                <Brand />
+      <div
+        className={cn(
+          'min-h-svh transition-[margin] duration-200',
+          navCollapsed ? 'lg:ml-16' : 'lg:ml-64',
+        )}
+      >
+        <div className="min-h-svh bg-background lg:m-2 lg:min-h-[calc(100svh-1rem)] lg:rounded-xl lg:shadow-sm">
+          <header className="sticky top-0 z-10 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:rounded-t-xl">
+            <div className="flex h-14 items-center justify-between px-4 sm:px-6">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleNav}
+                  aria-label={
+                    navCollapsed ? 'Expand navigation' : 'Collapse navigation'
+                  }
+                  title={
+                    navCollapsed ? 'Expand navigation' : 'Collapse navigation'
+                  }
+                >
+                  {navCollapsed ? (
+                    <PanelLeftOpenIcon aria-hidden />
+                  ) : (
+                    <PanelLeftCloseIcon aria-hidden />
+                  )}
+                </Button>
+                <div className="lg:hidden">
+                  <Brand />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="hidden max-w-40 items-center gap-2 truncate text-sm text-muted-foreground sm:flex">
+                  <UserCircleIcon className="size-4 shrink-0" aria-hidden />
+                  <span className="truncate">
+                    {user?.nickname ?? user?.username ?? 'Guest'}
+                  </span>
+                </div>
+                <Separator
+                  orientation="vertical"
+                  className="hidden h-5 sm:block"
+                />
+                <ThemeToggle />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Sign out"
+                  title="Sign out"
+                  disabled={loggingOut}
+                  onClick={() => void handleLogout()}
+                >
+                  <LogOutIcon aria-hidden />
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <UserCircleIcon className="size-4" aria-hidden />
-              <span>{user?.nickname ?? user?.username ?? 'Guest'}</span>
-              <ThemeToggle />
-              <Button
-                variant="outline"
-                size="icon"
-                className="size-8"
-                aria-label="Sign out"
-                title="Sign out"
-                disabled={loggingOut}
-                onClick={() => void handleLogout()}
-              >
-                <LogOutIcon className="size-4" aria-hidden />
-              </Button>
-            </div>
-          </div>
-        </header>
-        <main className="px-4 py-5 sm:px-6 lg:px-8">{children}</main>
+          </header>
+          <main className="mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

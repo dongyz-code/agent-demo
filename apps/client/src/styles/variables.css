@@ -1,36 +1,21 @@
 :root {
-  color-scheme: dark;
-
-  /** 客户端壳层色，与共享语义主题色分开维护。 */
-  --app-bg: #0b0c10;
-  --app-surface: #141821;
-  --app-raised: #1a1f2b;
-  --app-border: #334155;
-  --app-border-strong: #46526a;
-  --app-text: #f8fafc;
-  --app-muted: #a7b0c0;
-  --app-subtle: #7c879b;
-  --app-inverse: #071018;
-  --app-background: var(--app-bg);
-  --app-primary-text: var(--theme-primary-3);
-  --app-primary-soft-text: var(--theme-primary-2);
-  --app-success-text: var(--theme-success-3);
-  --app-warning-text: var(--theme-warning-3);
-  --app-error-text: var(--theme-error-3);
-  --app-info-text: var(--theme-primary-3);
-}
-
-:root[data-theme='light'] {
   color-scheme: light;
 
-  --app-bg: #f7f8fb;
+  /** ai-pptx 的完整基础色板；共享包只提供其他应用的默认回退值。 */
+  --theme-primary-base: #a855f7;
+  --theme-success-base: #22c55e;
+  --theme-warning-base: #f59e0b;
+  --theme-error-base: #ef4444;
+
+  /** ai-pptx 浅色工作台的页面、表面、文字和边界层级。 */
+  --app-bg: #f3f4f6;
   --app-surface: #ffffff;
-  --app-raised: #f1f3f7;
-  --app-border: #d1d5db;
-  --app-border-strong: #b8c2d0;
-  --app-text: #1f2937;
-  --app-muted: #475569;
-  --app-subtle: #64748b;
+  --app-raised: #fafafa;
+  --app-border: #e5e7eb;
+  --app-border-strong: #d1d5db;
+  --app-text: #1a1a2e;
+  --app-muted: #4b5563;
+  --app-subtle: #9ca3af;
   --app-inverse: #ffffff;
   --app-background: var(--app-bg);
   --app-primary-text: var(--theme-primary-7);
@@ -39,4 +24,26 @@
   --app-warning-text: var(--theme-warning-9);
   --app-error-text: var(--theme-error-8);
   --app-info-text: var(--theme-primary-7);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /** 深色模式沿用 ai-pptx 的中性紫色体系，同时保持足够的层级对比。 */
+  --app-bg: #09090b;
+  --app-surface: #18181b;
+  --app-raised: #27272a;
+  --app-border: #3f3f46;
+  --app-border-strong: #52525b;
+  --app-text: #fafafa;
+  --app-muted: #a1a1aa;
+  --app-subtle: #71717a;
+  --app-inverse: #09090b;
+  --app-background: var(--app-bg);
+  --app-primary-text: var(--theme-primary-3);
+  --app-primary-soft-text: var(--theme-primary-2);
+  --app-success-text: var(--theme-success-3);
+  --app-warning-text: var(--theme-warning-3);
+  --app-error-text: var(--theme-error-3);
+  --app-info-text: var(--theme-primary-3);
 }

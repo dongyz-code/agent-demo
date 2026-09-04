@@ -15,7 +15,7 @@ export function Brand({ collapsed = false }: BrandProps) {
   return (
     <div className="flex items-center gap-2 font-semibold text-foreground">
       <ActivityIcon className="size-5 text-link" aria-hidden />
-      {!collapsed && <span>Client</span>}
+      {!collapsed && <span>Agent</span>}
     </div>
   );
 }

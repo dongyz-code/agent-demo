@@ -16,7 +16,6 @@
   --popover: var(--app-surface);
   --popover-foreground: var(--app-text);
   --primary: var(--theme-primary-6);
-  --primary-foreground: #ffffff;
   --secondary: var(--app-raised);
   --secondary-foreground: var(--app-text);
   --muted: var(--app-raised);
@@ -51,17 +50,30 @@
   --sidebar-border: var(--app-border);
   --sidebar-ring: var(--theme-primary-6);
   --radius: 0.625rem;
-}
 
-/** 浅色模式只覆盖对比度相关的语义配对，组件结构和 Nova 尺寸保持不变。 */
-:root[data-theme='light'] {
+  /** 浅色模式使用 ai-pptx 的实色按钮和深色文字配对。 */
   --primary-foreground: #ffffff;
   --destructive-foreground: #ffffff;
-  --success-foreground: var(--app-inverse);
-  --warning-foreground: var(--app-inverse);
+  --success-foreground: #ffffff;
+  --warning-foreground: #ffffff;
   --info-foreground: #ffffff;
   --link: var(--app-primary-text);
   --sidebar-primary-foreground: #ffffff;
+}
+
+/** 深色模式将主色提亮，匹配 ai-pptx PrimeVue 的 dark colorScheme。 */
+:root[data-theme='dark'] {
+  --primary: var(--theme-primary-1);
+  --primary-foreground: var(--theme-primary-9);
+  --ring: var(--theme-primary-3);
+  --chart-1: var(--theme-primary-1);
+  --sidebar-primary: var(--theme-primary-1);
+  --sidebar-primary-foreground: var(--theme-primary-9);
+  --sidebar-ring: var(--theme-primary-3);
+  --destructive-foreground: var(--app-inverse);
+  --success-foreground: var(--app-inverse);
+  --warning-foreground: var(--app-inverse);
+  --info-foreground: var(--app-inverse);
 }
 
 @theme inline {
