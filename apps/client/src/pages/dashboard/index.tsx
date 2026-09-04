@@ -57,8 +57,8 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader
-        title="Dashboard"
-        description="Client application workspace"
+        title="工作台"
+        description="Agent 工作台概览"
         actions={<Badge variant="success">{data?.status ?? 'loading'}</Badge>}
       />
       <div className="grid gap-4 xl:grid-cols-[1fr_320px]">

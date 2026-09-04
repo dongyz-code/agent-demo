@@ -66,10 +66,10 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   }
 
   return (
-    <div className="min-h-svh bg-sidebar text-foreground">
+    <div className="min-h-svh bg-background text-foreground">
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-20 hidden overflow-hidden p-2 text-sidebar-foreground transition-[width] duration-200 lg:flex lg:flex-col',
+          'fixed inset-y-0 left-0 z-20 hidden overflow-hidden border-r border-sidebar-border bg-sidebar p-2 text-sidebar-foreground transition-[width] duration-200 lg:flex lg:flex-col',
           navCollapsed ? 'w-16' : 'w-64',
         )}
       >
@@ -133,60 +133,56 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
           navCollapsed ? 'lg:ml-16' : 'lg:ml-64',
         )}
       >
-        <div className="min-h-svh bg-background lg:m-2 lg:min-h-[calc(100svh-1rem)] lg:rounded-xl lg:shadow-sm">
-          <header className="sticky top-0 z-10 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:rounded-t-xl">
-            <div className="flex h-14 items-center justify-between px-4 sm:px-6">
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleNav}
-                  aria-label={
-                    navCollapsed ? 'Expand navigation' : 'Collapse navigation'
-                  }
-                  title={
-                    navCollapsed ? 'Expand navigation' : 'Collapse navigation'
-                  }
-                >
-                  {navCollapsed ? (
-                    <PanelLeftOpenIcon aria-hidden />
-                  ) : (
-                    <PanelLeftCloseIcon aria-hidden />
-                  )}
-                </Button>
-                <div className="lg:hidden">
-                  <Brand />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="hidden max-w-40 items-center gap-2 truncate text-sm text-muted-foreground sm:flex">
-                  <UserCircleIcon className="size-4 shrink-0" aria-hidden />
-                  <span className="truncate">
-                    {user?.nickname ?? user?.username ?? 'Guest'}
-                  </span>
-                </div>
-                <Separator
-                  orientation="vertical"
-                  className="hidden h-5 sm:block"
-                />
-                <ThemeToggle />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Sign out"
-                  title="Sign out"
-                  disabled={loggingOut}
-                  onClick={() => void handleLogout()}
-                >
-                  <LogOutIcon aria-hidden />
-                </Button>
+        <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex h-14 items-center justify-between px-4 sm:px-6">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleNav}
+                aria-label={
+                  navCollapsed ? '展开导航' : '折叠导航'
+                }
+                title={navCollapsed ? '展开导航' : '折叠导航'}
+              >
+                {navCollapsed ? (
+                  <PanelLeftOpenIcon aria-hidden />
+                ) : (
+                  <PanelLeftCloseIcon aria-hidden />
+                )}
+              </Button>
+              <div className="lg:hidden">
+                <Brand />
               </div>
             </div>
-          </header>
-          <main className="mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
-            {children}
-          </main>
-        </div>
+            <div className="flex items-center gap-2">
+              <div className="hidden max-w-40 items-center gap-2 truncate text-sm text-muted-foreground sm:flex">
+                <UserCircleIcon className="size-4 shrink-0" aria-hidden />
+                <span className="truncate">
+                  {user?.nickname ?? user?.username ?? '访客'}
+                </span>
+              </div>
+              <Separator
+                orientation="vertical"
+                className="hidden h-5 sm:block"
+              />
+              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="退出登录"
+                title="退出登录"
+                disabled={loggingOut}
+                onClick={() => void handleLogout()}
+              >
+                <LogOutIcon aria-hidden />
+              </Button>
+            </div>
+          </div>
+        </header>
+        <main className="mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8">
+          {children}
+        </main>
       </div>
     </div>
   );

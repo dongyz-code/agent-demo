@@ -36,7 +36,7 @@ export const routes = [
     layout: 'workspace',
     component: LazyDashboardPage,
     meta: {
-      title: 'Dashboard',
+      title: '工作台',
       auth: true,
       nav: {
         icon: LayoutDashboardIcon,
@@ -50,7 +50,7 @@ export const routes = [
     layout: 'workspace',
     component: LazySettingsPage,
     meta: {
-      title: 'Settings',
+      title: '设置',
       auth: true,
       permissions: [permissionKeys.settingsView],
       nav: {
@@ -76,7 +76,7 @@ export const routes = [
     layout: 'workspace',
     component: LazyNotFoundPage,
     meta: {
-      title: 'Not Found',
+      title: '页面未找到',
       auth: false,
       nav: {
         icon: LayoutDashboardIcon,

@@ -15,16 +15,14 @@ export function SettingsPage() {
 
   return (
     <section className="max-w-2xl rounded border border-border bg-card p-5">
-      <PageHeader title="Settings" description="Client shell preferences" />
-      <Button
-        onClick={toggleNav}
-      >
+      <PageHeader title="设置" description="工作台偏好" />
+      <Button onClick={toggleNav}>
         {navCollapsed ? (
           <PanelLeftOpenIcon className="size-4" aria-hidden />
         ) : (
           <PanelLeftCloseIcon className="size-4" aria-hidden />
         )}
-        {navCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        {navCollapsed ? '展开导航' : '折叠导航'}
       </Button>
     </section>
   );
