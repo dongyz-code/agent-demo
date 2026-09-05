@@ -3,4 +3,5 @@ packages:
   - 'packages/*'
   - 'packages/utils/*'
 allowBuilds:
+  argon2: true
   esbuild: false

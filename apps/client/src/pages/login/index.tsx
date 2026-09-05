@@ -7,8 +7,7 @@ import {
   UserRoundIcon,
 } from 'lucide-react';
 
-import { api } from '@/utils/api';
-import { message } from '@/utils/message';
+import { api, message } from '@/utils';
 import { useSessionModel } from '@/model/session';
 import { routerGoHome } from '@/router/methods';
 import { Button } from '@/components/ui/button';

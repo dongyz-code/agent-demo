@@ -3,7 +3,6 @@ import type { AdminPermissionKey } from '@repo/shared/permission';
 
 /** 登录返回的信息 */
 export type LOGIN_RESPONSE = {
-  token?: string;
   timestamp: number;
   permission: AdminPermissionKey[];
   user: {
@@ -18,7 +17,7 @@ export type Login = ApiMultAction<{
     req: {
       /** 账户密码登录的用户名。 */
       username: string;
-      /** 账户密码登录的密码，前端可按服务端兼容规则传原文或哈希值。 */
+      /** 账户密码登录的密码，通过 HTTPS 传输并由服务端单向哈希。 */
       password: string;
     };
     resp: LOGIN_RESPONSE;

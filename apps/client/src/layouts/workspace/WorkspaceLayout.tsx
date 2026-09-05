@@ -16,10 +16,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
-import { api } from '@/utils/api';
+import { api, cn } from '@/utils';
 import { routerGoLogin } from '@/router/methods';
-import { workspaceNavigation } from './navigation';
+import { clearClientSession } from '@/model/session';
+import { getWorkspaceNavigation } from './navigation';
 import { useAppModel } from '@/model/app';
 import { useSessionModel } from '@/model/session';
 
@@ -40,7 +40,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const navCollapsed = useAppModel((state) => state.navCollapsed);
   const toggleNav = useAppModel((state) => state.toggleNav);
   const user = useSessionModel((state) => state.user);
-  const clearSession = useSessionModel((state) => state.clearSession);
+  const permission = useSessionModel((state) => state.permission);
   const [loggingOut, setLoggingOut] = useState(false);
 
   /**
@@ -59,7 +59,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     } catch {
       // 服务端不可用时也要清理本地状态，避免继续使用旧会话。
     } finally {
-      clearSession();
+      clearClientSession();
       await routerGoLogin({ replace: true });
       setLoggingOut(false);
     }
@@ -86,7 +86,10 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
             aria-label="Workspace navigation"
             className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-1 py-2"
           >
-            {workspaceNavigation.map(({ icon: Icon, label, to }) => {
+            {getWorkspaceNavigation({
+              permission,
+              sysAdmin: user?.sys_admin,
+            }).map(({ icon: Icon, label, to }) => {
               const link = (
                 <Button
                   asChild
@@ -140,9 +143,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
                 variant="ghost"
                 size="icon"
                 onClick={toggleNav}
-                aria-label={
-                  navCollapsed ? '展开导航' : '折叠导航'
-                }
+                aria-label={navCollapsed ? '展开导航' : '折叠导航'}
                 title={navCollapsed ? '展开导航' : '折叠导航'}
               >
                 {navCollapsed ? (

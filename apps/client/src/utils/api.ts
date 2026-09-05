@@ -2,7 +2,10 @@ import { getAxios } from '@repo/utils-browser';
 import { AxiosError } from 'axios';
 
 import { API_BASE } from '@/constants/env';
-import { useSessionModel } from '@/model/session';
+import {
+  getSessionEpoch,
+  handleUnauthorized,
+} from '@/model/session';
 
 import type { API } from '@repo/types';
 
@@ -29,6 +32,14 @@ export const { api, axios: http } = getAxios<API>({
     timeout: 30_000,
   },
   callback(instance) {
+    /** 记录请求发出时的会话版本，避免旧请求的 401 清理新会话。 */
+    const requestEpochs = new WeakMap<object, number>();
+
+    instance.interceptors.request.use((config) => {
+      requestEpochs.set(config, getSessionEpoch());
+      return config;
+    });
+
     const handleErrorPayload = (payload: unknown) => {
       const error = (payload as { error?: ApiErrorPayload } | undefined)?.error;
       if (error) {
@@ -40,6 +51,9 @@ export const { api, axios: http } = getAxios<API>({
       (response) => {
         const error = handleErrorPayload(response.data);
         if (error) {
+          if (error.code === '401') {
+            void handleUnauthorized(requestEpochs.get(response.config));
+          }
           return Promise.reject(error);
         }
         return response;
@@ -53,8 +67,15 @@ export const { api, axios: http } = getAxios<API>({
           responseError = handleErrorPayload(error.response?.data);
         }
 
-        if (responseError?.code === '401') {
-          useSessionModel.getState().clearSession();
+        if (
+          responseError?.code === '401' ||
+          (error instanceof AxiosError && error.response?.status === 401)
+        ) {
+          const requestConfig =
+            error instanceof AxiosError ? error.config : undefined;
+          void handleUnauthorized(
+            requestConfig ? requestEpochs.get(requestConfig) : undefined,
+          );
         }
 
         return Promise.reject(responseError ?? error);

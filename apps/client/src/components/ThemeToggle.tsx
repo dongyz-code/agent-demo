@@ -1,9 +1,7 @@
 import { MoonIcon, SunIcon } from 'lucide-react';
 
-import { applyThemeMode, useThemeModel } from '@/model/theme';
+import { useThemeModel } from '@/model/theme';
 import { Button } from './ui/button';
-
-import { useEffect } from 'react';
 
 /**
  * 渲染明暗主题切换按钮，图标表示点击后将要切换的主题。
@@ -13,10 +11,6 @@ import { useEffect } from 'react';
 export function ThemeToggle() {
   const themeMode = useThemeModel((state) => state.themeMode);
   const toggleTheme = useThemeModel((state) => state.toggleTheme);
-
-  useEffect(() => {
-    applyThemeMode(themeMode);
-  }, [themeMode]);
 
   let nextThemeLabel = '深色主题';
   let ThemeIcon = MoonIcon;

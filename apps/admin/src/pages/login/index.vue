@@ -84,6 +84,7 @@
             type="primary"
             size="large"
             :loading="submitting"
+            :disabled="submitting || !sysForm.username.trim() || !sysForm.password"
             @click="sysSubmit()"
           >
             登录
@@ -95,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { api, notify, sha256 } from '@/utils';
+import { api } from '@/utils';
 import { ref } from 'vue';
 import LucideLockKeyhole from '~icons/lucide/lock-keyhole';
 import LucideLogIn from '~icons/lucide/log-in';
@@ -121,9 +122,7 @@ async function sysSubmit() {
 
   let { username, password } = sysForm.value;
   username = username.trim();
-  password = password.trim();
   if (!username || !password) {
-    notify('error', '请完整输入用户名和密码');
     return;
   }
 
@@ -132,7 +131,7 @@ async function sysSubmit() {
   try {
     const info = await api('/login/login', {
       username,
-      password: await sha256(`${username}${password}`),
+      password,
     });
 
     loginHandleRedirect(

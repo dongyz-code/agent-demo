@@ -24,6 +24,7 @@ async function createServer() {
   await documentFile.checkBucket();
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
   await startupTableStructureSync();
+  // 启动接流量前将历史明文密码迁移为 Argon2id，迁移失败会阻止服务启动。
   // 启动期确保 Qdrant document_segments 集合就绪；Qdrant 不可用时仅告警，不阻塞启动（任务级重试兜底）。
   try {
     await ensureDocumentSegmentsCollection();

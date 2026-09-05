@@ -4,6 +4,7 @@ import { db, schemas } from '@/database/index.js';
 import { ROOT_ERROR } from '@/configs/error.js';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
+import { hashPassword } from '@/utils/password.js';
 
 import type { ApiSys } from '@/types/index.js';
 
@@ -29,13 +30,17 @@ export async function createUser({
   const user: UserItem[] = [];
   const userRole: UserRoleItem[] = [];
 
-  list.forEach(({ username, nickname, email, password, role_id }) => {
+  for (const { username, nickname, email, password, role_id } of list) {
+    if (!password) {
+      throw new ROOT_ERROR('非法参数', '密码不能为空');
+    }
+
     const user_id = randomUUID();
 
     const item: UserItem = {
       nickname,
       email,
-      password,
+      password: await hashPassword(password),
       available: true,
       last_login_timestamp: null,
       extra: null,
@@ -57,7 +62,7 @@ export async function createUser({
       };
       userRole.push(item);
     });
-  });
+  }
 
   const insertUser = await db.transaction(async (tx) => {
     const exist = await tx

@@ -3,7 +3,11 @@ import { authentication } from '@/router/authentication.js';
 import { ROOT } from '@/configs/env.js';
 import { ROOT_ERROR } from '@/configs/error.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
-import { getSha256Hex } from '@/utils/hash.js';
+import {
+  hashPassword,
+  isArgon2idHash,
+  verifyPassword,
+} from '@/utils/password.js';
 import { addUserLog } from '@/hooks/user-log/index.js';
 import { getAdminPermissionContext } from '@/router/permission.js';
 import { eq } from 'drizzle-orm';
@@ -23,36 +27,45 @@ export async function getPermission(opts: { user_id: string }) {
 }
 
 const { admin } = ROOT.authorization;
-
-const adminPass = [
-  admin.password,
-  getSha256Hex(admin.username + admin.password),
-];
+const adminPasswordHashPromise = isArgon2idHash(admin.password)
+  ? Promise.resolve(admin.password)
+  : hashPassword(admin.password);
 
 type UserItem = {
   user_id: string;
   username: string;
   nickname: string;
+  /** 仅在服务端认证过程短暂使用的 Argon2id 编码，不得进入响应。 */
+  password?: string | null;
   sys_admin?: boolean;
 };
 
+/**
+ * 读取并验证登录用户；普通用户密码始终在应用层通过 Argon2id 校验。
+ *
+ * @param body 登录请求凭据。
+ * @returns 验证通过的用户摘要；失败时返回 undefined。
+ */
 async function getUserItem(
   body: ApiLogin.Login['login']['req'],
 ): Promise<UserItem | undefined> {
   const { username, password } = body;
 
-  if (username == admin.username && adminPass.includes(password)) {
-    return {
-      user_id: ROOT.SYS_ADMIN_USER_ID,
-      username,
-      nickname: admin.nickname ?? '-',
-      sys_admin: true,
-    };
+  if (username === admin.username) {
+    const adminPasswordHash = await adminPasswordHashPromise;
+    if (await verifyPassword(adminPasswordHash, password)) {
+      return {
+        user_id: ROOT.SYS_ADMIN_USER_ID,
+        username,
+        nickname: admin.nickname ?? '-',
+        sys_admin: true,
+      };
+    }
   }
+
   const where = buildWhere((filter) => {
     filter.push(
       eq(schemas.user.username, username),
-      eq(schemas.user.password, password),
       eq(schemas.user.available, true),
     );
   });
@@ -60,11 +73,17 @@ async function getUserItem(
     .select({
       user_id: schemas.user.user_id,
       nickname: schemas.user.nickname,
+      password: schemas.user.password,
     })
     .from(schemas.user)
     .where(where)
     .limit(1);
-  if (item) {
+
+  if (!item?.password) {
+    return undefined;
+  }
+
+  if (await verifyPassword(item.password, password)) {
     return {
       user_id: item.user_id,
       username,
@@ -91,7 +110,6 @@ const { api } = routerHandler({
     authentication.cookieSign(reply, { token });
 
     const result: Omit<ApiLogin.Login['login']['resp'], 'timestamp'> = {
-      token,
       permission: [],
       user: {
         username: userItem.username,

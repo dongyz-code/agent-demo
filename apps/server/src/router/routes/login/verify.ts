@@ -25,7 +25,7 @@ const { api } = routerHandler({
       result.user.sys_admin = true;
     }
 
-    /** 时间过半重置 token */
+    /** 时间过半仅通过 HttpOnly Cookie 刷新会话凭据。 */
     if (Date.now() / 1e3 - iat > (exp - iat) / 2) {
       const token = authentication.jwtSign({
         user_id,
@@ -33,7 +33,6 @@ const { api } = routerHandler({
         nickname,
       });
       authentication.cookieSign(reply, { token });
-      result.token = token;
       addUserLog({
         key: 'user.login-by-token',
         user_id,

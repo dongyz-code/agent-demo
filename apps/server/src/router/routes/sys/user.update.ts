@@ -3,6 +3,8 @@ import { routerHandler } from '@/router/utils.js';
 import { pickObj } from '@repo/utils-node';
 import { inArray } from 'drizzle-orm';
 import { adminPermissionKey } from '@repo/shared/permission';
+import { ROOT_ERROR } from '@/configs/error.js';
+import { hashPassword } from '@/utils/password.js';
 
 type UserRow = typeof schemas.user.$inferSelect;
 type UserRoleInsert = typeof schemas.user_role.$inferInsert;
@@ -20,9 +22,17 @@ const { api } = routerHandler({
     const updateForm: Partial<UserRow> = pickObj(form, [
       'nickname',
       'email',
-      'password',
       'available',
     ]);
+
+    let password: string | undefined;
+    if (typeof form.password === 'string') {
+      if (!form.password) {
+        throw new ROOT_ERROR('非法参数', '密码不能为空');
+      }
+      password = form.password;
+    }
+    const passwordHash = password ? await hashPassword(password) : undefined;
 
     const promiseList: Promise<unknown>[] = [];
 
@@ -52,7 +62,19 @@ const { api } = routerHandler({
       );
     }
 
-    if (Object.keys(updateForm).length || withRole) {
+    if (passwordHash) {
+      promiseList.push(
+        db
+          .update(schemas.user)
+          .set({
+            ...updateForm,
+            password: passwordHash,
+            last_update_user_id: operator,
+            last_update_timestamp: now,
+          })
+          .where(inArray(schemas.user.user_id, userIds)),
+      );
+    } else if (Object.keys(updateForm).length || withRole) {
       promiseList.push(
         db
           .update(schemas.user)

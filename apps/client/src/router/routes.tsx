@@ -1,12 +1,8 @@
 import { lazyRouteComponent } from '@tanstack/react-router';
 import { LayoutDashboardIcon, SettingsIcon } from 'lucide-react';
+import { adminPermissionKey } from '@repo/shared/permission';
 
-import type {
-  PermissionKey,
-  RouteConfig,
-  RouteMetaMap,
-  RoutePathMap,
-} from './type';
+import type { RouteConfig, RouteMetaMap, RoutePathMap } from './type';
 
 const LazyDashboardPage = lazyRouteComponent(
   () => import('@/pages/dashboard'),
@@ -24,10 +20,6 @@ const LazySettingsPage = lazyRouteComponent(
   () => import('@/pages/settings'),
   'SettingsPage',
 );
-
-export const permissionKeys = {
-  settingsView: 'settings.view',
-} as const satisfies Record<string, PermissionKey>;
 
 export const routes = [
   {
@@ -52,7 +44,7 @@ export const routes = [
     meta: {
       title: '设置',
       auth: true,
-      permissions: [permissionKeys.settingsView],
+      permissions: [adminPermissionKey('pages.client.settings')],
       nav: {
         icon: SettingsIcon,
         order: 20,

@@ -1,8 +1,7 @@
 import type { RouteComponent } from '@tanstack/react-router';
 import type { ComponentType, SVGProps } from 'react';
+import type { AdminPermissionKey } from '@repo/shared/permission';
 import type { routes } from './routes';
-
-export type PermissionKey = 'settings.view';
 
 export type RouteLayout = 'workspace' | 'auth';
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
@@ -11,7 +10,7 @@ export type RouteMeta = {
   title: string;
   auth?: boolean;
   guestOnly?: boolean;
-  permissions?: readonly PermissionKey[];
+  permissions?: readonly AdminPermissionKey[];
   nav?: {
     icon: IconComponent;
     order?: number;

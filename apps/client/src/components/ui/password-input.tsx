@@ -3,7 +3,7 @@ import { EyeIcon, EyeOffIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils';
 
 /** 密码输入框的显隐按钮文案配置。 */
 type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, 'type'> & {
@@ -24,8 +24,8 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
   (
     {
       className,
-      showPasswordLabel = 'Show password',
-      hidePasswordLabel = 'Hide password',
+      showPasswordLabel = '显示密码',
+      hidePasswordLabel = '隐藏密码',
       disabled,
       ...props
     },

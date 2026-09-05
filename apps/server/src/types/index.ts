@@ -89,14 +89,6 @@ export type TokenDataWithExp = TokenData & {
   exp: number;
 };
 
-export type Routes = APIRoutes<
-  API,
-  {
-    headers: {
-      token: string;
-      __token: TokenDataWithExp;
-    };
-  }
->['routes'];
+export type Routes = APIRoutes<API>['routes'];
 
 export type RoutesSource = APISource<API>;

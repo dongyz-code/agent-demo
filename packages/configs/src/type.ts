@@ -31,6 +31,7 @@ export type CONF = {
     /** 管理员账户 */
     admin: {
       username: string;
+      /** 管理员密码；推荐填写 Argon2id 编码，服务端兼容旧配置中的原文值。 */
       password: string;
       nickname?: string;
       email?: string;

@@ -21,6 +21,7 @@ export const authentication = initAuthentication<{
     cookieModel: {
       token: '',
     },
+    jwtCookieOnly: true,
     SET_ERROR: () => new ROOT_ERROR('认证: 身份校验失败'),
     ignore: [
       {
@@ -34,6 +35,10 @@ export const authentication = initAuthentication<{
       },
       {
         url: '/api/login/login',
+        method: 'POST',
+      },
+      {
+        url: '/api/login/logout',
         method: 'POST',
       },
     ],

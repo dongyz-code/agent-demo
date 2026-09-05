@@ -2,7 +2,7 @@ import { getAxios } from '@repo/utils-browser';
 import { routerGoLogin } from '@/router';
 import { logoutHandle } from '@/pages/login/login';
 import { API_BASE } from '@/constants';
-import { AxiosError, AxiosHeaders } from 'axios';
+import { AxiosError } from 'axios';
 
 import { progress } from './progress';
 import { notify } from './notify';
@@ -17,6 +17,12 @@ type RespError =
     }
   | undefined;
 
+/** 统一清理管理端内存会话并回到登录页。 */
+function handleUnauthorized() {
+  logoutHandle();
+  void routerGoLogin().catch(() => undefined);
+}
+
 /**
  * 统一提示业务错误；认证失效时同步清理本地会话并替换到登录页。
  *
@@ -27,8 +33,7 @@ function respErrorHandle(error: RespError) {
     const { msg, code } = error;
     notify('error', msg);
     if (['401'].includes(code)) {
-      logoutHandle();
-      routerGoLogin();
+      handleUnauthorized();
     }
   }
 }
@@ -42,6 +47,9 @@ function errorOrRespHandle(payload: AxiosResponse | AxiosError<unknown>) {
     if (error) {
       respErrorHandle(error);
     } else {
+      if (payload.response?.status === 401) {
+        handleUnauthorized();
+      }
       notify('error', payload.message);
     }
     return Promise.reject(payload);
@@ -68,11 +76,6 @@ export const { api } = getAxios<API>({
   callback(instance) {
     instance.interceptors.request.use(
       async function (config) {
-        const token = localStorage.getItem('token');
-        if (token) {
-          config.headers = AxiosHeaders.from(config.headers);
-          config.headers.set('token', token);
-        }
         progress.start(true);
         return config;
       },

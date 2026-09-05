@@ -1,13 +1,9 @@
 /**
- * 以下携带方式, 按优先级处理
+ * 身份凭据按以下规则处理：
  *
- * Authorization Basic (headers) 仅接口调用可以通过这种方式，如果存在，也可以视为接口调用
- *
- * Authorization Bearer (headers) `${Bearer} ${Token}`
- *
- * Token (headers) `${Token}`
- *
- * Cookie `${Token}` 先解密 cookie 再解密 token
+ * 1. Authorization Basic 仅供接口调用方使用；
+ * 2. signed Cookie 是浏览器会话凭据；
+ * 3. jwtCookieOnly 开启时拒绝 token/Bearer 请求头，否则仅为兼容非浏览器调用保留。
  *
  */
 import jsonwebtoken from 'jsonwebtoken';
@@ -61,6 +57,8 @@ type AuthenticationOpts<T extends TokenAndCookie> = {
   }) => PromiseLike<Partial<T['token']> | undefined | null | void>;
   /** 仅模板，便于后续使用, 仅验证指定的 KEY */
   cookieModel: T['cookie'];
+  /** 浏览器会话只允许从 signed Cookie 读取 JWT，不接受 token/Bearer 请求头。 */
+  jwtCookieOnly?: boolean;
 };
 
 export function initAuthentication<T extends TokenAndCookie>({
@@ -78,7 +76,7 @@ export function initAuthentication<T extends TokenAndCookie>({
   /** 是否是生产环境(默认是生产环境，HTTPS, 更加严格) */
   prod?: boolean;
 }) {
-  const { cookieModel, ignore = [] } = opts;
+  const { cookieModel, ignore = [], jwtCookieOnly = false } = opts;
   const allCookieKeys = Object.keys(cookieModel);
 
   const ignores = ignore.map((val) =>
@@ -160,9 +158,8 @@ export function initAuthentication<T extends TokenAndCookie>({
    * 验证优先级
    *
    * 1. authorization Basic (一般作为 API)
-   * 2. token
-   * 3. cookies.token
-   * 4. authorization Bearer
+   * 2. signed cookies.token
+   * 3. token/Bearer（仅非 Cookie-only 模式）
    */
   async function authentication(req: FastifyRequest) {
     const { basicAuth, SET_ERROR } = opts;
@@ -197,15 +194,19 @@ export function initAuthentication<T extends TokenAndCookie>({
       } satisfies AuthenticationContext<T['token']>;
     } else {
       const getToken = () => {
-        if (req.headers['token']) {
-          return req.headers['token'] as string;
-        }
-
         if (req.cookies?.['token']) {
           const resp = req.unsignCookie(req.cookies['token']);
           if (resp.valid && resp.value) {
             return resp.value;
           }
+        }
+
+        if (jwtCookieOnly) {
+          throw SET_ERROR();
+        }
+
+        if (req.headers['token']) {
+          return req.headers['token'] as string;
         }
 
         if (authentication?.startsWith('Bearer')) {

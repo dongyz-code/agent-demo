@@ -314,6 +314,20 @@ export const adminPermissionTree = [
           },
         ],
       },
+      {
+        key: 'pages.client',
+        label: '客户端工作台',
+        type: 'group',
+        icon: 'layout-dashboard',
+        children: [
+          {
+            key: 'pages.client.settings',
+            label: '工作台设置',
+            type: 'page',
+            icon: 'settings',
+          },
+        ],
+      },
     ],
   },
 ] as const;
