@@ -1,32 +1,17 @@
 import { lazyRouteComponent } from '@tanstack/react-router';
-import { LayoutDashboardIcon, SettingsIcon } from 'lucide-react';
-import { adminPermissionKey } from '@repo/shared/permission';
+import { BotIcon, LayoutDashboardIcon, SettingsIcon } from 'lucide-react';
 
 import type { RouteConfig, RouteMetaMap, RoutePathMap } from './type';
 
-const LazyDashboardPage = lazyRouteComponent(
-  () => import('@/pages/dashboard'),
-  'DashboardPage',
-);
-const LazyLoginPage = lazyRouteComponent(
-  () => import('@/pages/login'),
-  'LoginPage',
-);
 export const LazyNotFoundPage = lazyRouteComponent(
   () => import('@/pages/not-found'),
-  'NotFoundPage',
 );
-const LazySettingsPage = lazyRouteComponent(
-  () => import('@/pages/settings'),
-  'SettingsPage',
-);
-
 export const routes = [
   {
     name: 'dashboard',
     path: '/',
     layout: 'workspace',
-    component: LazyDashboardPage,
+    component: lazyRouteComponent(() => import('@/pages/dashboard')),
     meta: {
       title: '工作台',
       auth: true,
@@ -40,11 +25,10 @@ export const routes = [
     name: 'settings',
     path: '/settings',
     layout: 'workspace',
-    component: LazySettingsPage,
+    component: lazyRouteComponent(() => import('@/pages/settings')),
     meta: {
       title: '设置',
       auth: true,
-      permissions: [adminPermissionKey('pages.client.settings')],
       nav: {
         icon: SettingsIcon,
         order: 20,
@@ -52,10 +36,24 @@ export const routes = [
     },
   },
   {
+    name: 'agents',
+    path: '/agents',
+    layout: 'workspace',
+    component: lazyRouteComponent(() => import('@/pages/agents')),
+    meta: {
+      title: 'Agents',
+      auth: true,
+      nav: {
+        icon: BotIcon,
+        order: 30,
+      },
+    },
+  },
+  {
     name: 'login',
     path: '/login',
     layout: 'auth',
-    component: LazyLoginPage,
+    component: lazyRouteComponent(() => import('@/pages/login')),
     meta: {
       title: '登录',
       auth: false,

@@ -8,7 +8,7 @@ import { SearchXIcon } from 'lucide-react';
  *
  * @returns 404 页面节点。
  */
-export function NotFoundPage() {
+export default function NotFoundPage() {
   return (
     <section className="max-w-2xl rounded border border-border bg-card p-6">
       <PageHeader

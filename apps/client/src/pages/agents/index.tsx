@@ -1,3 +1,3 @@
-export function AgentPage() {
+export default function AgentPage() {
   return <>123</>;
 }

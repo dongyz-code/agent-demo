@@ -9,7 +9,7 @@ import { useAppModel } from '@/model/app';
  *
  * @returns 设置页面节点。
  */
-export function SettingsPage() {
+export default function SettingsPage() {
   const navCollapsed = useAppModel((state) => state.navCollapsed);
   const toggleNav = useAppModel((state) => state.toggleNav);
 

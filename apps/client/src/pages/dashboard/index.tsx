@@ -51,7 +51,7 @@ function MetricCard({ icon: Icon, label, value }: MetricCardProps) {
  *
  * @returns 仪表盘页面节点。
  */
-export function DashboardPage() {
+export default function DashboardPage() {
   const { data } = useRuntimeSummary();
 
   return (

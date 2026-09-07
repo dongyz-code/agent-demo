@@ -33,7 +33,7 @@ type LoginFormValues = {
  *
  * @returns 登录表单页面节点。
  */
-export function LoginPage() {
+export default function LoginPage() {
   const setSession = useSessionModel((state) => state.setSession);
   const form = useForm<LoginFormValues>({
     defaultValues: {
