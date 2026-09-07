@@ -1,13 +1,12 @@
-import { routePathMap, routes } from '@/router/routes';
-import { canAccessClientRoute } from '@/router/permission';
-
 import type {
   IconComponent,
   RouteMeta,
   RouteName,
   RoutePath,
-} from '@/router/type';
+} from '@/router';
 import type { AdminPermissionKey } from '@repo/shared/permission';
+
+import { canAccessClientRoute, routePathMap, routes } from '@/router';
 
 export type WorkspaceNavItem = {
   name: RouteName;

@@ -1,6 +1,6 @@
-import { toast, type ExternalToast } from 'sonner';
-
 import type { ReactNode } from 'react';
+
+import { toast, type ExternalToast } from 'sonner';
 
 /** 消息内容，支持文本、React 节点或延迟生成节点的函数。 */
 export type MessageContent = ReactNode | (() => ReactNode);

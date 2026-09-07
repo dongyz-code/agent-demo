@@ -1,3 +1,5 @@
+import type { RouteComponent } from '@tanstack/react-router';
+
 import {
   createRootRoute,
   createRoute,
@@ -7,11 +9,11 @@ import { Suspense, type ReactNode } from 'react';
 
 import { AuthLayout } from '@/layouts/auth/AuthLayout';
 import { WorkspaceLayout } from '@/layouts/workspace/WorkspaceLayout';
+
+import type { RouteConfig } from './type';
+
 import { routeGuard } from './guard';
 import { LazyNotFoundPage, routes } from './routes';
-
-import type { RouteComponent } from '@tanstack/react-router';
-import type { RouteConfig } from './type';
 
 /**
  * 渲染路由懒加载期间的主题化骨架屏。

@@ -1,9 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 
-import { queryClient } from './query-client';
+import { Toaster } from '@/components/ui';
 import { router } from '@/router';
-import { Toaster } from '@/components/ui/sonner';
+
+import { queryClient } from './query-client';
 
 export function APP() {
   return (

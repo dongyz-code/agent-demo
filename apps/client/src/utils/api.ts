@@ -1,13 +1,13 @@
-import { getAxios } from '@repo/utils-browser';
 import { AxiosError } from 'axios';
+
+import type { API } from '@repo/types';
 
 import { API_BASE } from '@/constants/env';
 import {
   getSessionEpoch,
   handleUnauthorized,
-} from '@/model/session';
-
-import type { API } from '@repo/types';
+} from '@/model';
+import { getAxios } from '@repo/utils-browser';
 
 type ApiErrorPayload = {
   code: string;

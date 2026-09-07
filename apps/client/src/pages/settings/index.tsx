@@ -1,8 +1,8 @@
 import { PanelLeftCloseIcon, PanelLeftOpenIcon } from 'lucide-react';
 
 import { PageHeader } from '@/components/PageHeader';
-import { Button } from '@/components/ui/button';
-import { useAppModel } from '@/model/app';
+import { Button } from '@/components/ui';
+import { useAppModel } from '@/model';
 
 /**
  * 渲染客户端设置页。

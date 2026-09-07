@@ -1,12 +1,13 @@
 import { redirect } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 
+import { getSessionEpoch, useSessionModel } from '@/model';
 import { ApiResponseError, api } from '@/utils';
-import { getSessionEpoch, useSessionModel } from '@/model/session';
-import { routePathMap } from './routes';
-import { canAccessClientRoute } from './permission';
 
 import type { RouteMeta } from './type';
+
+import { canAccessClientRoute } from './permission';
+import { routePathMap } from './routes';
 
 /** 当前仅合并正在执行的会话校验请求，完成后必须释放。 */
 let sessionVerifyPromise: Promise<void> | undefined;

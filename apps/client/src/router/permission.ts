@@ -1,6 +1,6 @@
-import { hasAllPermissions } from '@repo/shared/permission';
-
 import type { AdminPermissionKey } from '@repo/shared/permission';
+
+import { hasAllPermissions } from '@repo/shared/permission';
 
 /**
  * 判断 client 路由是否对当前用户可访问。

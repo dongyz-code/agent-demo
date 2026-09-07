@@ -1,9 +1,10 @@
-import * as React from 'react';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
+import * as React from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/utils';
+
+import { Button } from './button';
+import { Input } from './input';
 
 /** 密码输入框的显隐按钮文案配置。 */
 type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, 'type'> & {

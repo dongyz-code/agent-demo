@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Clock3Icon, ServerIcon, ShieldCheckIcon } from 'lucide-react';
 
-import { PageHeader } from '@/components/PageHeader';
-import { Badge } from '@/components/ui/badge';
+import type { IconComponent } from '@/router';
 
-import type { IconComponent } from '@/router/type';
+import { PageHeader } from '@/components/PageHeader';
+import { Badge } from '@/components/ui';
 
 /**
  * 获取客户端运行概览，用于仪表盘展示当前工作区状态。

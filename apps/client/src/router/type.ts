@@ -1,6 +1,8 @@
 import type { RouteComponent } from '@tanstack/react-router';
 import type { ComponentType, SVGProps } from 'react';
+
 import type { AdminPermissionKey } from '@repo/shared/permission';
+
 import type { routes } from './routes';
 
 export type RouteLayout = 'workspace' | 'auth';

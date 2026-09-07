@@ -1,26 +1,26 @@
 import { useMutation } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
 import {
   LockKeyholeIcon,
   LogInIcon,
   ShieldCheckIcon,
   UserRoundIcon,
 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
 
-import { api, message } from '@/utils';
-import { useSessionModel } from '@/model/session';
-import { routerGoHome } from '@/router/methods';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { PasswordInput } from '@/components/ui/password-input';
 import {
+  Button,
+  Card,
   Form,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+  Input,
+  PasswordInput,
+} from '@/components/ui';
+import { useSessionModel } from '@/model';
+import { routerGoHome } from '@/router';
+import { api, message } from '@/utils';
 
 /** 登录接口提交所需的凭据字段。 */
 type LoginFormValues = {

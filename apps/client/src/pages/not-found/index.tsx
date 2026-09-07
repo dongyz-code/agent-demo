@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
-import { PageHeader } from '@/components/PageHeader';
-
 import { SearchXIcon } from 'lucide-react';
+
+import { PageHeader } from '@/components/PageHeader';
 
 /**
  * 渲染 404 页面。

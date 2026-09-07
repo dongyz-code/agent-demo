@@ -1,7 +1,7 @@
+import type { ReactNode } from 'react';
+
 import { Brand } from '@/components/Brand';
 import { ThemeToggle } from '@/components/ThemeToggle';
-
-import type { ReactNode } from 'react';
 
 type AuthLayoutProps = {
   /** 认证布局内承载的页面内容。 */

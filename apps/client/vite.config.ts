@@ -1,13 +1,9 @@
-import { defineConfig } from 'vite';
-import { join } from 'node:path';
-import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import { join } from 'node:path';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
-  server: {
-    host: true,
-    port: 3005,
-  },
   plugins: [
     react(),
     tailwindcss(),
@@ -16,5 +12,9 @@ export default defineConfig({
     alias: {
       '@': join(__dirname, 'src'),
     },
+  },
+  server: {
+    host: true,
+    port: 3005,
   },
 });

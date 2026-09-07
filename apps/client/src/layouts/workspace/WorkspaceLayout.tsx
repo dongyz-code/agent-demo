@@ -5,25 +5,23 @@ import {
   PanelLeftOpenIcon,
   UserCircleIcon,
 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 
 import { Brand } from '@/components/Brand';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import {
+  Button,
+  Separator,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/ui';
+import { clearClientSession, useAppModel, useSessionModel } from '@/model';
+import { routerGoLogin } from '@/router';
 import { api, cn } from '@/utils';
-import { routerGoLogin } from '@/router/methods';
-import { clearClientSession } from '@/model/session';
-import { getWorkspaceNavigation } from './navigation';
-import { useAppModel } from '@/model/app';
-import { useSessionModel } from '@/model/session';
 
-import { useState, type ReactNode } from 'react';
+import { getWorkspaceNavigation } from './navigation';
 
 type WorkspaceLayoutProps = {
   /** 工作区页面主体内容。 */

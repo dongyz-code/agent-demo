@@ -1,8 +1,9 @@
+import type { NavigateOptions } from '@tanstack/react-router';
+
+import type { RouteName, RoutePathMap } from './type';
+
 import { router } from '.';
 import { routePathMap } from './routes';
-
-import type { NavigateOptions } from '@tanstack/react-router';
-import type { RouteName, RoutePathMap } from './type';
 
 type RouteNavigateOptions<Name extends RouteName> = NavigateOptions<
   typeof router,
