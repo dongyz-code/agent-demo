@@ -1,93 +1,95 @@
-import { useQuery } from '@tanstack/react-query';
-import { Clock3Icon, ServerIcon, ShieldCheckIcon } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { BotIcon, PlusIcon } from 'lucide-react';
 
-import type { IconComponent } from '@/router';
-
-import { PageHeader } from '@/components/PageHeader';
-import { Badge } from '@/components/ui';
-
-/**
- * 获取客户端运行概览，用于仪表盘展示当前工作区状态。
- *
- * @returns React Query 运行概览查询结果。
- */
-function useRuntimeSummary() {
-  return useQuery({
-    queryKey: ['runtime-summary'],
-    queryFn: async () => ({
-      status: 'ready',
-      checkedAt: new Date().toLocaleTimeString(),
-    }),
-  });
-}
-
-type MetricCardProps = {
-  /** 指标卡片左上角图标。 */
-  icon: IconComponent;
-  /** 指标名称。 */
-  label: string;
-  /** 指标当前值。 */
-  value: string;
-};
+import { Button } from '@/components/ui';
+import { useConversationModel, useSessionModel } from '@/model';
+import { routePathMap } from '@/router';
 
 /**
- * 渲染仪表盘指标卡片。
+ * 渲染工作台首页：欢迎区与最近会话入口，点击会话跳转对话区。
  *
- * @param props 图标、标签和值。
- * @returns 指标卡片节点。
- */
-function MetricCard({ icon: Icon, label, value }: MetricCardProps) {
-  return (
-    <div className="rounded border border-border bg-background p-4">
-      <Icon className="mb-3 size-5 text-primary" aria-hidden />
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="mt-1 font-medium text-foreground">{value}</div>
-    </div>
-  );
-}
-
-/**
- * 渲染客户端仪表盘首页。
- *
- * @returns 仪表盘页面节点。
+ * @returns 工作台首页节点。
  */
 export default function DashboardPage() {
-  const { data } = useRuntimeSummary();
+  const user = useSessionModel((state) => state.user);
+  const conversations = useConversationModel((state) => state.conversations);
+  const selectConversation = useConversationModel(
+    (state) => state.selectConversation,
+  );
+  const createConversation = useConversationModel(
+    (state) => state.createConversation,
+  );
+
+  const displayName = user?.nickname ?? user?.username ?? '访客';
+  const recent = conversations.slice(0, 6);
 
   return (
-    <>
-      <PageHeader
-        title="工作台"
-        description="Agent 工作台概览"
-        actions={<Badge variant="success">{data?.status ?? 'loading'}</Badge>}
-      />
-      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-        <section className="rounded border border-border bg-card p-5">
-          <div className="grid gap-3 md:grid-cols-3">
-            <MetricCard icon={ServerIcon} label="API" value="/api" />
-            <MetricCard icon={ShieldCheckIcon} label="Mode" value="SPA" />
-            <MetricCard
-              icon={Clock3Icon}
-              label="Checked"
-              value={data?.checkedAt ?? '-'}
-            />
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <section className="rounded-lg border border-border bg-card p-6">
+          <div className="flex items-center gap-2 text-sm font-medium text-link">
+            <BotIcon className="size-4" aria-hidden />
+            Agent 工作台
           </div>
+          <h1 className="mt-3 text-2xl font-semibold text-foreground">
+            你好，{displayName}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            从一个新会话开始，编排 Agent、查询数据与运行任务。
+          </p>
+          <Button asChild className="mt-4 gap-2">
+            <Link
+              to={routePathMap.agents}
+              onClick={() => createConversation()}
+            >
+              <PlusIcon className="size-4" aria-hidden />
+              新建会话
+            </Link>
+          </Button>
         </section>
-        <aside className="rounded border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold uppercase text-muted-foreground">
-            Stack
+
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+            最近会话
           </h2>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {['React 19', 'Vite 8', 'TypeScript', 'TanStack', 'Tailwind'].map(
-              (item) => (
-                <Badge key={item} variant="outline">
-                  {item}
-                </Badge>
-              ),
-            )}
-          </div>
-        </aside>
+          {recent.length === 0 ? (
+            <p className="text-sm text-muted-foreground">暂无会话</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {recent.map((conversation) => (
+                <Button
+                  key={conversation.id}
+                  asChild
+                  variant="outline"
+                  className="h-auto justify-start gap-3 p-4 text-left font-normal"
+                >
+                  <Link
+                    to={routePathMap.agents}
+                    onClick={() => selectConversation(conversation.id)}
+                  >
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
+                      <BotIcon
+                        className="size-4 text-muted-foreground"
+                        aria-hidden
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-foreground">
+                        {conversation.title}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {conversation.scenario === 'sql'
+                          ? 'SQL 场景'
+                          : '通用对话'}
+                      </div>
+                    </div>
+                  </Link>
+                </Button>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
-    </>
+    </div>
   );
 }

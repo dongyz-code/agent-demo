@@ -6,10 +6,10 @@ import {
   normalizeAdminPermissionKeys,
 } from '@repo/shared/permission';
 
-import type { StoreData } from './types';
 import type { AdminPermissionKey } from '@repo/shared/permission';
-import type { RouteItem } from '@repo/ui';
 import type { Meta, RouteName } from '@/router/types';
+import type { StoreData } from './types';
+import type { RouteItem } from '@repo/ui';
 
 const defaultData: StoreData = {
   permission: [],
@@ -55,9 +55,7 @@ function collectAllowedRouteNames(
     const selfAllowed =
       isPublic ||
       sysAdmin ||
-      (required.length
-        ? hasAllPermissions(permissionSet, required)
-        : !isShell);
+      (required.length ? hasAllPermissions(permissionSet, required) : !isShell);
 
     if (selfAllowed || childrenAllowed) {
       result.add(route.name);
