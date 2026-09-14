@@ -1,4 +1,6 @@
 .git
-*.log
-.turbo
+**/.turbo
+**/build
 node_modules
+*.log
+docker/temp

@@ -12,8 +12,6 @@ pnpm/Turbo monorepo，Node `>=20.19`，pnpm `11.7.0`，TypeScript ESM，两个�
 pnpm install                       # 安装工作区依赖
 pnpm turbo build                   # 按依赖顺序构建所有包（outputs: dist/ build/）
 pnpm turbo lint                    # 各包 lint + 类型检查；多数包的 lint 会跑 tsc/vue-tsc
-pnpm pkg:sort                      # 修改任一 package.json 后排序工作区 package.json
-pnpm build:prune                   # 生成 turbo prune 部署子集（packages/scripts）
 
 # 启动单个应用（用 --filter 指定 @repo/* 包名）
 pnpm --filter @repo/client dev   # React + Vite 客户端
