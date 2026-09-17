@@ -47,6 +47,7 @@ async function createServer() {
         origin: ROOT.APP_PROD ? [] : true,
         methods: ['GET', 'POST', 'OPTIONS'],
         credentials: true,
+        exposedHeaders: ['x-conversation-id'],
       },
       routes: await getRoutes(),
       callback: callback(),

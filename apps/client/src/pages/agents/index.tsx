@@ -1,7 +1,9 @@
 import { BotIcon } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 import { Button } from '@/components/ui';
 import { selectCurrentMessages, useConversationModel } from '@/model';
+import { api } from '@/utils/api';
 
 import { MessageComposer } from './components/MessageComposer';
 import { MessageList } from './components/MessageList';
@@ -18,10 +20,43 @@ export default function AgentPage() {
   const createConversation = useConversationModel(
     (state) => state.createConversation,
   );
+  const setConversationMessages = useConversationModel(
+    (state) => state.setConversationMessages,
+  );
+  const requestedMessageIdsRef = useRef(new Set<string>());
 
   const current = currentId
     ? conversations.find((c) => c.id === currentId)
     : null;
+
+  useEffect(() => {
+    if (!current?.serverId || requestedMessageIdsRef.current.has(current.id)) {
+      return;
+    }
+    if (useConversationModel.getState().messageMap[current.id]) {
+      return;
+    }
+    requestedMessageIdsRef.current.add(current.id);
+    void api('/agent/message-list', {
+      conversation_id: current.serverId,
+      limit: [0, 100],
+      with_count: false,
+    })
+      .then((result) => {
+        setConversationMessages(
+          current.id,
+          result.list.map((record) => ({
+            id: record.message_id,
+            role: record.role,
+            status: record.status,
+            parts: record.content,
+          })),
+        );
+      })
+      .catch(() => {
+        requestedMessageIdsRef.current.delete(current.id);
+      });
+  }, [conversations, current, setConversationMessages]);
 
   if (!current) {
     return (
