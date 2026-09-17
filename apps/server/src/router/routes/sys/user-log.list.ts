@@ -1,7 +1,7 @@
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
-import { desc, eq, gte, ilike, inArray, isNull, lte } from 'drizzle-orm';
+import { desc, eq, gte, ilike, inArray, lte } from 'drizzle-orm';
 
 const { api } = routerHandler({
   url: '/sys/user-log/list',
@@ -22,9 +22,7 @@ const { api } = routerHandler({
       if (timestampBefore) {
         filter.push(lte(schemas.user_logs.timestamp, timestampBefore));
       }
-      if (userIds === null) {
-        filter.push(isNull(schemas.user_logs.user_id));
-      } else if (Array.isArray(userIds)) {
+      if (Array.isArray(userIds)) {
         filter.push(inArray(schemas.user_logs.user_id, userIds));
       } else if (userIds !== undefined) {
         filter.push(eq(schemas.user_logs.user_id, userIds));

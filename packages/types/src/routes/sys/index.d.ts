@@ -199,7 +199,7 @@ export type UserLogAction = ApiMultAction<{
       form?: {
         search?: string;
         timestamp?: Date[];
-        user_id?: string | string[] | null;
+        user_id?: string | string[];
         key?: string | string[];
         ip?: string;
       };

@@ -72,7 +72,12 @@ export async function createUser({
         nickname: schemas.user.nickname,
       })
       .from(schemas.user)
-      .where(inArray(schemas.user.username, user.map(({ username }) => username)));
+      .where(
+        inArray(
+          schemas.user.username,
+          user.map(({ username }) => username),
+        ),
+      );
 
     let needInsertUser: UserItem[] = user.slice();
     let needInsertUserRole: UserRoleItem[] = userRole.slice();
@@ -81,9 +86,11 @@ export async function createUser({
       if (ignoreExist) {
         const existSet = new Set(exist.map(({ username }) => username));
         needInsertUser = user.filter(({ username }) => !existSet.has(username));
-        const needUserIdSet = new Set(needInsertUser.map(({ user_id }) => user_id));
-        needInsertUserRole = userRole.filter(
-          ({ user_id }) => needUserIdSet.has(user_id),
+        const needUserIdSet = new Set(
+          needInsertUser.map(({ user_id }) => user_id),
+        );
+        needInsertUserRole = userRole.filter(({ user_id }) =>
+          needUserIdSet.has(user_id),
         );
         if (!user.length) {
           return exist;
@@ -94,14 +101,11 @@ export async function createUser({
     }
 
     const insertUserResult = needInsertUser.length
-      ? await tx
-          .insert(schemas.user)
-          .values(needInsertUser)
-          .returning({
-            user_id: schemas.user.user_id,
-            username: schemas.user.username,
-            nickname: schemas.user.nickname,
-          })
+      ? await tx.insert(schemas.user).values(needInsertUser).returning({
+          user_id: schemas.user.user_id,
+          username: schemas.user.username,
+          nickname: schemas.user.nickname,
+        })
       : [];
 
     if (needInsertUserRole.length) {

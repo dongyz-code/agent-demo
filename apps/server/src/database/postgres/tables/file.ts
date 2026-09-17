@@ -1,13 +1,10 @@
-import {
-  bigint,
-  index,
-  integer,
-  text,
-  uniqueIndex,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { bigint, index, integer, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
-import { baseCols, timestamptz, varchar255 } from '../declaration/common-columns.js';
+import {
+  baseCols,
+  timestamptz,
+  varchar255,
+} from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 import { timestampsTrigger } from '../declaration/presets.js';
 
@@ -21,7 +18,7 @@ export const files = pgTable(
   'files',
   {
     /** 通用文件稳定标识。 */
-    file_id: uuid('file_id').primaryKey(),
+    file_id: varchar255('file_id').primaryKey(),
     /** 用户上传时的显示名称。 */
     filename: text('filename').notNull(),
     /** 经服务端规范化后的扩展名，不包含点。 */
@@ -57,11 +54,11 @@ export const file_upload_sessions = pgTable(
   'file_upload_sessions',
   {
     /** 上传会话标识。 */
-    session_id: uuid('session_id').primaryKey(),
+    session_id: varchar255('session_id').primaryKey(),
     /** 初始化时创建的通用文件标识。 */
-    file_id: uuid('file_id').notNull(),
+    file_id: varchar255('file_id').notNull(),
     /** 新增版本时的目标文档；新建文档时为空。 */
-    document_id: uuid('document_id'),
+    document_id: varchar255('document_id'),
     /** 客户端请求幂等键。 */
     idempotency_key: varchar255('idempotency_key').notNull(),
     /** 单对象或 Multipart 模式。 */

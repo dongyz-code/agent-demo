@@ -30,6 +30,8 @@ export type CONF = {
     jwt_exp: number;
     /** 管理员账户 */
     admin: {
+      /** 内置管理员用户 ID，会进入 token 和相关数据归属字段。 */
+      user_id: string;
       username: string;
       /** 管理员密码；推荐填写 Argon2id 编码，服务端兼容旧配置中的原文值。 */
       password: string;

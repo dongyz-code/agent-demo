@@ -1,4 +1,4 @@
-import { index, integer, jsonb, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb } from 'drizzle-orm/pg-core';
 
 import { timestamptz, varchar255 } from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
@@ -22,9 +22,9 @@ export const agent_conversations = pgTable(
   'agent_conversations',
   {
     /** 会话标识，uuidv7，时序主键 */
-    conversation_id: uuid('conversation_id').primaryKey(),
-    /** 发起会话的用户ID；系统发起可为空 */
-    user_id: uuid('user_id'),
+    conversation_id: varchar255('conversation_id').primaryKey(),
+    /** 发起会话的用户ID，管理员使用配置中的字符串ID */
+    user_id: varchar255('user_id').notNull(),
     /** 会话场景标识，区分用途（如 sql / chat），键值见 AgentScenario */
     scenario: varchar255('scenario').$type<AgentScenario>().notNull(),
     /** 会话标题，首条消息后自动生成，供侧边栏展示 */
@@ -65,9 +65,9 @@ export const agent_messages = pgTable(
   'agent_messages',
   {
     /** 消息标识，uuidv7，时序主键 */
-    message_id: uuid('message_id').primaryKey(),
+    message_id: varchar255('message_id').primaryKey(),
     /** 所属会话ID，与 agent_conversations.conversation_id 对齐 */
-    conversation_id: uuid('conversation_id').notNull(),
+    conversation_id: varchar255('conversation_id').notNull(),
     /** 消息角色，对齐 AI SDK CoreMessage */
     role: varchar255('role').$type<AgentMessageRole>().notNull(),
     /** 消息内容，结构化片段数组；纯文本消息为单项 text 片段 */

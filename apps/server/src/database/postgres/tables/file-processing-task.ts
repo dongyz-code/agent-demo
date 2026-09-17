@@ -5,7 +5,6 @@ import {
   primaryKey,
   text,
   uniqueIndex,
-  uuid,
 } from 'drizzle-orm/pg-core';
 
 import {
@@ -28,13 +27,13 @@ export const file_processing_tasks = pgTable(
   'file_processing_tasks',
   {
     /** 对应通用任务主记录。 */
-    task_id: uuid('task_id').primaryKey(),
+    task_id: varchar255('task_id').primaryKey(),
     /** 被处理的通用文件。 */
-    file_id: uuid('file_id').notNull(),
+    file_id: varchar255('file_id').notNull(),
     /** 处理过程中创建或复用的逻辑文档。 */
-    document_id: uuid('document_id').notNull(),
+    document_id: varchar255('document_id').notNull(),
     /** 本次任务处理的文档版本。 */
-    document_version_id: uuid('document_version_id').notNull(),
+    document_version_id: varchar255('document_version_id').notNull(),
     /** 同一文档任务选择执行的 RAG 与预览操作。 */
     task_parts: jsonb('task_parts').$type<DocumentTaskOperation[]>().notNull(),
     /** 同一文件从 1 开始递增的执行序号。 */
@@ -70,9 +69,9 @@ export const file_processing_task_stage_runs = pgTable(
   'file_processing_task_stage_runs',
   {
     /** UUIDv7 阶段记录标识。 */
-    stage_run_id: uuid('stage_run_id').notNull(),
+    stage_run_id: varchar255('stage_run_id').notNull(),
     /** 所属通用任务。 */
-    task_id: uuid('task_id').notNull(),
+    task_id: varchar255('task_id').notNull(),
     /** 当前执行阶段。 */
     stage: varchar255('stage').$type<FileProcessingStage>().notNull(),
     /** 同一任务同一阶段从 1 开始递增的尝试次数。 */

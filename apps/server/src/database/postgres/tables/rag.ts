@@ -1,4 +1,4 @@
-import { index, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { index, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 import { baseCols, varchar255 } from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
@@ -10,7 +10,7 @@ export const rag_datasets = pgTable(
   'rag_datasets',
   {
     /** 知识库标识。 */
-    dataset_id: uuid('dataset_id').primaryKey(),
+    dataset_id: varchar255('dataset_id').primaryKey(),
     /** 知识库名称。 */
     name: varchar255('name').notNull(),
     /** 知识库说明。 */
@@ -33,15 +33,15 @@ export const rag_dataset_documents = pgTable(
   'rag_dataset_documents',
   {
     /** 知识库文档关联标识。 */
-    dataset_document_id: uuid('dataset_document_id').primaryKey(),
+    dataset_document_id: varchar255('dataset_document_id').primaryKey(),
     /** 所属知识库。 */
-    dataset_id: uuid('dataset_id').notNull(),
+    dataset_id: varchar255('dataset_id').notNull(),
     /** 通用文档标识。 */
-    document_id: uuid('document_id').notNull(),
+    document_id: varchar255('document_id').notNull(),
     /** 当前实际参与知识库检索的文档版本。 */
-    active_version_id: uuid('active_version_id'),
+    active_version_id: varchar255('active_version_id'),
     /** 等待或正在进行 RAG 处理的目标版本。 */
-    pending_version_id: uuid('pending_version_id'),
+    pending_version_id: varchar255('pending_version_id'),
     /** 当前关系的 RAG 处理状态。 */
     rag_status: varchar255('rag_status')
       .$type<RagDatasetDocumentStatus>()

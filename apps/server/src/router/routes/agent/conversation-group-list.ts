@@ -1,4 +1,4 @@
-import { count, eq, inArray, isNull, max } from 'drizzle-orm';
+import { count, eq, inArray, max } from 'drizzle-orm';
 
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
@@ -9,11 +9,7 @@ const { api } = routerHandler({
   handler: async ({ body, __token }) => {
     const statuses = body.status ?? ['active', 'archived'];
     const where = buildWhere((filter) => {
-      if (__token.user_id) {
-        filter.push(eq(schemas.agent_conversations.user_id, __token.user_id));
-      } else {
-        filter.push(isNull(schemas.agent_conversations.user_id));
-      }
+      filter.push(eq(schemas.agent_conversations.user_id, __token.user_id));
       filter.push(inArray(schemas.agent_conversations.status, statuses));
     });
 

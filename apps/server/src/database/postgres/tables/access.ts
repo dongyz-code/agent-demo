@@ -1,6 +1,10 @@
-import { boolean, index, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
-import { baseCols, timestamptz, varchar255 } from '../declaration/common-columns.js';
+import {
+  baseCols,
+  timestamptz,
+  varchar255,
+} from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 import { timestampsTrigger } from '../declaration/presets.js';
 
@@ -8,7 +12,7 @@ export const user = pgTable(
   'user',
   {
     /** 用户ID */
-    user_id: uuid('user_id').primaryKey(),
+    user_id: varchar255('user_id').primaryKey(),
     /** 用户名 */
     username: varchar255('username').notNull(),
     /** 密码 */
@@ -38,7 +42,7 @@ export const role = pgTable(
   'role',
   {
     /** 角色ID */
-    role_id: uuid('role_id').primaryKey(),
+    role_id: varchar255('role_id').primaryKey(),
     /** 角色名称 */
     name: varchar255('name').notNull(),
     /** 角色描述 */
@@ -61,9 +65,9 @@ export const user_role = pgTable(
   'user_role',
   {
     /** 角色ID */
-    role_id: uuid('role_id').notNull(),
+    role_id: varchar255('role_id').notNull(),
     /** 用户ID */
-    user_id: uuid('user_id').notNull(),
+    user_id: varchar255('user_id').notNull(),
     /** 最近更新用户ID */
     last_update_user_id: varchar255('last_update_user_id').notNull(),
     /** 最近更新时间 */

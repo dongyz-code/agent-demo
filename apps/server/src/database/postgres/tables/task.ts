@@ -1,27 +1,16 @@
-import {
-  index,
-  integer,
-  jsonb,
-  text,
-  uniqueIndex,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 import { timestamptz, varchar255 } from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 
-import type {
-  TaskAttemptStatus,
-  TaskLogLevel,
-  TaskStatus,
-} from '@repo/types';
+import type { TaskAttemptStatus, TaskLogLevel, TaskStatus } from '@repo/types';
 
 /** 通用后台任务当前状态与执行策略快照。 */
 export const tasks = pgTable(
   'tasks',
   {
     /** UUIDv7 通用任务标识。 */
-    task_id: uuid('task_id').primaryKey(),
+    task_id: varchar255('task_id').primaryKey(),
     /** 稳定任务名称，同时用于同名任务并发分组。 */
     task_name: varchar255('task_name').notNull(),
     /** 面向任务中心展示的业务名称。 */
@@ -55,9 +44,9 @@ export const tasks = pgTable(
     /** retrying 状态的下次可领取时间。 */
     next_run_at: timestamptz('next_run_at'),
     /** 当前 attempt 标识，非 running 时为空。 */
-    current_attempt_id: uuid('current_attempt_id'),
+    current_attempt_id: varchar255('current_attempt_id'),
     /** 当前领取生成的 lease，非 running 时为空。 */
-    lease_id: uuid('lease_id'),
+    lease_id: varchar255('lease_id'),
     /** 当前 lease 到期时间。 */
     lease_expires_at: timestamptz('lease_expires_at'),
     /** 最终或最近一次执行的稳定错误码。 */
@@ -90,15 +79,15 @@ export const task_attempts = pgTable(
   'task_attempts',
   {
     /** UUIDv7 attempt 标识。 */
-    attempt_id: uuid('attempt_id').primaryKey(),
+    attempt_id: varchar255('attempt_id').primaryKey(),
     /** 所属通用任务。 */
-    task_id: uuid('task_id').notNull(),
+    task_id: varchar255('task_id').notNull(),
     /** 从 1 开始的执行序号。 */
     attempt: integer('attempt').notNull(),
     /** 当前或最终执行状态。 */
     status: varchar255('status').$type<TaskAttemptStatus>().notNull(),
     /** 本次领取生成的 lease。 */
-    lease_id: uuid('lease_id').notNull(),
+    lease_id: varchar255('lease_id').notNull(),
     /** 领取任务的服务实例。 */
     worker_id: varchar255('worker_id').notNull(),
     /** 任务子进程 PID，启动前允许为空。 */
@@ -129,9 +118,9 @@ export const task_logs = pgTable(
   'task_logs',
   {
     /** UUIDv7 日志标识。 */
-    log_id: uuid('log_id').primaryKey(),
+    log_id: varchar255('log_id').primaryKey(),
     /** 所属通用任务。 */
-    task_id: uuid('task_id').notNull(),
+    task_id: varchar255('task_id').notNull(),
     /** 产生日志的 attempt，入队阶段使用 0。 */
     attempt: integer('attempt').notNull().default(0),
     /** debug、info 或 error。 */

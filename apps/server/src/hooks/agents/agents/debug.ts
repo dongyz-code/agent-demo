@@ -15,7 +15,7 @@ import { asc, eq } from 'drizzle-orm';
 import { db, schemas } from '@/database/index.js';
 import { chatAgent } from '@/hooks/agents/agents/index.js';
 
-/** 测试用 user_id（合法 uuid；agent_conversations.user_id 可空，这里给个固定值便于辨识）。 */
+/** 测试用固定 user_id，便于辨识调试数据。 */
 const TEST_USER_ID = '00000000-0000-7000-8000-000000000000';
 
 /** 打印某会话下全部消息行（正序），验证 user/assistant/tool 三种消息的落库形状。 */

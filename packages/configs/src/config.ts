@@ -10,7 +10,7 @@ export type * from './type.js';
 type CONF_ADD = {
   /** 是否是线上环境 */
   APP_PROD: boolean;
-  /** 管理员账户的ID, 除登录判断以外的其它地方使用此ID */
+  /** 从 `authorization.admin.user_id` 读取的内置管理员用户 ID。 */
   SYS_ADMIN_USER_ID: string;
 };
 
@@ -79,7 +79,7 @@ export function getSysConf<
   const ROOT: ConfWithAdd = {
     ...conf,
     APP_PROD,
-    SYS_ADMIN_USER_ID: '-',
+    SYS_ADMIN_USER_ID: conf.authorization.admin.user_id,
   };
 
   return ROOT;

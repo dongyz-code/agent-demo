@@ -6,27 +6,23 @@ import {
   primaryKey,
   text,
   uniqueIndex,
-  uuid,
 } from 'drizzle-orm/pg-core';
 
 import { baseCols, varchar255 } from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 import { timestampsTrigger } from '../declaration/presets.js';
 
-import type {
-  DocumentPreviewStatus,
-  DocumentStatus,
-} from '@repo/types';
+import type { DocumentPreviewStatus, DocumentStatus } from '@repo/types';
 
 export const documents = pgTable(
   'documents',
   {
     /** 逻辑文档标识。 */
-    document_id: uuid('document_id').primaryKey(),
+    document_id: varchar255('document_id').primaryKey(),
     /** 文档显示名称。 */
     name: text('name').notNull(),
     /** 当前生效文档版本。 */
-    active_version_id: uuid('active_version_id').notNull(),
+    active_version_id: varchar255('active_version_id').notNull(),
     /** 后续版本默认是否进入已关联知识库。 */
     rag_enabled: boolean('rag_enabled').notNull().default(false),
     /** 文档生命周期状态，不表达预览或 RAG 结果。 */
@@ -49,13 +45,13 @@ export const document_versions = pgTable(
   'document_versions',
   {
     /** 文档版本标识。 */
-    document_version_id: uuid('document_version_id').primaryKey(),
+    document_version_id: varchar255('document_version_id').primaryKey(),
     /** 所属逻辑文档。 */
-    document_id: uuid('document_id').notNull(),
+    document_id: varchar255('document_id').notNull(),
     /** 递增业务版本号。 */
     version: integer('version').notNull(),
     /** 通用上传模块中的源文件标识。 */
-    source_file_id: uuid('source_file_id').notNull(),
+    source_file_id: varchar255('source_file_id').notNull(),
     /** 页面预览处理状态。 */
     preview_status: varchar255('preview_status')
       .$type<DocumentPreviewStatus>()
@@ -89,7 +85,7 @@ export const document_preview_pages = pgTable(
   'document_preview_pages',
   {
     /** 页面所属的不可变文档版本。 */
-    document_version_id: uuid('document_version_id').notNull(),
+    document_version_id: varchar255('document_version_id').notNull(),
     /** 从 1 开始且在版本内连续的页码。 */
     page_number: integer('page_number').notNull(),
     /** 页面图片像素宽度。 */
@@ -119,7 +115,7 @@ export const document_preview_quick_pages = pgTable(
   'document_preview_quick_pages',
   {
     /** 页面所属的不可变文档版本。 */
-    document_version_id: uuid('document_version_id').notNull(),
+    document_version_id: varchar255('document_version_id').notNull(),
     /** 从 1 开始且在版本内连续的页码。 */
     page_number: integer('page_number').notNull(),
     /** 快速页面图片像素宽度。 */
@@ -148,11 +144,11 @@ export const document_segments = pgTable(
   'document_segments',
   {
     /** 确定性 Segment 标识。 */
-    segment_id: uuid('segment_id').primaryKey(),
+    segment_id: varchar255('segment_id').primaryKey(),
     /** 所属文档版本。 */
-    document_version_id: uuid('document_version_id').notNull(),
+    document_version_id: varchar255('document_version_id').notNull(),
     /** 父级 Segment 标识。 */
-    parent_segment_id: uuid('parent_segment_id'),
+    parent_segment_id: varchar255('parent_segment_id'),
     /** Segment 正文。 */
     content: text('content').notNull(),
     /** 用于 Embedding 的结构化文本。 */

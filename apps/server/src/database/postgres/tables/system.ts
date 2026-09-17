@@ -1,12 +1,10 @@
-import {
-  boolean,
-  smallint,
-  text,
-  uniqueIndex,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { boolean, smallint, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
-import { baseCols, timestamptz, varchar255 } from '../declaration/common-columns.js';
+import {
+  baseCols,
+  timestamptz,
+  varchar255,
+} from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 
 export const sys_conf = pgTable('sys_conf', {
@@ -30,7 +28,7 @@ export const apps = pgTable(
     /** 是否启用 */
     available: boolean('available').notNull(),
     /** 客户端ID */
-    client_id: uuid('client_id').notNull(),
+    client_id: varchar255('client_id').notNull(),
     /** 客户端密钥 */
     client_secret: varchar255('client_secret').notNull(),
     /** 最后登录时间 */

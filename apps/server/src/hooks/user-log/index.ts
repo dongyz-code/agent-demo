@@ -1,7 +1,5 @@
 import { db, schemas } from '@/database/index.js';
 import { randomUUID } from 'node:crypto';
-import { ROOT } from '@/configs/env.js';
-
 import type { LogConf, LogType } from './static.js';
 
 export * from './static.js';
@@ -10,8 +8,8 @@ export * from './static.js';
 
 type Opt<T extends LogType> = {
   key: T;
-  /** 操作人(管理员为 null) */
-  user_id: string | null;
+  /** 操作用户 ID */
+  user_id: string;
   ip: string;
   /** 用于检索 */
   search_key?: string;
@@ -31,7 +29,7 @@ export async function addUserLog<T extends LogType>({
 }: Opt<T>) {
   const item: typeof schemas.user_logs.$inferInsert = {
     id: randomUUID(),
-    user_id: user_id === ROOT.SYS_ADMIN_USER_ID ? null : user_id,
+    user_id,
     key,
     ip,
     detail: 'detail' in rest ? JSON.stringify(rest.detail) : null,

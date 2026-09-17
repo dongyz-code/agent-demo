@@ -1,4 +1,4 @@
-import { index, integer, text, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, text } from 'drizzle-orm/pg-core';
 
 import { timestamptz, varchar255 } from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
@@ -9,11 +9,11 @@ export const api_logs = pgTable(
   'api_logs',
   {
     /** 唯一ID */
-    id: uuid('id').primaryKey(),
+    id: varchar255('id').primaryKey(),
     /** API 调用模式：主动发起或被动接收 */
     mode: varchar255('mode').$type<InterfaceMode>().notNull(),
     /** 应用ID，被动发起才有值 */
-    client_id: uuid('client_id'),
+    client_id: varchar255('client_id'),
     /** 通信标识，表示和哪个系统交互，主动发起才有值 */
     client_mark: varchar255('client_mark'),
     /** 请求URL */
@@ -23,7 +23,7 @@ export const api_logs = pgTable(
     /** 主动发起记录 localhost 或发起人 IP，被动接收记录 IP */
     ip: varchar255('ip'),
     /** 主动请求关联的用户ID */
-    user_id: uuid('user_id'),
+    user_id: varchar255('user_id'),
     /** 用于快速检索的 KEY（ID） */
     search_key: text('search_key'),
     /** 操作详情 */
@@ -52,9 +52,9 @@ export const user_logs = pgTable(
   'user_logs',
   {
     /** 日志ID */
-    id: uuid('id').primaryKey(),
+    id: varchar255('id').primaryKey(),
     /** 用户ID */
-    user_id: uuid('user_id'),
+    user_id: varchar255('user_id').notNull(),
     /** 操作类型 */
     key: varchar255('key').notNull(),
     /** IP地址 */

@@ -1,18 +1,15 @@
-import { index, text, uuid } from 'drizzle-orm/pg-core';
+import { index, text } from 'drizzle-orm/pg-core';
 
 import { timestamptz, varchar255 } from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 
-import type {
-  TableStructureOpStatus,
-  TableStructureOpType,
-} from '@repo/types';
+import type { TableStructureOpStatus, TableStructureOpType } from '@repo/types';
 
 export const table_structure_ops = pgTable(
   'table_structure_ops',
   {
     /** 操作记录 ID，用于 plan/apply 两阶段关联 */
-    op_id: uuid('op_id').primaryKey(),
+    op_id: varchar255('op_id').primaryKey(),
     /** 操作类型：重命名或 schema 重置 */
     type: varchar255('type').$type<TableStructureOpType>().notNull(),
     /** 操作状态，用于审计和失败恢复 */
@@ -58,6 +55,8 @@ export const table_structure_ops = pgTable(
       table.table_key,
       table.create_timestamp,
     ),
-    index('table_structure_ops_create_timestamp_idx').on(table.create_timestamp),
+    index('table_structure_ops_create_timestamp_idx').on(
+      table.create_timestamp,
+    ),
   ],
 );
