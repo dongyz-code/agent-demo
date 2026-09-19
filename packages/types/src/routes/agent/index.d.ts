@@ -97,6 +97,18 @@ export type AgentAction = {
     };
     method: 'POST';
   };
+  /** 删除当前用户的指定会话。 */
+  'conversation-delete': {
+    body: {
+      /** 服务端会话标识。 */
+      conversation_id: string;
+    };
+    resp: {
+      /** 删除是否成功。 */
+      ok: boolean;
+    };
+    method: 'POST';
+  };
   /** 查询指定会话的消息历史。 */
   'message-list': {
     body: {

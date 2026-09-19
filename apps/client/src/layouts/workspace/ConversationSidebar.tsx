@@ -11,6 +11,7 @@ import { routePathMap } from '@/router';
 import { cn } from '@/utils';
 import { api } from '@/utils/api';
 
+import { ConversationListItem } from './ConversationListItem';
 import { getWorkspaceNavigation } from './navigation';
 
 type ConversationSidebarProps = {
@@ -157,23 +158,12 @@ export function ConversationSidebar({
                   {scenarioLabels[scenario]}
                 </div>
                 {items.map((conversation) => (
-                  <Button
+                  <ConversationListItem
                     key={conversation.id}
-                    asChild
-                    variant="ghost"
-                    className={cn(
-                      'w-full justify-start gap-2 font-normal',
-                      conversation.id === currentId &&
-                        'bg-sidebar-accent text-sidebar-primary',
-                    )}
-                  >
-                    <Link
-                      to={routePathMap.agents}
-                      onClick={() => selectConversation(conversation.id)}
-                    >
-                      <span className="truncate">{conversation.title}</span>
-                    </Link>
-                  </Button>
+                    conversation={conversation}
+                    currentId={currentId}
+                    onSelect={selectConversation}
+                  />
                 ))}
               </Fragment>
             ))}

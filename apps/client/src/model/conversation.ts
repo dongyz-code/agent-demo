@@ -38,6 +38,8 @@ type ConversationState = {
     conversationId: string,
     serverConversationId: string,
   ) => void;
+  /** 删除会话并从列表移除；若删除的是当前会话则取消选中。 */
+  removeConversation: (conversationId: string) => void;
   /** 取消当前选中。 */
   clearCurrent: () => void;
 };
@@ -92,6 +94,15 @@ export const useConversationModel = create<ConversationState>()((set, get) => ({
           ? { ...item, serverId: serverConversationId }
           : item,
       ),
+    }));
+  },
+  removeConversation: (conversationId) => {
+    set((state) => ({
+      conversations: state.conversations.filter(
+        (conversation) => conversation.id !== conversationId,
+      ),
+      currentId:
+        state.currentId === conversationId ? null : state.currentId,
     }));
   },
   clearCurrent: () => set({ currentId: null }),
