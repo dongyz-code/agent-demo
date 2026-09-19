@@ -2,7 +2,9 @@ import { Link } from '@tanstack/react-router';
 import { BotIcon, PlusIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui';
-import { useConversationModel, useSessionModel } from '@/model';
+import { useSessionModel } from '@/model';
+import { useConversationActions } from '@/pages/agents/hooks/useConversationActions.js';
+import { useConversationList } from '@/pages/agents/hooks/useConversationList.js';
 import { routePathMap } from '@/router';
 
 /**
@@ -12,13 +14,8 @@ import { routePathMap } from '@/router';
  */
 export default function DashboardPage() {
   const user = useSessionModel((state) => state.user);
-  const conversations = useConversationModel((state) => state.conversations);
-  const selectConversation = useConversationModel(
-    (state) => state.selectConversation,
-  );
-  const createConversation = useConversationModel(
-    (state) => state.createConversation,
-  );
+  const { conversations } = useConversationList();
+  const { createConversation, selectConversation } = useConversationActions();
 
   const displayName = user?.nickname ?? user?.username ?? '访客';
   const recent = conversations.slice(0, 6);
@@ -40,6 +37,7 @@ export default function DashboardPage() {
           <Button asChild className="mt-4 gap-2">
             <Link
               to={routePathMap.agents}
+              params={{ conversationId: undefined }}
               onClick={() => createConversation()}
             >
               <PlusIcon className="size-4" aria-hidden />
@@ -65,7 +63,8 @@ export default function DashboardPage() {
                 >
                   <Link
                     to={routePathMap.agents}
-                    onClick={() => selectConversation(conversation.id)}
+                    params={{ conversationId: conversation.serverId }}
+                    onClick={() => selectConversation(conversation)}
                   >
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
                       <BotIcon

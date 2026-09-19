@@ -32,6 +32,7 @@ export default function AgentPage() {
     <div className="relative h-full overflow-hidden">
       <MessageList
         messages={chat.messages}
+        error={chat.error}
         conversationId={current.id}
         isStreaming={isStreaming}
         onPrompt={chat.startPrompt}
@@ -43,7 +44,10 @@ export default function AgentPage() {
         conversationId={current.id}
         isStreaming={isStreaming}
         onSend={(text, reasoning) => {
-          void chat.sendMessage({ text }, { body: { reasoning } });
+          void chat.sendMessage(
+            { text, metadata: { reasoning } },
+            { body: { reasoning } },
+          );
         }}
         onStop={() => {
           void chat.stop();

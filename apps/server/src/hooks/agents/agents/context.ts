@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { and, eq, desc, lte } from 'drizzle-orm';
 import { ModelMessage } from 'ai';
 import { db, schemas } from '@/database/index.js';
 
@@ -9,15 +9,24 @@ import { db, schemas } from '@/database/index.js';
  */
 export async function getMessages({
   conversation_id,
+  before_message_id,
 }: {
   conversation_id: string;
+  /** 截止消息 ID；返回该消息及其之前的历史，用于重新生成时排除旧回复。 */
+  before_message_id?: string;
 }) {
+  const where = before_message_id
+    ? and(
+        eq(schemas.agent_messages.conversation_id, conversation_id),
+        lte(schemas.agent_messages.message_id, before_message_id),
+      )
+    : eq(schemas.agent_messages.conversation_id, conversation_id);
   const list = await db.query.agent_messages.findMany({
     columns: {
       role: true,
       content: true,
     },
-    where: eq(schemas.agent_messages.conversation_id, conversation_id),
+    where,
     orderBy: desc(schemas.agent_messages.message_id),
     limit: 100,
   });

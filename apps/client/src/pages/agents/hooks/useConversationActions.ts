@@ -1,7 +1,10 @@
 import { useConversationModel } from '@/model';
+import { routerGo } from '@/router';
 
 import type { Conversation } from '@/model';
 import { api } from '@/utils/api';
+
+import { disposeAgentChat } from '../chat-registry.js';
 
 /**
  * 统一管理会话的本地操作与服务端持久化。
@@ -9,7 +12,7 @@ import { api } from '@/utils/api';
  * @returns 创建、选择、重命名和删除会话的方法。
  */
 export function useConversationActions() {
-  const selectConversation = useConversationModel(
+  const selectConversationById = useConversationModel(
     (state) => state.selectConversation,
   );
   const createConversation = useConversationModel(
@@ -21,6 +24,10 @@ export function useConversationActions() {
   const removeConversation = useConversationModel(
     (state) => state.removeConversation,
   );
+
+  function select(conversation: Conversation) {
+    selectConversationById(conversation.id);
+  }
 
   async function rename(conversation: Conversation, title: string) {
     const nextTitle = title.trim();
@@ -39,11 +46,18 @@ export function useConversationActions() {
         conversation_id: conversation.serverId,
       });
     }
+    disposeAgentChat(conversation.id);
     removeConversation(conversation.id);
+    if (useConversationModel.getState().currentId === null) {
+      await routerGo('agents', {
+        params: { conversationId: undefined },
+        replace: true,
+      });
+    }
   }
 
   return {
-    selectConversation,
+    selectConversation: select,
     createConversation,
     renameConversation: rename,
     deleteConversation: remove,

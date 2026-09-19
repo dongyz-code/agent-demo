@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, gt } from 'drizzle-orm';
 import { stepCountIs, streamText } from 'ai';
 
 import { db, schemas } from '@/database/index.js';
@@ -22,10 +22,16 @@ export const chatAgent = async (input: {
   abortSignal?: AbortSignal;
   /** 是否显式开启思考输出；仅传给支持该参数的兼容供应商。 */
   reasoning?: boolean;
+  /** 是否重新生成上一条回复；true 时不重复写入用户消息。 */
+  regenerate?: boolean;
   now: Date;
   /** 绑定的知识库 ID；提供则注册检索 tool，agent 可在回答前检索知识库片段。 */
   dataset_id?: string;
 }) => {
+  if (input.regenerate && !input.conversation_id) {
+    throw new Error('重新生成回复必须提供已有会话 ID');
+  }
+
   const isNewConversation = !input.conversation_id;
   const conversation_id = input.conversation_id || uuidv7();
   const message_id = uuidv7();
@@ -52,15 +58,43 @@ export const chatAgent = async (input: {
   });
 
   // 先取历史（不含本次 user 消息），再落 user 消息，最后把 user 消息拼进上下文——避免重复入上下文。
-  const messages = await getMessages({ conversation_id });
+  let messages = await getMessages({ conversation_id });
 
-  await db.insert(schemas.agent_messages).values({
-    conversation_id,
-    message_id,
-    role: 'user',
-    content: [{ type: 'text', text: input.message }],
-    create_timestamp: input.now,
-  });
+  if (input.regenerate) {
+    const lastUserMessage = await db.query.agent_messages.findFirst({
+      columns: { message_id: true },
+      where: and(
+        eq(schemas.agent_messages.conversation_id, conversation_id),
+        eq(schemas.agent_messages.role, 'user'),
+      ),
+      orderBy: desc(schemas.agent_messages.message_id),
+    });
+    if (!lastUserMessage) {
+      throw new Error('会话中没有可重新生成的用户消息');
+    }
+
+    await db
+      .delete(schemas.agent_messages)
+      .where(
+        and(
+          eq(schemas.agent_messages.conversation_id, conversation_id),
+          gt(schemas.agent_messages.message_id, lastUserMessage.message_id),
+        ),
+      );
+    messages = await getMessages({
+      conversation_id,
+      before_message_id: lastUserMessage.message_id,
+    });
+  } else {
+    await db.insert(schemas.agent_messages).values({
+      conversation_id,
+      message_id,
+      role: 'user',
+      content: [{ type: 'text', text: input.message }],
+      metadata: { reasoning: input.reasoning },
+      create_timestamp: input.now,
+    });
+  }
 
   // 绑定知识库时注册检索 tool；闭包捕获 datasetId，模型只决定 query。
   const tools = input.dataset_id
@@ -71,15 +105,19 @@ export const chatAgent = async (input: {
       }
     : undefined;
 
+  const modelMessages = input.regenerate
+    ? messages
+    : [
+        ...messages,
+        {
+          role: 'user' as const,
+          content: input.message,
+        },
+      ];
+
   const stream = streamText({
     model,
-    messages: [
-      ...messages,
-      {
-        role: 'user',
-        content: input.message,
-      },
-    ],
+    messages: modelMessages,
     system: input.system,
     providerOptions,
     abortSignal: input.abortSignal,

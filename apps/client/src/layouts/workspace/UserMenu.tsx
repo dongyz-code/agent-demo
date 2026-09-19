@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui';
 import { clearClientSession, useSessionModel } from '@/model';
+import { clearAgentChatRegistry } from '@/pages/agents/chat-registry.js';
 import { routerGoLogin, routePathMap } from '@/router';
 import { api } from '@/utils';
 
@@ -39,6 +40,7 @@ export function UserMenu() {
     } catch {
       // 服务端不可用时也清理本地状态，避免继续使用旧会话。
     } finally {
+      clearAgentChatRegistry();
       clearClientSession();
       await routerGoLogin({ replace: true });
       setLoggingOut(false);

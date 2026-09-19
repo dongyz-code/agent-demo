@@ -37,6 +37,7 @@ const { api } = routerHandler({
           scenario: schemas.agent_conversations.scenario,
           title: schemas.agent_conversations.title,
           status: schemas.agent_conversations.status,
+          create_timestamp: schemas.agent_conversations.create_timestamp,
           last_message_timestamp:
             schemas.agent_conversations.last_message_timestamp,
           last_update_timestamp:
@@ -44,7 +45,7 @@ const { api } = routerHandler({
         })
         .from(schemas.agent_conversations)
         .where(where)
-        .orderBy(desc(schemas.agent_conversations.last_message_timestamp))
+        .orderBy(desc(schemas.agent_conversations.create_timestamp))
         .offset(start)
         .limit(Math.max(0, end - start)),
       body.with_count

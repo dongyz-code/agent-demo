@@ -6,7 +6,11 @@ import { message as showMessage } from '@/utils';
 
 import { MarkdownContent } from './MarkdownContent';
 import { AgentEmptyState } from './AgentEmptyState';
-import { extractMessageParts } from '../utils.js';
+import {
+  extractMessageParts,
+  extractMessageToolParts,
+  type AgentMessageToolView,
+} from '../utils.js';
 
 import { type AgentChatMessage } from '../hooks/useAgentChat.js';
 
@@ -15,6 +19,8 @@ type MessageListProps = {
   messages: AgentChatMessage[];
   /** 最后一条消息是否仍在生成。 */
   isStreaming: boolean;
+  /** 当前请求错误；用于在消息流顶部向用户反馈失败原因。 */
+  error?: Error | undefined;
   /** 当前会话 id；切换会话时恢复底部定位。 */
   conversationId: string;
   /** 点击空状态快捷提问后发起请求。 */
@@ -44,6 +50,7 @@ function isNearBottom(container: HTMLElement) {
 export function MessageList({
   messages,
   isStreaming,
+  error,
   conversationId,
   onPrompt,
   onRegenerate,
@@ -77,6 +84,56 @@ export function MessageList({
     }
   }
 
+  /**
+   * 格式化工具入参或输出，便于在折叠面板中排查 Agent 执行过程。
+   *
+   * @param value 工具入参或输出。
+   * @returns 可展示的文本。
+   */
+  function formatToolValue(value: unknown) {
+    const serialized = JSON.stringify(value, null, 2);
+    return serialized ?? String(value);
+  }
+
+  /**
+   * 渲染工具调用执行记录，保留 RAG 等工具链路的可观测性。
+   *
+   * @param toolParts 当前消息中的工具片段。
+   * @returns 工具执行折叠面板；无工具时返回 null。
+   */
+  function renderToolParts(toolParts: AgentMessageToolView[]) {
+    if (toolParts.length === 0) {
+      return null;
+    }
+
+    return (
+      <details className="mb-2 overflow-hidden rounded-lg border border-border bg-background">
+        <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground select-none">
+          工具执行
+        </summary>
+        <Separator />
+        <div className="max-h-56 space-y-2 overflow-y-auto px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
+          {toolParts.map((part) => (
+            <div key={part.toolCallId} className="space-y-1">
+              <div className="font-medium text-foreground">
+                {part.toolName ?? part.type.replace('tool-', '')}
+              </div>
+              <div>入参：{formatToolValue(part.input)}</div>
+              {part.state === 'output-available' ? (
+                <div>输出：{formatToolValue(part.output)}</div>
+              ) : null}
+              {part.state === 'output-error' ? (
+                <div className="text-destructive">
+                  错误：{part.errorText}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </details>
+    );
+  }
+
   useEffect(() => {
     shouldFollowBottomRef.current = true;
     endRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -93,7 +150,7 @@ export function MessageList({
     endRef.current?.scrollIntoView({ behavior });
   }, [messages, isStreaming]);
 
-  if (messages.length === 0) {
+  if (messages.length === 0 && !error) {
     return (
       <div className="absolute inset-0">
         <AgentEmptyState onPrompt={onPrompt} />
@@ -108,10 +165,19 @@ export function MessageList({
       className="absolute inset-0 overflow-y-auto px-4 pt-6 pb-96"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        {error ? (
+          <div
+            role="status"
+            className="rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive"
+          >
+            请求失败：{error.message || '请稍后重试'}
+          </div>
+        ) : null}
         {messages.map((message) => {
           const isUser = message.role === 'user';
           const reasoning = extractMessageParts(message, 'reasoning');
           const text = extractMessageParts(message, 'text');
+          const toolParts = extractMessageToolParts(message);
           if (isUser) {
             return (
               <div key={message.id} className="flex justify-end">
@@ -136,6 +202,7 @@ export function MessageList({
                     </div>
                   </details>
                 ) : null}
+                {renderToolParts(toolParts)}
                 {text ? (
                   <MarkdownContent content={text} />
                 ) : (

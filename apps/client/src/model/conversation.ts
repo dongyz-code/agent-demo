@@ -13,6 +13,9 @@ export type Conversation = {
   title: string;
   scenario: AgentScenario;
   status: AgentConversationStatus;
+  /** 会话创建时间，用于侧边栏排序和时间分组。 */
+  createdAt: number;
+  /** 会话最近更新时间，仅表示业务更新，不用于会话排序。 */
   updatedAt: number;
 };
 
@@ -33,6 +36,8 @@ type ConversationState = {
   setConversationHistory: (conversations: Conversation[]) => void;
   /** 更新会话历史加载状态。 */
   setConversationHistoryLoading: (loading: boolean) => void;
+  /** 清空用户作用域的会话状态，用于退出登录或认证失效后避免跨用户泄漏。 */
+  resetConversationState: () => void;
   /** 绑定服务端会话 id；首次请求由服务端创建会话后回传。 */
   linkConversationServerId: (
     conversationId: string,
@@ -42,6 +47,8 @@ type ConversationState = {
   removeConversation: (conversationId: string) => void;
   /** 更新会话标题；仅维护本地状态，服务端持久化由调用方处理。 */
   renameConversation: (conversationId: string, title: string) => void;
+  /** 后台流式完成后刷新会话更新时间，用于保留最近业务更新信息。 */
+  touchConversation: (conversationId: string) => void;
   /** 取消当前选中。 */
   clearCurrent: () => void;
 };
@@ -64,6 +71,7 @@ export const useConversationModel = create<ConversationState>()((set, get) => ({
       title: '新会话',
       scenario: 'chat',
       status: 'active',
+      createdAt: Date.now(),
       updatedAt: Date.now(),
     };
     set((state) => ({
@@ -81,6 +89,14 @@ export const useConversationModel = create<ConversationState>()((set, get) => ({
   },
   setConversationHistoryLoading: (loading) => {
     set({ conversationHistoryLoading: loading });
+  },
+  resetConversationState: () => {
+    set({
+      conversations: [],
+      currentId: null,
+      conversationHistoryLoaded: false,
+      conversationHistoryLoading: false,
+    });
   },
   linkConversationServerId: (conversationId, serverConversationId) => {
     const state = get();
@@ -112,6 +128,15 @@ export const useConversationModel = create<ConversationState>()((set, get) => ({
       conversations: state.conversations.map((conversation) =>
         conversation.id === conversationId
           ? { ...conversation, title, updatedAt: Date.now() }
+          : conversation,
+      ),
+    }));
+  },
+  touchConversation: (conversationId) => {
+    set((state) => ({
+      conversations: state.conversations.map((conversation) =>
+        conversation.id === conversationId
+          ? { ...conversation, updatedAt: Date.now() }
           : conversation,
       ),
     }));

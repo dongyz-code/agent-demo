@@ -27,8 +27,8 @@ type ConversationListItemProps = {
   conversation: Conversation;
   /** 当前选中会话 id，用于高亮。 */
   currentId: string | null;
-  /** 点击会话标题时切换选中会话。 */
-  onSelect: (conversationId: string) => void;
+  /** 点击会话标题时切换选中会话并同步路由。 */
+  onSelect: (conversation: Conversation) => void;
 };
 
 /**
@@ -71,7 +71,8 @@ export function ConversationListItem({
       >
         <Link
           to={routePathMap.agents}
-          onClick={() => onSelect(conversation.id)}
+          params={{ conversationId: conversation.serverId }}
+          onClick={() => onSelect(conversation)}
           className={cn(
             'w-full',
             conversation.id === currentId &&

@@ -1,10 +1,13 @@
 import { useEffect, useMemo } from 'react';
+import { useParams } from '@tanstack/react-router';
 
 import type { Conversation } from '@/model';
 import { useConversationModel } from '@/model';
 import type { TimeGroup } from '@/utils';
 import { getTimeGroup, timeGroupOrder } from '@/utils';
 import { api } from '@/utils/api';
+
+import { routerGo } from '@/router';
 
 import { toConversation } from '../utils.js';
 
@@ -22,6 +25,13 @@ export type ConversationTimeGroup = {
 export function useConversationList() {
   const conversations = useConversationModel((state) => state.conversations);
   const currentId = useConversationModel((state) => state.currentId);
+  const conversationHistoryLoaded = useConversationModel(
+    (state) => state.conversationHistoryLoaded,
+  );
+  const selectConversation = useConversationModel(
+    (state) => state.selectConversation,
+  );
+  const routeParams = useParams({ strict: false });
   const setConversationHistory = useConversationModel(
     (state) => state.setConversationHistory,
   );
@@ -52,6 +62,39 @@ export function useConversationList() {
       });
   }, [setConversationHistory, setConversationHistoryLoading]);
 
+  useEffect(() => {
+    if (!conversationHistoryLoaded) {
+      return;
+    }
+
+    const routeConversationId = routeParams.conversationId;
+    if (typeof routeConversationId !== 'string') {
+      return;
+    }
+
+    const conversation = conversations.find(
+      (item) =>
+        item.id === routeConversationId ||
+        item.serverId === routeConversationId,
+    );
+    if (!conversation) {
+      void routerGo('agents', {
+        params: { conversationId: undefined },
+        replace: true,
+      });
+      return;
+    }
+    if (currentId !== conversation.id) {
+      selectConversation(conversation.id);
+    }
+  }, [
+    conversationHistoryLoaded,
+    conversations,
+    currentId,
+    routeParams.conversationId,
+    selectConversation,
+  ]);
+
   const current = currentId
     ? conversations.find((conversation) => conversation.id === currentId) ??
       null
@@ -65,7 +108,7 @@ export function useConversationList() {
 }
 
 /**
- * 按最近更新时间倒序划分会话分组。
+ * 按创建时间倒序划分会话分组。
  *
  * @param conversations 当前会话列表。
  * @returns 按时间分组且组内倒序的会话列表。
@@ -76,11 +119,11 @@ function buildConversationTimeGroups(
   const now = Date.now();
   const groups = new Map<TimeGroup, Conversation[]>();
   const sortedConversations = [...conversations].sort(
-    (left, right) => right.updatedAt - left.updatedAt,
+    (left, right) => right.createdAt - left.createdAt,
   );
 
   for (const conversation of sortedConversations) {
-    const label = getTimeGroup(conversation.updatedAt, now);
+    const label = getTimeGroup(conversation.createdAt, now);
     const items = groups.get(label) ?? [];
     items.push(conversation);
     groups.set(label, items);

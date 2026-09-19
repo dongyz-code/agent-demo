@@ -59,7 +59,11 @@ export function ConversationSidebar({
             collapsed ? 'justify-center' : 'justify-start gap-2',
           )}
         >
-          <Link to={routePathMap.agents} onClick={() => createConversation()}>
+          <Link
+            to={routePathMap.agents}
+            params={{ conversationId: undefined }}
+            onClick={() => createConversation()}
+          >
             <PlusIcon className="size-4" aria-hidden />
             {!collapsed && <span>新建会话</span>}
           </Link>

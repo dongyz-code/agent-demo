@@ -28,7 +28,9 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const { current: currentConversation } = useConversationList();
   const [sheetOpen, setSheetOpen] = useState(false);
   const location = useLocation();
-  const isAgentsPage = location.pathname === '/agents';
+  const isAgentsPage =
+    location.pathname === '/agents' ||
+    location.pathname.startsWith('/agents/');
 
   // 路由变化后关闭移动端抽屉，避免导航后仍遮挡内容。
   useEffect(() => {

@@ -41,6 +41,7 @@ const { api } = routerHandler({
           conversation_id: schemas.agent_messages.conversation_id,
           role: schemas.agent_messages.role,
           content: schemas.agent_messages.content,
+          metadata: schemas.agent_messages.metadata,
           status: schemas.agent_messages.status,
           create_timestamp: schemas.agent_messages.create_timestamp,
         })

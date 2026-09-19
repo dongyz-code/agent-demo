@@ -1,6 +1,7 @@
 import type {
   AgentConversationStatus,
   AgentMessagePart,
+  AgentMessageMetadata,
   AgentMessageRole,
   AgentMessageStatus,
   AgentScenario,
@@ -16,7 +17,9 @@ export interface AgentConversationRecord {
   title: string | null;
   /** 会话状态。 */
   status: AgentConversationStatus;
-  /** 最近一条消息时间，用于会话排序。 */
+  /** 会话创建时间，用于按创建时间排序和分组。 */
+  create_timestamp: Date;
+  /** 最近一条消息时间，用于展示会话活跃信息。 */
   last_message_timestamp: Date | null;
   /** 会话最近更新时间。 */
   last_update_timestamp: Date;
@@ -42,6 +45,8 @@ export interface AgentMessageRecord {
   role: AgentMessageRole;
   /** 结构化消息片段。 */
   content: AgentMessagePart[];
+  /** 消息元数据；user 消息可恢复请求参数，assistant/tool 消息记录执行信息。 */
+  metadata?: AgentMessageMetadata | null;
   /** 消息状态。 */
   status: AgentMessageStatus;
   /** 消息创建时间。 */
@@ -63,6 +68,8 @@ export type AgentAction = {
       system?: string;
       /** 是否开启模型思考输出；仅部分支持思考模式的模型生效。 */
       reasoning?: boolean;
+      /** 是否重新生成上一条回复；true 时不重复写入用户消息。 */
+      regenerate?: boolean;
     };
     /** 流式响应，无 JSON body（SSE 直接写 reply.raw）。 */
     resp: void;

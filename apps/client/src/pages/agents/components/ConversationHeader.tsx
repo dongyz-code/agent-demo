@@ -1,5 +1,5 @@
 import { CheckIcon, PencilIcon, XIcon } from 'lucide-react';
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 
 import { Badge, Button, Input } from '@/components/ui';
@@ -23,11 +23,8 @@ export function ConversationHeader({
 }: ConversationHeaderProps) {
   const { renameConversation } = useConversationActions();
   const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState(conversation?.title ?? 'Agents');
-
-  useEffect(() => {
-    setTitle(conversation?.title ?? 'Agents');
-  }, [conversation?.id, conversation?.title]);
+  const [draftTitle, setDraftTitle] = useState<string | null>(null);
+  const title = draftTitle ?? conversation?.title ?? 'Agents';
 
   if (!conversation) {
     return (
@@ -47,17 +44,29 @@ export function ConversationHeader({
 
   const activeConversation = conversation;
 
+  /** 进入编辑态并复制当前标题，避免编辑草稿与会话状态互相覆盖。 */
+  function startEditing() {
+    setDraftTitle(activeConversation.title);
+    setEditing(true);
+  }
+
+  /** 更新标题草稿；提交成功后再同步回会话状态。 */
+  function updateTitle(value: string) {
+    setDraftTitle(value);
+  }
+
   /** 保存重命名结果；本地会话直接更新，服务端会话先落库再更新界面。 */
   async function saveTitle() {
     const nextTitle = title.trim();
     if (!nextTitle || nextTitle === activeConversation.title) {
-      setTitle(activeConversation.title);
+      setDraftTitle(null);
       setEditing(false);
       return;
     }
 
     try {
       await renameConversation(activeConversation, nextTitle);
+      setDraftTitle(null);
       setEditing(false);
     } catch {
       toast.error('重命名会话失败，请稍后重试');
@@ -65,7 +74,7 @@ export function ConversationHeader({
   }
 
   function cancelEditing() {
-    setTitle(activeConversation.title);
+    setDraftTitle(null);
     setEditing(false);
   }
 
@@ -85,7 +94,7 @@ export function ConversationHeader({
       {editing ? (
         <Input
           value={title}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => updateTitle(event.target.value)}
           onKeyDown={handleKeyDown}
           autoFocus
           aria-label="会话标题"
@@ -96,7 +105,7 @@ export function ConversationHeader({
         <div className="group/title flex min-w-0 items-center gap-1">
           <button
             type="button"
-            onDoubleClick={() => setEditing(true)}
+            onDoubleClick={startEditing}
             className="max-w-[min(55vw,32rem)] truncate text-base font-semibold tracking-tight text-foreground"
           >
             {activeConversation.title}
@@ -104,7 +113,7 @@ export function ConversationHeader({
           <Button
             size="icon-sm"
             variant="ghost"
-            onClick={() => setEditing(true)}
+            onClick={startEditing}
             aria-label="重命名会话"
             title="重命名会话"
             className="opacity-0 transition-opacity group-hover/title:opacity-100 focus-visible:opacity-100"

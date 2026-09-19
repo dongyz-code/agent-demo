@@ -1,5 +1,8 @@
 import { pipeUIMessageStreamToResponse, toUIMessageStream } from 'ai';
+import { eq } from 'drizzle-orm';
 
+import { ROOT, ROOT_ERROR } from '@/configs/index.js';
+import { db, schemas } from '@/database/index.js';
 import type { FastifyReply } from '@repo/utils-node';
 import { chatAgent } from '@/hooks/agents/agents/index.js';
 import { routerHandler } from '@/router/utils.js';
@@ -31,6 +34,26 @@ const { api } = routerHandler({
   url: '/agent/chat',
   method: 'POST',
   handler: async ({ body, __token, reply, request }) => {
+    if (body.conversation_id) {
+      const [conversation] = await db
+        .select({ user_id: schemas.agent_conversations.user_id })
+        .from(schemas.agent_conversations)
+        .where(
+          eq(
+            schemas.agent_conversations.conversation_id,
+            body.conversation_id,
+          ),
+        )
+        .limit(1);
+      const isRootAdmin = __token.user_id === ROOT.SYS_ADMIN_USER_ID;
+      if (
+        !conversation ||
+        (!isRootAdmin && conversation.user_id !== __token.user_id)
+      ) {
+        throw new ROOT_ERROR('Agent: 会话不存在');
+      }
+    }
+
     const abortController = new AbortController();
     const abort = () => abortController.abort();
     request.raw.once('aborted', abort);
@@ -46,6 +69,7 @@ const { api } = routerHandler({
         '你是助手。若绑定了知识库，回答前先调用 searchKnowledgeBase 检索。',
       message: body.message,
       reasoning: body.reasoning,
+      regenerate: body.regenerate,
       userId: __token.user_id,
       now: new Date(),
       dataset_id: body.dataset_id,

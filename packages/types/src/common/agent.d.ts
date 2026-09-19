@@ -34,6 +34,8 @@ export interface AgentToolMeta {
 /** user 消息元数据：来源标记，可空。 */
 export interface AgentUserMeta {
   source?: string;
+  /** 本次请求是否开启思考输出；用于刷新后恢复重新生成参数。 */
+  reasoning?: boolean;
 }
 
 /**

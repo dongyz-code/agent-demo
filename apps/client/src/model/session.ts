@@ -4,6 +4,8 @@ import type { ApiLogin } from '@repo/types';
 
 import { queryClient } from '@/query-client';
 
+import { useConversationModel } from './conversation.js';
+
 /** 登录和会话校验接口返回的内存 DTO。 */
 type LoginResponse = ApiLogin.LOGIN_RESPONSE;
 
@@ -91,6 +93,7 @@ export const useSessionModel = create<SessionState>()((set) => ({
     });
   },
   clearSession: () => {
+    useConversationModel.getState().resetConversationState();
     set((state) => {
       if (
         state.status === 'anonymous' &&
@@ -108,6 +111,7 @@ export const useSessionModel = create<SessionState>()((set) => ({
     });
   },
   resetSession: () => {
+    useConversationModel.getState().resetConversationState();
     sessionEpoch += 1;
     set({
       status: 'unknown',

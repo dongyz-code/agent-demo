@@ -37,7 +37,7 @@ export const routes = [
   },
   {
     name: 'agents',
-    path: '/agents',
+    path: '/agents/{-$conversationId}',
     layout: 'workspace',
     component: lazyRouteComponent(() => import('@/pages/agents')),
     meta: {
