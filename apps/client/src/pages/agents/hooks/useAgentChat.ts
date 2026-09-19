@@ -1,6 +1,6 @@
 import { DefaultChatTransport, type UIMessage } from 'ai';
-import { useEffect, useMemo, useRef } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { API_BASE } from '@/constants/env';
 import {
@@ -8,15 +8,19 @@ import {
   handleUnauthorized,
   useConversationModel,
 } from '@/model';
+import { api } from '@/utils/api';
+import { emptyChatMessages, toAgentChatMessage } from '../utils.js';
+
+import type { Conversation } from '@/model';
 
 /** useChat 使用的消息形状；历史消息和流式消息统一使用 AI SDK UIMessage。 */
 export type AgentChatMessage = UIMessage;
 
 type UseAgentChatOptions = {
-  /** 本地会话 id；切换后 useChat 会重建聊天状态。 */
-  conversationId: string;
-  /** 服务端历史消息；异步加载完成后由 hook 同步给 useChat。 */
-  initialMessages: AgentChatMessage[];
+  /** 当前会话；为空时使用稳定占位 id，避免复用上一会话状态。 */
+  conversation: Conversation | null;
+  /** 创建本地会话的方法，用于空状态快捷提问。 */
+  createConversation: () => string;
 };
 
 /**
@@ -56,8 +60,9 @@ function createAgentChatTransport(
     },
     fetch: async (input, init) => {
       const response = await fetch(input, init);
+
       if (response.status === 401) {
-        void handleUnauthorized(getSessionEpoch());
+        handleUnauthorized(getSessionEpoch());
       }
       if (!response.ok) {
         throw new Error(`chat 请求失败：${response.status}`);
@@ -67,20 +72,21 @@ function createAgentChatTransport(
       if (serverConversationId && activeConversationId) {
         linkConversationServerId(activeConversationId, serverConversationId);
       }
+
       return response;
     },
   });
 }
 
 /**
- * 使用 AI SDK useChat 管理当前会话的消息、流式输出和终止状态。
+ * 管理当前会话的 AI SDK 聊天状态、历史加载和快捷提问。
  *
- * @param options 本地会话 id 与历史消息。
- * @returns useChat helpers，消息渲染和输入区直接消费。
+ * @param options 当前会话与创建会话方法。
+ * @returns 聊天消息、状态和操作方法。
  */
 export function useAgentChat({
-  conversationId,
-  initialMessages,
+  conversation,
+  createConversation,
 }: UseAgentChatOptions) {
   const linkConversationServerId = useConversationModel(
     (state) => state.linkConversationServerId,
@@ -89,6 +95,17 @@ export function useAgentChat({
     () => createAgentChatTransport(linkConversationServerId),
     [linkConversationServerId],
   );
+  const [historyMessages, setHistoryMessages] = useState<
+    Record<string, AgentChatMessage[]>
+  >({});
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const requestedMessageIdsRef = useRef(new Set<string>());
+  const localConversationIdsRef = useRef(new Set<string>());
+
+  const conversationId = conversation?.id ?? 'no-conversation';
+  const initialMessages = conversation
+    ? (historyMessages[conversation.id] ?? emptyChatMessages)
+    : emptyChatMessages;
   const chat = useChat<AgentChatMessage>({
     id: conversationId,
     transport,
@@ -96,7 +113,6 @@ export function useAgentChat({
   });
   const chatRef = useRef(chat);
   chatRef.current = chat;
-
   const setMessages = chat.setMessages;
 
   useEffect(() => {
@@ -104,10 +120,71 @@ export function useAgentChat({
   }, [setMessages, initialMessages]);
 
   useEffect(() => {
+    if (conversation && !conversation.serverId) {
+      localConversationIdsRef.current.add(conversation.id);
+    }
+  }, [conversation]);
+
+  useEffect(() => {
+    if (
+      !conversation?.serverId ||
+      requestedMessageIdsRef.current.has(conversation.id) ||
+      localConversationIdsRef.current.has(conversation.id)
+    ) {
+      return;
+    }
+
+    requestedMessageIdsRef.current.add(conversation.id);
+    void api('/agent/message-list', {
+      conversation_id: conversation.serverId,
+      limit: [0, 100],
+      with_count: false,
+    })
+      .then(({ list }) => {
+        setHistoryMessages((state) => ({
+          ...state,
+          [conversation.id]: list.map(toAgentChatMessage),
+        }));
+      })
+      .catch(() => {
+        requestedMessageIdsRef.current.delete(conversation.id);
+      });
+  }, [conversation]);
+
+  useEffect(() => {
+    if (!conversation || pendingPrompt === null || chat.status !== 'ready') {
+      return;
+    }
+    setPendingPrompt(null);
+    void chat.sendMessage({ text: pendingPrompt });
+  }, [conversation, pendingPrompt, chat.status, chat.sendMessage]);
+
+  useEffect(() => {
     return () => {
       void chatRef.current.stop();
     };
   }, []);
 
-  return chat;
+  /**
+   * 发起快捷提问；未选中会话时先创建本地会话，待 hook 重建后再发送。
+   *
+   * @param prompt 快捷提问文本。
+   */
+  function startPrompt(prompt: string) {
+    if (!conversation) {
+      createConversation();
+      setPendingPrompt(prompt);
+      return;
+    }
+    void chat.sendMessage({ text: prompt });
+  }
+
+  return {
+    messages: chat.messages,
+    status: chat.status,
+    sendMessage: chat.sendMessage,
+    stop: chat.stop,
+    regenerate: chat.regenerate,
+    startPrompt,
+  };
 }

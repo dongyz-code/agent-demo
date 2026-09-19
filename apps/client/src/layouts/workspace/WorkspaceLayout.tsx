@@ -5,11 +5,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button, Sheet, SheetContent, SheetTitle } from '@/components/ui';
 import { useAppModel } from '@/model';
-import { useConversationModel } from '@/model';
+import { ConversationHeader } from '@/pages/agents/components/ConversationHeader';
+import { useConversationList } from '@/pages/agents/hooks/useConversationList.js';
 import { cn } from '@/utils';
 
 import { ConversationSidebar } from './ConversationSidebar';
-import { ConversationHeader } from '@/pages/agents/components/ConversationHeader';
 import { UserMenu } from './UserMenu';
 
 type WorkspaceLayoutProps = {
@@ -25,14 +25,10 @@ type WorkspaceLayoutProps = {
  */
 export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const navCollapsed = useAppModel((state) => state.navCollapsed);
-  const conversations = useConversationModel((state) => state.conversations);
-  const currentId = useConversationModel((state) => state.currentId);
+  const { current: currentConversation } = useConversationList();
   const [sheetOpen, setSheetOpen] = useState(false);
   const location = useLocation();
   const isAgentsPage = location.pathname === '/agents';
-  const currentConversation = currentId
-    ? conversations.find((conversation) => conversation.id === currentId) ?? null
-    : null;
 
   // 路由变化后关闭移动端抽屉，避免导航后仍遮挡内容。
   useEffect(() => {

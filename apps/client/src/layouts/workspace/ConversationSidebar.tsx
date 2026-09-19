@@ -1,55 +1,23 @@
 import { Link } from '@tanstack/react-router';
-import { Fragment, useEffect } from 'react';
+import { Fragment } from 'react';
 import { PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon } from 'lucide-react';
 
 import { Brand } from '@/components/Brand';
 import { Button } from '@/components/ui';
-import { useAppModel, useConversationModel, useSessionModel } from '@/model';
+import { useAppModel, useSessionModel } from '@/model';
+import { useConversationActions } from '@/pages/agents/hooks/useConversationActions.js';
+import { useConversationList } from '@/pages/agents/hooks/useConversationList.js';
 import { routePathMap } from '@/router';
 import { cn } from '@/utils';
-import { api } from '@/utils/api';
-import {
-  getTimeGroup,
-  timeGroupLabels,
-  timeGroupOrder,
-  type TimeGroup,
-} from '@/utils/time';
+import { timeGroupLabels } from '@/utils';
 
 import { ConversationListItem } from './ConversationListItem';
-import type { Conversation } from '@/model';
 import { getWorkspaceNavigation } from './navigation';
 
 type ConversationSidebarProps = {
   /** 折叠态：仅渲染图标列，隐藏会话列表与文字标签。 */
   collapsed?: boolean;
 };
-
-/**
- * 按最近更新时间倒序划分会话分组。
- *
- * @param conversations 当前会话列表。
- * @returns 按时间分组且组内倒序的会话列表。
- */
-function buildConversationTimeGroups(
-  conversations: Conversation[],
-): { label: TimeGroup; items: Conversation[] }[] {
-  const now = Date.now();
-  const groups = new Map<TimeGroup, Conversation[]>();
-  const sortedConversations = [...conversations].sort(
-    (left, right) => right.updatedAt - left.updatedAt,
-  );
-
-  for (const conversation of sortedConversations) {
-    const label = getTimeGroup(conversation.updatedAt, now);
-    const items = groups.get(label) ?? [];
-    items.push(conversation);
-    groups.set(label, items);
-  }
-
-  return timeGroupOrder
-    .map((label) => ({ label, items: groups.get(label) ?? [] }))
-    .filter((group) => group.items.length > 0);
-}
 
 /**
  * 渲染左栏内容（品牌、导航、新建会话、会话列表、折叠按钮），由布局壳包裹定位与宽度。
@@ -63,54 +31,13 @@ export function ConversationSidebar({
   const toggleNav = useAppModel((state) => state.toggleNav);
   const user = useSessionModel((state) => state.user);
   const permission = useSessionModel((state) => state.permission);
-  const conversations = useConversationModel((state) => state.conversations);
-  const currentId = useConversationModel((state) => state.currentId);
-  const selectConversation = useConversationModel(
-    (state) => state.selectConversation,
-  );
-  const createConversation = useConversationModel(
-    (state) => state.createConversation,
-  );
-  const setConversationHistory = useConversationModel(
-    (state) => state.setConversationHistory,
-  );
-  const setConversationHistoryLoading = useConversationModel(
-    (state) => state.setConversationHistoryLoading,
-  );
+  const { currentId, conversationGroups } = useConversationList();
+  const { selectConversation, createConversation } = useConversationActions();
 
   const navItems = getWorkspaceNavigation({
     permission,
     sysAdmin: user?.sys_admin,
   });
-
-  const conversationGroups = buildConversationTimeGroups(conversations);
-
-  useEffect(() => {
-    const state = useConversationModel.getState();
-    if (state.conversationHistoryLoaded || state.conversationHistoryLoading) {
-      return;
-    }
-    setConversationHistoryLoading(true);
-    void api('/agent/conversation-list', {
-      limit: [0, 50],
-      with_count: false,
-    })
-      .then((result) => {
-        setConversationHistory(
-          result.list.map((record) => ({
-            id: record.conversation_id,
-            serverId: record.conversation_id,
-            title: record.title ?? '未命名会话',
-            scenario: record.scenario,
-            status: record.status,
-            updatedAt: new Date(record.last_update_timestamp).getTime(),
-          })),
-        );
-      })
-      .catch(() => {
-        setConversationHistoryLoading(false);
-      });
-  }, [setConversationHistory, setConversationHistoryLoading]);
 
   return (
     <div className="flex h-full flex-col">

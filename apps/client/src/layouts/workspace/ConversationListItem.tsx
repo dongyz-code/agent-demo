@@ -3,8 +3,6 @@ import { MoreHorizontalIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import type { Conversation } from '@/model';
-import { useConversationModel } from '@/model';
 import {
   Button,
   Dialog,
@@ -19,9 +17,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui';
+import type { Conversation } from '@/model';
+import { useConversationActions } from '@/pages/agents/hooks/useConversationActions.js';
 import { routePathMap } from '@/router';
 import { cn } from '@/utils';
-import { api } from '@/utils/api';
 
 type ConversationListItemProps = {
   /** 待渲染的会话。 */
@@ -43,26 +42,16 @@ export function ConversationListItem({
   currentId,
   onSelect,
 }: ConversationListItemProps) {
-  const removeConversation = useConversationModel(
-    (state) => state.removeConversation,
-  );
+  const { deleteConversation: deleteConversationAction } =
+    useConversationActions();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   async function deleteConversation() {
-    if (!conversation.serverId) {
-      removeConversation(conversation.id);
-      setConfirmOpen(false);
-      return;
-    }
-
     setDeleting(true);
     try {
-      await api('/agent/conversation-delete', {
-        conversation_id: conversation.serverId,
-      });
-      removeConversation(conversation.id);
+      await deleteConversationAction(conversation);
       setConfirmOpen(false);
     } catch {
       toast.error('删除会话失败，请稍后重试');

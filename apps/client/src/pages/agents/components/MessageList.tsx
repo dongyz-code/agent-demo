@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-
 import { CopyIcon, RefreshCwIcon, SparklesIcon } from 'lucide-react';
 
 import { Button, Separator } from '@/components/ui';
@@ -7,27 +6,9 @@ import { message as showMessage } from '@/utils';
 
 import { MarkdownContent } from './MarkdownContent';
 import { AgentEmptyState } from './AgentEmptyState';
+import { extractMessageParts } from '../utils.js';
 
-import type { AgentChatMessage } from '../hooks/useAgentChat';
-
-/**
- * 从消息 parts 中提取文本片段并拼接，tool-call/tool-result 暂不展示。
- *
- * @param message 当前消息。
- * @returns 拼接后的文本，可能为空字符串。
- */
-function extractParts(
-  message: AgentChatMessage,
-  type: 'text' | 'reasoning',
-): string {
-  return message.parts
-    .filter(
-      (part): part is { type: 'text' | 'reasoning'; text: string } =>
-        part.type === type,
-    )
-    .map((part) => part.text)
-    .join('\n');
-}
+import { type AgentChatMessage } from '../hooks/useAgentChat.js';
 
 type MessageListProps = {
   /** 当前会话的消息列表。 */
@@ -129,8 +110,8 @@ export function MessageList({
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {messages.map((message) => {
           const isUser = message.role === 'user';
-          const reasoning = extractParts(message, 'reasoning');
-          const text = extractParts(message, 'text');
+          const reasoning = extractMessageParts(message, 'reasoning');
+          const text = extractMessageParts(message, 'text');
           if (isUser) {
             return (
               <div key={message.id} className="flex justify-end">
@@ -142,9 +123,7 @@ export function MessageList({
           }
           return (
             <div key={message.id} className="group/message flex justify-start">
-              <div
-                className="max-w-[85%] rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground"
-              >
+              <div className="max-w-[85%] rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
                 {reasoning ? (
                   <details className="mb-2 overflow-hidden rounded-lg border border-border bg-background">
                     <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground select-none">

@@ -83,13 +83,6 @@ export function MessageComposer({
     }
   }
 
-  let reasoningButtonVariant: 'ghost' | 'default' = 'ghost';
-  let reasoningButtonLabel = '思考';
-  if (reasoningEnabled) {
-    reasoningButtonVariant = 'default';
-    reasoningButtonLabel = '思考中';
-  }
-
   let actionButton = (
     <Button
       size="icon"
@@ -137,7 +130,7 @@ export function MessageComposer({
         <div className="flex items-center gap-1">
           <Button
             size="default"
-            variant={reasoningButtonVariant}
+            variant={reasoningEnabled ? 'default' : 'ghost'}
             aria-pressed={reasoningEnabled}
             aria-label="切换思考模式"
             title="思考模式"
@@ -145,7 +138,7 @@ export function MessageComposer({
             className="gap-1.5 rounded-full leading-none"
           >
             <BrainIcon className="size-4 self-center" aria-hidden />
-            {reasoningButtonLabel}
+            思考
           </Button>
           <Button
             size="icon"
