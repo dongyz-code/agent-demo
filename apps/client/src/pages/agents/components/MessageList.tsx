@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
 
-import { SparklesIcon } from 'lucide-react';
+import { CopyIcon, RefreshCwIcon, SparklesIcon } from 'lucide-react';
 
-import { Separator } from '@/components/ui';
+import { Button, Separator } from '@/components/ui';
+import { message as showMessage } from '@/utils';
 
 import { MarkdownContent } from './MarkdownContent';
+import { AgentEmptyState } from './AgentEmptyState';
 
 import type { AgentChatMessage } from '../hooks/useAgentChat';
 
@@ -34,6 +36,10 @@ type MessageListProps = {
   isStreaming: boolean;
   /** 当前会话 id；切换会话时恢复底部定位。 */
   conversationId: string;
+  /** 点击空状态快捷提问后发起请求。 */
+  onPrompt: (prompt: string) => void;
+  /** 重新生成最后一条 assistant 回复。 */
+  onRegenerate: () => void;
 };
 
 /**
@@ -58,6 +64,8 @@ export function MessageList({
   messages,
   isStreaming,
   conversationId,
+  onPrompt,
+  onRegenerate,
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -72,6 +80,20 @@ export function MessageList({
       return;
     }
     shouldFollowBottomRef.current = isNearBottom(container);
+  }
+
+  /**
+   * 复制 assistant 文本内容；剪贴板不可用时提示用户手动选择。
+   *
+   * @param text 待复制的完整回复文本。
+   */
+  async function copyMessage(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showMessage.success('已复制回复');
+    } catch {
+      showMessage.error('当前浏览器暂不支持复制');
+    }
   }
 
   useEffect(() => {
@@ -92,8 +114,8 @@ export function MessageList({
 
   if (messages.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        输入消息开始对话
+      <div className="absolute inset-0">
+        <AgentEmptyState onPrompt={onPrompt} />
       </div>
     );
   }
@@ -119,9 +141,9 @@ export function MessageList({
             );
           }
           return (
-            <div key={message.id} className="flex justify-start">
+            <div key={message.id} className="group/message flex justify-start">
               <div
-                className="max-w-[80%] rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground"
+                className="max-w-[85%] rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground"
               >
                 {reasoning ? (
                   <details className="mb-2 overflow-hidden rounded-lg border border-border bg-background">
@@ -142,6 +164,30 @@ export function MessageList({
                     {isStreaming ? '正在生成…' : '（非文本消息）'}
                   </span>
                 )}
+                {text ? (
+                  <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => void copyMessage(text)}
+                      aria-label="复制回复"
+                      title="复制回复"
+                    >
+                      <CopyIcon className="size-3.5" aria-hidden />
+                    </Button>
+                    {!isStreaming && message.id === messages.at(-1)?.id ? (
+                      <Button
+                        size="icon-xs"
+                        variant="ghost"
+                        onClick={onRegenerate}
+                        aria-label="重新生成回复"
+                        title="重新生成回复"
+                      >
+                        <RefreshCwIcon className="size-3.5" aria-hidden />
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           );

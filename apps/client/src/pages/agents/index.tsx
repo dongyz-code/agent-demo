@@ -1,7 +1,5 @@
-import { BotIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui';
 import { useConversationModel } from '@/model';
 import { api } from '@/utils/api';
 
@@ -9,6 +7,7 @@ import type { AgentChatMessage } from './hooks/useAgentChat';
 import { useAgentChat } from './hooks/useAgentChat';
 import { MessageComposer } from './components/MessageComposer';
 import { MessageList } from './components/MessageList';
+import { AgentEmptyState } from './components/AgentEmptyState';
 
 /** 服务端历史消息返回行的最小形状。 */
 type AgentMessageRecord = {
@@ -58,6 +57,7 @@ export default function AgentPage() {
   const [historyMessages, setHistoryMessages] = useState<
     Record<string, AgentChatMessage[]>
   >({});
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
 
   const current = currentId
     ? conversations.find((c) => c.id === currentId)
@@ -92,51 +92,57 @@ export default function AgentPage() {
       });
   }, [conversations, current]);
 
+  useEffect(() => {
+    if (!current || pendingPrompt === null || chat.status !== 'ready') {
+      return;
+    }
+    setPendingPrompt(null);
+    void chat.sendMessage({ text: pendingPrompt });
+  }, [current, pendingPrompt, chat.status, chat.sendMessage]);
+
+  /**
+   * 发起快捷提问；未选中会话时先创建本地会话，待 hook 重建后再发送。
+   *
+   * @param prompt 快捷提问文本。
+   */
+  function startPrompt(prompt: string) {
+    if (!current) {
+      createConversation();
+      setPendingPrompt(prompt);
+      return;
+    }
+    void chat.sendMessage({ text: prompt });
+  }
+
   if (!current) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-        <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-          <BotIcon className="size-6 text-muted-foreground" aria-hidden />
-        </div>
-        <div>
-          <p className="text-base font-medium text-foreground">
-            开始一个新会话
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            选择左侧会话继续，或新建一个会话开始对话
-          </p>
-        </div>
-        <Button onClick={() => createConversation()}>新建会话</Button>
+      <div className="h-full overflow-hidden">
+        <AgentEmptyState onPrompt={startPrompt} />
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
-      <header className="flex h-14 shrink-0 items-center border-b border-border px-4">
-        <h1 className="text-sm font-medium text-foreground">{current.title}</h1>
-      </header>
-      <div className="relative flex-1 overflow-hidden">
-        <MessageList
-          messages={chat.messages}
-          conversationId={current.id}
-          isStreaming={
-            chat.status === 'submitted' || chat.status === 'streaming'
-          }
-        />
-        <MessageComposer
-          conversationId={current.id}
-          isStreaming={
-            chat.status === 'submitted' || chat.status === 'streaming'
-          }
-          onSend={(text, reasoning) => {
-            void chat.sendMessage({ text }, { body: { reasoning } });
-          }}
-          onStop={() => {
-            void chat.stop();
-          }}
-        />
-      </div>
+    <div className="relative h-full overflow-hidden">
+      <MessageList
+        messages={chat.messages}
+        conversationId={current.id}
+        isStreaming={chat.status === 'submitted' || chat.status === 'streaming'}
+        onPrompt={startPrompt}
+        onRegenerate={() => {
+          void chat.regenerate();
+        }}
+      />
+      <MessageComposer
+        conversationId={current.id}
+        isStreaming={chat.status === 'submitted' || chat.status === 'streaming'}
+        onSend={(text, reasoning) => {
+          void chat.sendMessage({ text }, { body: { reasoning } });
+        }}
+        onStop={() => {
+          void chat.stop();
+        }}
+      />
     </div>
   );
 }

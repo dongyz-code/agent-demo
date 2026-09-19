@@ -150,6 +150,10 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       code: ROOT_ERROR_CODE_NOT_FOUND,
     },
     {
+      key: 'Agent: 会话标题非法',
+      code: ROOT_ERROR_CODE_BAD_REQUEST,
+    },
+    {
       key: '文件上传失败',
       code: ROOT_ERROR_CODE_BAD_REQUEST,
     },

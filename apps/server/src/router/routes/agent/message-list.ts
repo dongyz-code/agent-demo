@@ -1,6 +1,7 @@
 import { desc, eq, inArray } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 
@@ -15,7 +16,11 @@ const { api } = routerHandler({
         eq(schemas.agent_conversations.conversation_id, body.conversation_id),
       )
       .limit(1);
-    if (!conversation || conversation.user_id !== (__token.user_id ?? null)) {
+    const isRootAdmin = __token.user_id === ROOT.SYS_ADMIN_USER_ID;
+    if (
+      !conversation ||
+      (!isRootAdmin && conversation.user_id !== __token.user_id)
+    ) {
       throw new ROOT_ERROR('Agent: 会话不存在');
     }
 

@@ -1,31 +1,35 @@
 import { and, eq } from 'drizzle-orm';
 
-import { ROOT, ROOT_ERROR } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 
 const { api } = routerHandler({
-  url: '/agent/conversation-delete',
+  url: '/agent/conversation-update',
   method: 'POST',
   handler: async ({ body, __token }) => {
-    const andWhere: Parameters<typeof and> = [];
-    andWhere.push(
-      eq(schemas.agent_conversations.conversation_id, body.conversation_id),
-    );
+    const title = body.title.trim();
+    if (!title || title.length > 100) {
+      throw new ROOT_ERROR('Agent: 会话标题非法');
+    }
 
+    const andWhere: Parameters<typeof and> = [
+      eq(schemas.agent_conversations.conversation_id, body.conversation_id),
+    ];
     if (__token.user_id !== ROOT.SYS_ADMIN_USER_ID) {
       andWhere.push(eq(schemas.agent_conversations.user_id, __token.user_id));
     }
 
-    const [deleted] = await db
+    const [updated] = await db
       .update(schemas.agent_conversations)
-      .set({ status: 'deleted' })
+      .set({ title })
       .where(and(...andWhere))
       .returning({
         conversation_id: schemas.agent_conversations.conversation_id,
       });
 
-    if (!deleted) {
+    if (!updated) {
       throw new ROOT_ERROR('Agent: 会话不存在');
     }
 

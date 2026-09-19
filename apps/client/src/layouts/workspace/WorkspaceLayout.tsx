@@ -5,9 +5,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button, Sheet, SheetContent, SheetTitle } from '@/components/ui';
 import { useAppModel } from '@/model';
+import { useConversationModel } from '@/model';
 import { cn } from '@/utils';
 
 import { ConversationSidebar } from './ConversationSidebar';
+import { ConversationHeader } from '@/pages/agents/components/ConversationHeader';
 import { UserMenu } from './UserMenu';
 
 type WorkspaceLayoutProps = {
@@ -23,8 +25,14 @@ type WorkspaceLayoutProps = {
  */
 export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const navCollapsed = useAppModel((state) => state.navCollapsed);
+  const conversations = useConversationModel((state) => state.conversations);
+  const currentId = useConversationModel((state) => state.currentId);
   const [sheetOpen, setSheetOpen] = useState(false);
   const location = useLocation();
+  const isAgentsPage = location.pathname === '/agents';
+  const currentConversation = currentId
+    ? conversations.find((conversation) => conversation.id === currentId) ?? null
+    : null;
 
   // 路由变化后关闭移动端抽屉，避免导航后仍遮挡内容。
   useEffect(() => {
@@ -54,7 +62,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur supports-backdrop-filter:bg-background/60">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur supports-backdrop-filter:bg-background/60">
           <Button
             variant="ghost"
             size="icon"
@@ -64,7 +72,13 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
           >
             <MenuIcon className="size-4" aria-hidden />
           </Button>
-          <div className="flex-1" />
+          {isAgentsPage ? (
+            <div className="flex min-w-0 flex-1 items-center">
+              <ConversationHeader conversation={currentConversation} />
+            </div>
+          ) : (
+            <div className="flex-1" />
+          )}
           <ThemeToggle />
           <UserMenu />
         </header>

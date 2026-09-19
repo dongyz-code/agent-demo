@@ -111,6 +111,20 @@ export type AgentAction = {
     };
     method: 'POST';
   };
+  /** 更新当前用户的指定会话标题。 */
+  'conversation-update': {
+    body: {
+      /** 服务端会话标识。 */
+      conversation_id: string;
+      /** 新会话标题；去除首尾空白后不能为空。 */
+      title: string;
+    };
+    resp: {
+      /** 更新是否成功。 */
+      ok: boolean;
+    };
+    method: 'POST';
+  };
   /** 查询指定会话的消息历史。 */
   'message-list': {
     body: {

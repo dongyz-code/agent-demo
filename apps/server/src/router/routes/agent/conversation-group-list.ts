@@ -1,5 +1,6 @@
 import { count, eq, inArray, max } from 'drizzle-orm';
 
+import { ROOT } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 
@@ -9,7 +10,9 @@ const { api } = routerHandler({
   handler: async ({ body, __token }) => {
     const statuses = body.status ?? ['active', 'archived'];
     const where = buildWhere((filter) => {
-      filter.push(eq(schemas.agent_conversations.user_id, __token.user_id));
+      if (__token.user_id !== ROOT.SYS_ADMIN_USER_ID) {
+        filter.push(eq(schemas.agent_conversations.user_id, __token.user_id));
+      }
       filter.push(inArray(schemas.agent_conversations.status, statuses));
     });
 
