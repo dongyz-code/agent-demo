@@ -82,6 +82,7 @@ export const chatAgent = async (input: {
     stopWhen: stepCountIs(10),
     onStepEnd: async ({
       stepNumber,
+      reasoningText,
       text,
       toolCalls,
       toolResults,
@@ -92,6 +93,9 @@ export const chatAgent = async (input: {
     }) => {
       // ① assistant 行：模型本步产出（文本 + 工具调用）。先于 tool 行写入，uuidv7 时序保证正序读取时 assistant 在 tool 前。
       const assistantParts: AgentMessagePart[] = [];
+      if (reasoningText) {
+        assistantParts.push({ type: 'reasoning', text: reasoningText });
+      }
       if (text) {
         assistantParts.push({ type: 'text', text });
       }

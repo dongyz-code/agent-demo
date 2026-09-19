@@ -1,5 +1,6 @@
 import { desc, eq, ilike, inArray } from 'drizzle-orm';
 
+import { ROOT } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 
@@ -12,7 +13,9 @@ const { api } = routerHandler({
     const statuses = status ?? ['active', 'archived'];
 
     const where = buildWhere((filter) => {
-      filter.push(eq(schemas.agent_conversations.user_id, user_id));
+      if (user_id !== ROOT.SYS_ADMIN_USER_ID) {
+        filter.push(eq(schemas.agent_conversations.user_id, user_id));
+      }
 
       if (search?.trim()) {
         filter.push(

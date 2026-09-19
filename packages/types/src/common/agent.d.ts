@@ -59,6 +59,12 @@ export type AgentMessageMetadata =
 export type AgentMessagePart =
   | { type: 'text'; text: string }
   | {
+      /** 模型逐步生成的思考内容；仅用于 assistant 流式输出和历史展示。 */
+      type: 'reasoning';
+      /** 思考文本。 */
+      text: string;
+    }
+  | {
       type: 'tool-call';
       /** 工具调用唯一标识，用于关联后续的 tool-result。 */
       toolCallId: string;
