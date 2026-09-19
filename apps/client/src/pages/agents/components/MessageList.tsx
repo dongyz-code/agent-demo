@@ -102,7 +102,7 @@ export function MessageList({
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto px-4 py-6"
+      className="absolute inset-0 overflow-y-auto px-4 pt-6 pb-96"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {messages.map((message) => {

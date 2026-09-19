@@ -45,6 +45,7 @@ const { api } = routerHandler({
         body.system ??
         '你是助手。若绑定了知识库，回答前先调用 searchKnowledgeBase 检索。',
       message: body.message,
+      reasoning: body.reasoning,
       userId: __token.user_id,
       now: new Date(),
       dataset_id: body.dataset_id,

@@ -61,6 +61,8 @@ export type AgentAction = {
       dataset_id?: string;
       /** 系统提示词；不传用默认。 */
       system?: string;
+      /** 是否开启模型思考输出；仅部分支持思考模式的模型生效。 */
+      reasoning?: boolean;
     };
     /** 流式响应，无 JSON body（SSE 直接写 reply.raw）。 */
     resp: void;

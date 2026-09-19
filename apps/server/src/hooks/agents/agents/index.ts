@@ -20,6 +20,8 @@ export const chatAgent = async (input: {
   message: string;
   userId: string;
   abortSignal?: AbortSignal;
+  /** 是否显式开启思考输出；仅传给支持该参数的兼容供应商。 */
+  reasoning?: boolean;
   now: Date;
   /** 绑定的知识库 ID；提供则注册检索 tool，agent 可在回答前检索知识库片段。 */
   dataset_id?: string;
@@ -44,6 +46,9 @@ export const chatAgent = async (input: {
   const { model, providerOptions } = getModel({
     provider: 'bailian',
     model: 'glm-5.2',
+    providerOptions: input.reasoning
+      ? { enable_thinking: true }
+      : undefined,
   });
 
   // 先取历史（不含本次 user 消息），再落 user 消息，最后把 user 消息拼进上下文——避免重复入上下文。

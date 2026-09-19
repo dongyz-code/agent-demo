@@ -33,7 +33,7 @@ function createAgentChatTransport(
   return new DefaultChatTransport<AgentChatMessage>({
     api: `${API_BASE}/api/agent/chat`,
     credentials: 'include',
-    prepareSendMessagesRequest({ id, messages }) {
+    prepareSendMessagesRequest({ id, messages, body }) {
       activeConversationId = id;
       const lastMessage = messages.at(-1);
       const message = lastMessage?.parts
@@ -48,6 +48,7 @@ function createAgentChatTransport(
 
       return {
         body: {
+          ...body,
           conversation_id: conversation?.serverId,
           message,
         },

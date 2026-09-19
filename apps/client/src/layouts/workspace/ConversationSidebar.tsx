@@ -1,8 +1,6 @@
 import { Link } from '@tanstack/react-router';
-import { Fragment, useEffect, useMemo } from 'react';
+import { Fragment, useEffect } from 'react';
 import { PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon } from 'lucide-react';
-
-import type { AgentScenario } from '@repo/types';
 
 import { Brand } from '@/components/Brand';
 import { Button } from '@/components/ui';
@@ -10,8 +8,15 @@ import { useAppModel, useConversationModel, useSessionModel } from '@/model';
 import { routePathMap } from '@/router';
 import { cn } from '@/utils';
 import { api } from '@/utils/api';
+import {
+  getTimeGroup,
+  timeGroupLabels,
+  timeGroupOrder,
+  type TimeGroup,
+} from '@/utils/time';
 
 import { ConversationListItem } from './ConversationListItem';
+import type { Conversation } from '@/model';
 import { getWorkspaceNavigation } from './navigation';
 
 type ConversationSidebarProps = {
@@ -19,11 +24,32 @@ type ConversationSidebarProps = {
   collapsed?: boolean;
 };
 
-/** 侧边栏会话分组展示文案。 */
-const scenarioLabels: Record<AgentScenario, string> = {
-  sql: 'SQL 数据',
-  chat: '通用对话',
-};
+/**
+ * 按最近更新时间倒序划分会话分组。
+ *
+ * @param conversations 当前会话列表。
+ * @returns 按时间分组且组内倒序的会话列表。
+ */
+function buildConversationTimeGroups(
+  conversations: Conversation[],
+): { label: TimeGroup; items: Conversation[] }[] {
+  const now = Date.now();
+  const groups = new Map<TimeGroup, Conversation[]>();
+  const sortedConversations = [...conversations].sort(
+    (left, right) => right.updatedAt - left.updatedAt,
+  );
+
+  for (const conversation of sortedConversations) {
+    const label = getTimeGroup(conversation.updatedAt, now);
+    const items = groups.get(label) ?? [];
+    items.push(conversation);
+    groups.set(label, items);
+  }
+
+  return timeGroupOrder
+    .map((label) => ({ label, items: groups.get(label) ?? [] }))
+    .filter((group) => group.items.length > 0);
+}
 
 /**
  * 渲染左栏内容（品牌、导航、新建会话、会话列表、折叠按钮），由布局壳包裹定位与宽度。
@@ -57,18 +83,7 @@ export function ConversationSidebar({
     sysAdmin: user?.sys_admin,
   });
 
-  const conversationGroups = useMemo(() => {
-    const groups = new Map<AgentScenario, typeof conversations>();
-    for (const conversation of conversations) {
-      const group = groups.get(conversation.scenario) ?? [];
-      group.push(conversation);
-      groups.set(conversation.scenario, group);
-    }
-    return [...groups.entries()].map(([scenario, items]) => ({
-      scenario,
-      items,
-    }));
-  }, [conversations]);
+  const conversationGroups = buildConversationTimeGroups(conversations);
 
   useEffect(() => {
     const state = useConversationModel.getState();
@@ -149,13 +164,10 @@ export function ConversationSidebar({
 
         {!collapsed && conversationGroups.length > 0 && (
           <>
-            <div className="px-2 pt-4 pb-1 text-xs font-medium text-sidebar-foreground/50">
-              会话
-            </div>
-            {conversationGroups.map(({ scenario, items }) => (
-              <Fragment key={scenario}>
+            {conversationGroups.map(({ label, items }) => (
+              <Fragment key={label}>
                 <div className="px-2 pt-3 pb-1 text-xs text-sidebar-foreground/40">
-                  {scenarioLabels[scenario]}
+                  {timeGroupLabels[label]}
                 </div>
                 {items.map((conversation) => (
                   <ConversationListItem

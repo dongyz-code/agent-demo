@@ -112,27 +112,31 @@ export default function AgentPage() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="relative flex h-full flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center border-b border-border px-4">
         <h1 className="text-sm font-medium text-foreground">{current.title}</h1>
       </header>
-      <MessageList
-        messages={chat.messages}
-        conversationId={current.id}
-        isStreaming={
-          chat.status === 'submitted' || chat.status === 'streaming'
-        }
-      />
-      <MessageComposer
-        conversationId={current.id}
-        isStreaming={chat.status === 'submitted' || chat.status === 'streaming'}
-        onSend={(text) => {
-          void chat.sendMessage({ text });
-        }}
-        onStop={() => {
-          void chat.stop();
-        }}
-      />
+      <div className="relative flex-1 overflow-hidden">
+        <MessageList
+          messages={chat.messages}
+          conversationId={current.id}
+          isStreaming={
+            chat.status === 'submitted' || chat.status === 'streaming'
+          }
+        />
+        <MessageComposer
+          conversationId={current.id}
+          isStreaming={
+            chat.status === 'submitted' || chat.status === 'streaming'
+          }
+          onSend={(text, reasoning) => {
+            void chat.sendMessage({ text }, { body: { reasoning } });
+          }}
+          onStop={() => {
+            void chat.stop();
+          }}
+        />
+      </div>
     </div>
   );
 }
