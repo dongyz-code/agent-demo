@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { CopyIcon, RefreshCwIcon, SparklesIcon } from 'lucide-react';
+import { CopyIcon, RefreshCwIcon } from 'lucide-react';
 
-import { Button, Separator } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { message as showMessage } from '@/utils';
 
 import { MarkdownContent } from './MarkdownContent';
 import { AgentEmptyState } from './AgentEmptyState';
+import { MessageProcess } from './MessageProcess';
 import {
   extractMessageParts,
   extractMessageToolParts,
@@ -84,54 +85,6 @@ export function MessageList({
     }
   }
 
-  /**
-   * 格式化工具入参或输出，便于在折叠面板中排查 Agent 执行过程。
-   *
-   * @param value 工具入参或输出。
-   * @returns 可展示的文本。
-   */
-  function formatToolValue(value: unknown) {
-    const serialized = JSON.stringify(value, null, 2);
-    return serialized ?? String(value);
-  }
-
-  /**
-   * 渲染工具调用执行记录，保留 RAG 等工具链路的可观测性。
-   *
-   * @param toolParts 当前消息中的工具片段。
-   * @returns 工具执行折叠面板；无工具时返回 null。
-   */
-  function renderToolParts(toolParts: AgentMessageToolView[]) {
-    if (toolParts.length === 0) {
-      return null;
-    }
-
-    return (
-      <details className="mb-2 overflow-hidden rounded-lg border border-border bg-background">
-        <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground select-none">
-          工具执行
-        </summary>
-        <Separator />
-        <div className="max-h-56 space-y-2 overflow-y-auto px-2.5 py-2 text-xs leading-relaxed text-muted-foreground">
-          {toolParts.map((part) => (
-            <div key={part.toolCallId} className="space-y-1">
-              <div className="font-medium text-foreground">
-                {part.toolName ?? part.type.replace('tool-', '')}
-              </div>
-              <div>入参：{formatToolValue(part.input)}</div>
-              {part.state === 'output-available' ? (
-                <div>输出：{formatToolValue(part.output)}</div>
-              ) : null}
-              {part.state === 'output-error' ? (
-                <div className="text-destructive">错误：{part.errorText}</div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </details>
-    );
-  }
-
   useEffect(() => {
     shouldFollowBottomRef.current = true;
     endRef.current?.scrollIntoView({ behavior: 'auto' });
@@ -187,23 +140,13 @@ export function MessageList({
           }
           return (
             <div key={message.id} className="group/message flex justify-start">
-              <div className="max-w-[85%] rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
-                {reasoning ? (
-                  <details
-                    open
-                    className="mb-2 w-full overflow-hidden rounded-lg border border-border bg-background"
-                  >
-                    <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground select-none">
-                      <SparklesIcon className="size-3.5" aria-hidden />
-                      思考过程
-                    </summary>
-                    <Separator />
-                    <div className="max-h-56 overflow-y-auto px-2.5 py-2 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                      {reasoning}
-                    </div>
-                  </details>
-                ) : null}
-                {renderToolParts(toolParts)}
+              <div className="w-full rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
+                <MessageProcess
+                  reasoning={reasoning}
+                  toolParts={toolParts}
+                  isStreaming={isStreaming}
+                  hasText={Boolean(text)}
+                />
                 {text ? (
                   <MarkdownContent content={text} />
                 ) : (

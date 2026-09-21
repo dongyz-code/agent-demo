@@ -23,19 +23,19 @@ export default function AgentPage() {
         isStreaming={isStreaming}
         onPrompt={chat.startPrompt}
         onRegenerate={() => {
-          void chat.regenerate();
+          chat.regenerate();
         }}
       />
       <MessageComposer
         isStreaming={isStreaming}
         onSend={(text, reasoning) => {
-          void chat.sendMessage(
+          chat.sendMessage(
             { text, metadata: { reasoning } },
             { body: { reasoning } },
           );
         }}
         onStop={() => {
-          void chat.stop();
+          chat.stop();
         }}
       />
     </div>
