@@ -15,7 +15,7 @@ import { routePathMap } from '@/router';
 export default function DashboardPage() {
   const user = useSessionModel((state) => state.user);
   const { conversations } = useConversationList();
-  const { createConversation, selectConversation } = useConversationActions();
+  const { startNewConversation } = useConversationActions();
 
   const displayName = user?.nickname ?? user?.username ?? '访客';
   const recent = conversations.slice(0, 6);
@@ -34,15 +34,12 @@ export default function DashboardPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             从一个新会话开始，编排 Agent、查询数据与运行任务。
           </p>
-          <Button asChild className="mt-4 gap-2">
-            <Link
-              to={routePathMap.agents}
-              params={{ conversationId: undefined }}
-              onClick={() => createConversation()}
-            >
-              <PlusIcon className="size-4" aria-hidden />
-              新建会话
-            </Link>
+          <Button
+            className="mt-4 gap-2"
+            onClick={() => void startNewConversation()}
+          >
+            <PlusIcon className="size-4" aria-hidden />
+            新建会话
           </Button>
         </section>
 
@@ -63,8 +60,7 @@ export default function DashboardPage() {
                 >
                   <Link
                     to={routePathMap.agents}
-                    params={{ conversationId: conversation.serverId }}
-                    onClick={() => selectConversation(conversation)}
+                    params={{ conversationId: conversation.id }}
                   >
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
                       <BotIcon

@@ -27,20 +27,17 @@ type ConversationListItemProps = {
   conversation: Conversation;
   /** 当前选中会话 id，用于高亮。 */
   currentId: string | null;
-  /** 点击会话标题时切换选中会话并同步路由。 */
-  onSelect: (conversation: Conversation) => void;
 };
 
 /**
  * 渲染单个侧边栏会话项，并提供 ChatGPT 式悬浮操作菜单与删除确认。
  *
- * @param props 会话数据、选中状态和选中回调。
+ * @param props 会话数据和选中状态。
  * @returns 会话项节点。
  */
 export function ConversationListItem({
   conversation,
   currentId,
-  onSelect,
 }: ConversationListItemProps) {
   const { deleteConversation: deleteConversationAction } =
     useConversationActions();
@@ -71,8 +68,7 @@ export function ConversationListItem({
       >
         <Link
           to={routePathMap.agents}
-          params={{ conversationId: conversation.serverId }}
-          onClick={() => onSelect(conversation)}
+          params={{ conversationId: conversation.id }}
           className={cn(
             'w-full',
             conversation.id === currentId &&

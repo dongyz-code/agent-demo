@@ -191,7 +191,10 @@ export function MessageList({
             <div key={message.id} className="group/message flex justify-start">
               <div className="max-w-[85%] rounded-lg bg-muted px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
                 {reasoning ? (
-                  <details className="mb-2 overflow-hidden rounded-lg border border-border bg-background">
+                  <details
+                    open
+                    className="mb-2 w-full overflow-hidden rounded-lg border border-border bg-background"
+                  >
                     <summary className="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground select-none">
                       <SparklesIcon className="size-3.5" aria-hidden />
                       思考过程

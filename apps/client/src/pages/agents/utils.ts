@@ -245,7 +245,6 @@ export function toConversation(
 ): Conversation {
   return {
     id: record.conversation_id,
-    serverId: record.conversation_id,
     title: record.title ?? '未命名会话',
     scenario: record.scenario,
     status: record.status,

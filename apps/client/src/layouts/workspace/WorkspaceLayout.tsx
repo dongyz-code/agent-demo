@@ -6,7 +6,10 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button, Sheet, SheetContent, SheetTitle } from '@/components/ui';
 import { useAppModel } from '@/model';
 import { ConversationHeader } from '@/pages/agents/components/ConversationHeader';
-import { useConversationList } from '@/pages/agents/hooks/useConversationList.js';
+import {
+  useConversationList,
+  useConversationRouteSync,
+} from '@/pages/agents/hooks/useConversationList.js';
 import { cn } from '@/utils';
 
 import { ConversationSidebar } from './ConversationSidebar';
@@ -26,11 +29,11 @@ type WorkspaceLayoutProps = {
 export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const navCollapsed = useAppModel((state) => state.navCollapsed);
   const { current: currentConversation } = useConversationList();
+  useConversationRouteSync();
   const [sheetOpen, setSheetOpen] = useState(false);
   const location = useLocation();
   const isAgentsPage =
-    location.pathname === '/agents' ||
-    location.pathname.startsWith('/agents/');
+    location.pathname === '/agents' || location.pathname.startsWith('/agents/');
 
   // 路由变化后关闭移动端抽屉，避免导航后仍遮挡内容。
   useEffect(() => {
@@ -49,11 +52,7 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       </aside>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent
-          side="left"
-          showCloseButton={false}
-          className="w-64 p-0"
-        >
+        <SheetContent side="left" showCloseButton={false} className="w-64 p-0">
           <SheetTitle className="sr-only">导航</SheetTitle>
           <ConversationSidebar />
         </SheetContent>

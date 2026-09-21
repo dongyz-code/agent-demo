@@ -18,18 +18,16 @@ export type ConversationTimeGroup = {
 };
 
 /**
- * 管理会话列表加载、当前会话派生值和时间分组。
+ * 管理会话列表加载，并从路由参数派生当前会话。
  *
- * @returns 会话列表、当前会话与分组结果。
+ * URL 是当前会话的唯一事实来源；新对话草稿不占用会话 id。
+ *
+ * @returns 会话列表、当前会话 id、当前会话与分组结果。
  */
 export function useConversationList() {
   const conversations = useConversationModel((state) => state.conversations);
-  const currentId = useConversationModel((state) => state.currentId);
   const conversationHistoryLoaded = useConversationModel(
     (state) => state.conversationHistoryLoaded,
-  );
-  const selectConversation = useConversationModel(
-    (state) => state.selectConversation,
   );
   const routeParams = useParams({ strict: false });
   const setConversationHistory = useConversationModel(
@@ -62,49 +60,71 @@ export function useConversationList() {
       });
   }, [setConversationHistory, setConversationHistoryLoading]);
 
-  useEffect(() => {
-    if (!conversationHistoryLoaded) {
-      return;
-    }
-
-    const routeConversationId = routeParams.conversationId;
-    if (typeof routeConversationId !== 'string') {
-      return;
-    }
-
-    const conversation = conversations.find(
-      (item) =>
-        item.id === routeConversationId ||
-        item.serverId === routeConversationId,
-    );
-    if (!conversation) {
-      void routerGo('agents', {
-        params: { conversationId: undefined },
-        replace: true,
-      });
-      return;
-    }
-    if (currentId !== conversation.id) {
-      selectConversation(conversation.id);
-    }
-  }, [
-    conversationHistoryLoaded,
+  const routeConversationId = routeParams.conversationId;
+  const current = findConversationByRouteId(
     conversations,
-    currentId,
-    routeParams.conversationId,
-    selectConversation,
-  ]);
+    routeConversationId,
+  );
+  const currentId = current?.id ?? null;
 
-  const current = currentId
-    ? conversations.find((conversation) => conversation.id === currentId) ??
-      null
-    : null;
   const conversationGroups = useMemo(
     () => buildConversationTimeGroups(conversations),
     [conversations],
   );
 
   return { conversations, currentId, current, conversationGroups };
+}
+
+/** 在工作区顶层清理无效会话路由，保证同类导航只由一个组件触发。 */
+export function useConversationRouteSync() {
+  const conversations = useConversationModel((state) => state.conversations);
+  const conversationHistoryLoaded = useConversationModel(
+    (state) => state.conversationHistoryLoaded,
+  );
+  const routeParams = useParams({ strict: false });
+  const routeConversationId = routeParams.conversationId;
+
+  useEffect(() => {
+    if (
+      !conversationHistoryLoaded ||
+      typeof routeConversationId !== 'string'
+    ) {
+      return;
+    }
+
+    const conversation = findConversationByRouteId(
+      conversations,
+      routeConversationId,
+    );
+    if (conversation) {
+      return;
+    }
+    void routerGo('agents', {
+      params: { conversationId: undefined },
+      replace: true,
+    });
+  }, [conversationHistoryLoaded, conversations, routeConversationId]);
+}
+
+/**
+ * 根据路由参数查找会话。
+ *
+ * @param conversations 当前会话列表。
+ * @param routeConversationId 路由中的会话标识。
+ * @returns 匹配的会话；未匹配时返回 null。
+ */
+function findConversationByRouteId(
+  conversations: Conversation[],
+  routeConversationId: string | undefined,
+) {
+  if (typeof routeConversationId !== 'string') {
+    return null;
+  }
+  return (
+    conversations.find(
+      (conversation) => conversation.id === routeConversationId,
+    ) ?? null
+  );
 }
 
 /**

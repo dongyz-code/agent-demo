@@ -1,14 +1,10 @@
 import { useChat } from '@ai-sdk/react';
-import { useParams } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 
-import { routerGo } from '@/router';
 import { api } from '@/utils/api';
 
 import {
-  getAgentChat,
-  getEmptyAgentChat,
-  setAgentChatMessages,
+  agentChatRegistry,
   type AgentChatMessage,
 } from '../chat-registry.js';
 import { toAgentChatMessages } from '../utils.js';
@@ -20,97 +16,55 @@ export type { AgentChatMessage };
 type UseAgentChatOptions = {
   /** 当前会话；为空时使用稳定占位 Chat。 */
   conversation: Conversation | null;
-  /** 创建本地会话的方法，用于空状态快捷提问。 */
-  createConversation: () => string;
 };
 
 /**
  * 管理当前会话的 AI SDK 聊天状态、历史加载和快捷提问。
  *
- * Chat 实例保存在会话级注册表中；切换会话只改变当前渲染对象，
- * 不会停止其他会话正在进行的流式请求。
+ * Chat 实例保存在会话级注册表中；当前会话由路由派生。
+ * 新对话使用唯一草稿实例，首次请求由服务端创建真实会话。
  *
- * @param options 当前会话与创建会话方法。
+ * @param options 当前会话。
  * @returns 聊天消息、状态和操作方法。
  */
 export function useAgentChat({
   conversation,
-  createConversation,
 }: UseAgentChatOptions) {
-  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
-  const requestedMessageIdsRef = useRef(new Set<string>());
-  const routeParams = useParams({ strict: false });
-  const routeConversationId = routeParams.conversationId;
-
   const chatInstance = conversation
-    ? getAgentChat(conversation)
-    : getEmptyAgentChat();
+    ? agentChatRegistry.getChat(conversation)
+    : agentChatRegistry.getDraftChat();
   const chat = useChat<AgentChatMessage>({
     chat: chatInstance,
   });
 
   useEffect(() => {
     if (
-      !conversation?.serverId ||
-      routeConversationId === conversation.serverId
+      !conversation ||
+      chat.status !== 'ready' ||
+      !agentChatRegistry.shouldLoadMessages(conversation.id)
     ) {
       return;
     }
-
-    void routerGo('agents', {
-      params: { conversationId: conversation.serverId },
-      replace: true,
-    });
-  }, [conversation?.serverId, routeConversationId]);
-
-  useEffect(() => {
-    if (
-      !conversation?.serverId ||
-      requestedMessageIdsRef.current.has(conversation.id) ||
-      chat.status !== 'ready'
-    ) {
-      return;
-    }
-
-    requestedMessageIdsRef.current.add(conversation.id);
-    void api('/agent/message-list', {
-      conversation_id: conversation.serverId,
+    api('/agent/message-list', {
+      conversation_id: conversation.id,
       limit: [0, 100],
       with_count: false,
-    })
+      })
       .then(({ list }) => {
-        const applied = setAgentChatMessages(
+        agentChatRegistry.setMessages(
           conversation.id,
           toAgentChatMessages(list),
         );
-        if (!applied) {
-          requestedMessageIdsRef.current.delete(conversation.id);
-        }
       })
-      .catch(() => {
-        requestedMessageIdsRef.current.delete(conversation.id);
-      });
+      .catch(() => {});
   }, [conversation, chat.status]);
 
-  useEffect(() => {
-    if (!conversation || pendingPrompt === null || chat.status !== 'ready') {
-      return;
-    }
-    setPendingPrompt(null);
-    void chat.sendMessage({ text: pendingPrompt });
-  }, [conversation, pendingPrompt, chat.status, chat.sendMessage]);
-
   /**
-   * 发起快捷提问；未选中会话时先创建本地会话，待 hook 重建后再发送。
+   * 发起快捷提问；未选中会话时直接使用唯一草稿 Chat。
    *
    * @param prompt 快捷提问文本。
    */
   function startPrompt(prompt: string) {
-    if (!conversation) {
-      createConversation();
-      setPendingPrompt(prompt);
-      return;
-    }
     void chat.sendMessage({
       text: prompt,
       metadata: { reasoning: false },

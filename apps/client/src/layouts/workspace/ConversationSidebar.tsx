@@ -32,7 +32,7 @@ export function ConversationSidebar({
   const user = useSessionModel((state) => state.user);
   const permission = useSessionModel((state) => state.permission);
   const { currentId, conversationGroups } = useConversationList();
-  const { selectConversation, createConversation } = useConversationActions();
+  const { startNewConversation } = useConversationActions();
 
   const navItems = getWorkspaceNavigation({
     permission,
@@ -52,21 +52,15 @@ export function ConversationSidebar({
 
       <div className="px-2">
         <Button
-          asChild
+          onClick={() => void startNewConversation()}
           variant={collapsed ? 'ghost' : 'default'}
           className={cn(
             'w-full',
             collapsed ? 'justify-center' : 'justify-start gap-2',
           )}
         >
-          <Link
-            to={routePathMap.agents}
-            params={{ conversationId: undefined }}
-            onClick={() => createConversation()}
-          >
-            <PlusIcon className="size-4" aria-hidden />
-            {!collapsed && <span>新建会话</span>}
-          </Link>
+          <PlusIcon className="size-4" aria-hidden />
+          {!collapsed && <span>新建会话</span>}
         </Button>
       </div>
 
@@ -101,12 +95,11 @@ export function ConversationSidebar({
                   {timeGroupLabels[label]}
                 </div>
                 {items.map((conversation) => (
-                  <ConversationListItem
-                    key={conversation.id}
-                    conversation={conversation}
-                    currentId={currentId}
-                    onSelect={selectConversation}
-                  />
+                <ConversationListItem
+                  key={conversation.id}
+                  conversation={conversation}
+                  currentId={currentId}
+                />
                 ))}
               </Fragment>
             ))}
