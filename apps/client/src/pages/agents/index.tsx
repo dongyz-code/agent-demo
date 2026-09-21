@@ -1,4 +1,3 @@
-import { AgentEmptyState } from './components/AgentEmptyState';
 import { useConversationList } from './hooks/useConversationList.js';
 import { useAgentChat } from './hooks/useAgentChat.js';
 import { MessageComposer } from './components/MessageComposer';
@@ -15,48 +14,12 @@ export default function AgentPage() {
   const isStreaming =
     chat.status === 'submitted' || chat.status === 'streaming';
 
-  if (!currentId) {
-    if (chat.messages.length > 0 || isStreaming) {
-      return (
-        <div className="relative h-full overflow-hidden">
-          <MessageList
-            messages={chat.messages}
-            error={chat.error}
-            isStreaming={isStreaming}
-            onPrompt={chat.startPrompt}
-            onRegenerate={() => {
-              void chat.regenerate();
-            }}
-          />
-          <MessageComposer
-            isStreaming={isStreaming}
-            onSend={(text, reasoning) => {
-              void chat.sendMessage(
-                { text, metadata: { reasoning } },
-                { body: { reasoning } },
-              );
-            }}
-            onStop={() => {
-              void chat.stop();
-            }}
-          />
-        </div>
-      );
-    }
-
-    return (
-      <div className="h-full overflow-hidden">
-        <AgentEmptyState onPrompt={chat.startPrompt} />
-      </div>
-    );
-  }
-
   return (
     <div className="relative h-full overflow-hidden">
       <MessageList
         messages={chat.messages}
         error={chat.error}
-        conversationId={currentId}
+        conversationId={currentId ?? undefined}
         isStreaming={isStreaming}
         onPrompt={chat.startPrompt}
         onRegenerate={() => {

@@ -19,7 +19,7 @@ type MarkdownContentProps = {
  */
 export function MarkdownContent({ content }: MarkdownContentProps) {
   return (
-    <div className="space-y-3 break-words text-sm leading-relaxed [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1 [&_code]:py-0.5 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-semibold [&_li]:ml-4 [&_li]:list-disc [&_ol_li]:list-decimal [&_pre_code]:bg-transparent [&_pre_code]:p-0">
+    <div className="space-y-3 wrap-break-word text-sm leading-relaxed [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1 [&_code]:py-0.5 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:font-semibold [&_li]:ml-4 [&_li]:list-disc [&_ol_li]:list-decimal [&_pre_code]:bg-transparent [&_pre_code]:p-0">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -110,10 +110,7 @@ function CodeBlock({ children }: CodeBlockProps) {
           )}
         </Button>
       </div>
-      <pre
-        ref={preRef}
-        className="overflow-x-auto p-3 text-xs leading-relaxed"
-      >
+      <pre ref={preRef} className="overflow-x-auto p-3 text-xs leading-relaxed">
         {children}
       </pre>
     </div>

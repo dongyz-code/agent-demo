@@ -193,7 +193,7 @@ export function MessageComposer({
   return (
     <>
       {!expanded ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-b from-transparent via-background/95 to-background px-4 pt-8 pb-4">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-b from-transparent via-background/95 to-background px-4 pt-8 pb-4">
           <div className="pointer-events-auto mx-auto flex w-full max-w-3xl flex-col rounded-[28px] border border-border bg-background/95 p-2 shadow-lg">
             {renderEditor(
               'min-h-11 max-h-64 field-sizing-content w-full',
