@@ -1,15 +1,13 @@
-import { useLocation } from '@tanstack/react-router';
+import { useLocation, useParams } from '@tanstack/react-router';
 import { MenuIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button, Sheet, SheetContent, SheetTitle } from '@/components/ui';
 import { useAppModel } from '@/model';
+import { routerGo } from '@/router';
 import { ConversationHeader } from '@/pages/agents/components/ConversationHeader';
-import {
-  useConversationList,
-  useConversationRouteSync,
-} from '@/pages/agents/hooks/useConversationList.js';
+import { useConversationList } from '@/pages/agents/hooks/useConversationList.js';
 import { cn } from '@/utils';
 
 import { ConversationSidebar } from './ConversationSidebar';
@@ -28,8 +26,9 @@ type WorkspaceLayoutProps = {
  */
 export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const navCollapsed = useAppModel((state) => state.navCollapsed);
-  const { current: currentConversation } = useConversationList();
-  useConversationRouteSync();
+  const { current: currentConversation, conversationHistoryLoaded } =
+    useConversationList();
+  const routeParams = useParams({ strict: false });
   const [sheetOpen, setSheetOpen] = useState(false);
   const location = useLocation();
   const isAgentsPage =
@@ -39,6 +38,26 @@ export function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   useEffect(() => {
     setSheetOpen(false);
   }, [location.pathname]);
+
+  // 会话历史加载完成后清理无效会话路由，避免残留不可打开的 URL。
+  useEffect(() => {
+    if (
+      !conversationHistoryLoaded ||
+      typeof routeParams.conversationId !== 'string' ||
+      currentConversation
+    ) {
+      return;
+    }
+
+    void routerGo('agents', {
+      params: { conversationId: undefined },
+      replace: true,
+    });
+  }, [
+    conversationHistoryLoaded,
+    currentConversation,
+    routeParams.conversationId,
+  ]);
 
   return (
     <div className="flex h-svh overflow-hidden bg-background text-foreground">

@@ -21,8 +21,8 @@ type MessageListProps = {
   isStreaming: boolean;
   /** 当前请求错误；用于在消息流顶部向用户反馈失败原因。 */
   error?: Error | undefined;
-  /** 当前会话 id；切换会话时恢复底部定位。 */
-  conversationId: string;
+  /** 服务端会话 id；草稿态为空，切换真实会话时恢复底部定位。 */
+  conversationId?: string;
   /** 点击空状态快捷提问后发起请求。 */
   onPrompt: (prompt: string) => void;
   /** 重新生成最后一条 assistant 回复。 */
@@ -123,9 +123,7 @@ export function MessageList({
                 <div>输出：{formatToolValue(part.output)}</div>
               ) : null}
               {part.state === 'output-error' ? (
-                <div className="text-destructive">
-                  错误：{part.errorText}
-                </div>
+                <div className="text-destructive">错误：{part.errorText}</div>
               ) : null}
             </div>
           ))}

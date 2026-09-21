@@ -1,12 +1,10 @@
 import { create } from 'zustand';
 
-import type {
-  AgentConversationStatus,
-  AgentScenario,
-} from '@repo/types';
+import type { AgentConversationStatus, AgentScenario } from '@repo/types';
 
 /** 会话列表项；字段复用 @repo/types 的 Agent 原子类型，组装形状由客户端 store 定义。 */
 export type Conversation = {
+  /** 服务端会话 id；路由参数和 Agent 接口共用该值。 */
   id: string;
   title: string;
   scenario: AgentScenario;

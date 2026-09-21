@@ -3,19 +3,14 @@ import { useEffect } from 'react';
 
 import { api } from '@/utils/api';
 
-import {
-  agentChatRegistry,
-  type AgentChatMessage,
-} from '../chat-registry.js';
+import { agentChatRegistry, type AgentChatMessage } from '../chat-registry.js';
 import { toAgentChatMessages } from '../utils.js';
-
-import type { Conversation } from '@/model';
 
 export type { AgentChatMessage };
 
 type UseAgentChatOptions = {
-  /** 当前会话；为空时使用稳定占位 Chat。 */
-  conversation: Conversation | null;
+  /** 服务端会话 id；为空时使用草稿 Chat。 */
+  conversationId: string | null;
 };
 
 /**
@@ -24,14 +19,12 @@ type UseAgentChatOptions = {
  * Chat 实例保存在会话级注册表中；当前会话由路由派生。
  * 新对话使用唯一草稿实例，首次请求由服务端创建真实会话。
  *
- * @param options 当前会话。
+ * @param options 当前服务端会话 id。
  * @returns 聊天消息、状态和操作方法。
  */
-export function useAgentChat({
-  conversation,
-}: UseAgentChatOptions) {
-  const chatInstance = conversation
-    ? agentChatRegistry.getChat(conversation)
+export function useAgentChat({ conversationId }: UseAgentChatOptions) {
+  const chatInstance = conversationId
+    ? agentChatRegistry.getChat(conversationId)
     : agentChatRegistry.getDraftChat();
   const chat = useChat<AgentChatMessage>({
     chat: chatInstance,
@@ -39,25 +32,25 @@ export function useAgentChat({
 
   useEffect(() => {
     if (
-      !conversation ||
+      !conversationId ||
       chat.status !== 'ready' ||
-      !agentChatRegistry.shouldLoadMessages(conversation.id)
+      !agentChatRegistry.shouldLoadMessages(conversationId)
     ) {
       return;
     }
     api('/agent/message-list', {
-      conversation_id: conversation.id,
+      conversation_id: conversationId,
       limit: [0, 100],
       with_count: false,
-      })
+    })
       .then(({ list }) => {
         agentChatRegistry.setMessages(
-          conversation.id,
+          conversationId,
           toAgentChatMessages(list),
         );
       })
       .catch(() => {});
-  }, [conversation, chat.status]);
+  }, [conversationId, chat.status]);
 
   /**
    * 发起快捷提问；未选中会话时直接使用唯一草稿 Chat。

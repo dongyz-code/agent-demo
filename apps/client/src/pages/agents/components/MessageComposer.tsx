@@ -20,8 +20,6 @@ import {
 import { cn } from '@/utils';
 
 type MessageComposerProps = {
-  /** 当前会话 id；为空时禁用输入。 */
-  conversationId: string | null;
   /** 是否有请求已提交或正在流式返回。 */
   isStreaming: boolean;
   /** 发送当前用户消息；reasoning 表示本次请求是否开启思考模式。 */
@@ -33,11 +31,10 @@ type MessageComposerProps = {
 /**
  * 渲染对话输入区；普通态 Enter 发送，全屏态 Ctrl/Cmd + Enter 发送。
  *
- * @param props 当前会话 id。
+ * @param props 输入状态和提交回调。
  * @returns 输入区节点。
  */
 export function MessageComposer({
-  conversationId,
   isStreaming,
   onSend,
   onStop,
@@ -46,12 +43,11 @@ export function MessageComposer({
   const [reasoningEnabled, setReasoningEnabled] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const sendDisabled =
-    !conversationId || isStreaming || value.trim().length === 0;
+  const sendDisabled = isStreaming || value.trim().length === 0;
 
   /** 提交输入文本；流创建失败时保留原文，避免用户重新输入。 */
   function send() {
-    if (!conversationId || sendDisabled) {
+    if (sendDisabled) {
       return;
     }
     onSend(value, reasoningEnabled);
@@ -170,8 +166,7 @@ export function MessageComposer({
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => handleKeyDown(event, editorExpanded)}
-          placeholder={conversationId ? '有问题，随便问' : '请先选择或新建会话'}
-          disabled={!conversationId}
+          placeholder="有问题，随便问"
           className={cn(
             'border-none bg-transparent px-3 py-3 pr-11 resize-none overflow-y-auto focus-visible:border-transparent focus-visible:ring-0 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/50 [&::-webkit-scrollbar-track]:bg-transparent',
             editorClassName,

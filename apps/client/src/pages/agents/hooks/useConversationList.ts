@@ -7,8 +7,6 @@ import type { TimeGroup } from '@/utils';
 import { getTimeGroup, timeGroupOrder } from '@/utils';
 import { api } from '@/utils/api';
 
-import { routerGo } from '@/router';
-
 import { toConversation } from '../utils.js';
 
 /** 侧边栏会话分组结果。 */
@@ -38,10 +36,8 @@ export function useConversationList() {
   );
 
   useEffect(() => {
-    const {
-      conversationHistoryLoaded,
-      conversationHistoryLoading,
-    } = useConversationModel.getState();
+    const { conversationHistoryLoaded, conversationHistoryLoading } =
+      useConversationModel.getState();
 
     if (conversationHistoryLoaded || conversationHistoryLoading) {
       return;
@@ -61,10 +57,7 @@ export function useConversationList() {
   }, [setConversationHistory, setConversationHistoryLoading]);
 
   const routeConversationId = routeParams.conversationId;
-  const current = findConversationByRouteId(
-    conversations,
-    routeConversationId,
-  );
+  const current = findConversationByRouteId(conversations, routeConversationId);
   const currentId = current?.id ?? null;
 
   const conversationGroups = useMemo(
@@ -72,38 +65,13 @@ export function useConversationList() {
     [conversations],
   );
 
-  return { conversations, currentId, current, conversationGroups };
-}
-
-/** 在工作区顶层清理无效会话路由，保证同类导航只由一个组件触发。 */
-export function useConversationRouteSync() {
-  const conversations = useConversationModel((state) => state.conversations);
-  const conversationHistoryLoaded = useConversationModel(
-    (state) => state.conversationHistoryLoaded,
-  );
-  const routeParams = useParams({ strict: false });
-  const routeConversationId = routeParams.conversationId;
-
-  useEffect(() => {
-    if (
-      !conversationHistoryLoaded ||
-      typeof routeConversationId !== 'string'
-    ) {
-      return;
-    }
-
-    const conversation = findConversationByRouteId(
-      conversations,
-      routeConversationId,
-    );
-    if (conversation) {
-      return;
-    }
-    void routerGo('agents', {
-      params: { conversationId: undefined },
-      replace: true,
-    });
-  }, [conversationHistoryLoaded, conversations, routeConversationId]);
+  return {
+    conversations,
+    currentId,
+    current,
+    conversationGroups,
+    conversationHistoryLoaded,
+  };
 }
 
 /**
