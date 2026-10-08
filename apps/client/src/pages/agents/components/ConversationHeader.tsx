@@ -2,7 +2,7 @@ import { CheckIcon, PencilIcon, XIcon } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
 import { toast } from 'sonner';
 
-import { Badge, Button, Input } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 import type { Conversation } from '@/model';
 
 import { useConversationActions } from '../hooks/useConversationActions.js';
@@ -32,12 +32,6 @@ export function ConversationHeader({
         <span className="truncate text-base font-semibold tracking-tight text-foreground">
           Agents
         </span>
-        <Badge
-          variant="outline"
-          className="ml-auto text-xs font-normal text-muted-foreground"
-        >
-          GLM-5.2
-        </Badge>
       </div>
     );
   }
@@ -144,12 +138,6 @@ export function ConversationHeader({
             </Button>
           </>
         ) : null}
-        <Badge
-          variant="outline"
-          className="text-xs font-normal text-muted-foreground"
-        >
-          GLM-5.2
-        </Badge>
       </div>
     </div>
   );

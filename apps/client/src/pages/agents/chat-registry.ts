@@ -89,20 +89,20 @@ export class AgentChatRegistry {
    * 判断会话历史是否需要从服务端加载。
    *
    * @param conversationId 服务端会话 id。
-   * @returns 需要加载且本地没有已展示消息时返回 true。
+   * @returns 尚未完成过一次历史加载时返回 true。
    */
   shouldLoadMessages(conversationId: string) {
-    if (this.loadedMessageConversationIds.has(conversationId)) {
-      return false;
-    }
+    return !this.loadedMessageConversationIds.has(conversationId);
+  }
 
-    const chat = this.chats.get(conversationId);
-    if (!chat || chat.messages.length === 0) {
-      return true;
-    }
-
-    this.loadedMessageConversationIds.add(conversationId);
-    return false;
+  /**
+   * 判断唯一草稿是否仍在请求或流式返回。
+   *
+   * @returns 草稿流未结束时返回 true。
+   */
+  isDraftStreaming() {
+    const status = this.draftChat?.status;
+    return status === 'submitted' || status === 'streaming';
   }
 
   /**

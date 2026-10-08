@@ -53,22 +53,36 @@ export function useAgentChat({ conversationId }: UseAgentChatOptions) {
   }, [conversationId, chat.status]);
 
   /**
+   * 发送当前消息；草稿上次请求失败时先清理本地失败消息。
+   *
+   * @param text 用户输入文本。
+   * @param reasoning 是否开启思考模式。
+   */
+  function sendMessage(text: string, reasoning: boolean) {
+    if (!conversationId && chat.status === 'error') {
+      agentChatRegistry.resetDraft();
+    }
+
+    return chat.sendMessage(
+      { text, metadata: { reasoning } },
+      { body: { reasoning } },
+    );
+  }
+
+  /**
    * 发起快捷提问；未选中会话时直接使用唯一草稿 Chat。
    *
    * @param prompt 快捷提问文本。
    */
   function startPrompt(prompt: string) {
-    void chat.sendMessage({
-      text: prompt,
-      metadata: { reasoning: false },
-    });
+    void sendMessage(prompt, false);
   }
 
   return {
     messages: chat.messages,
     status: chat.status,
     error: chat.error,
-    sendMessage: chat.sendMessage,
+    sendMessage,
     stop: chat.stop,
     regenerate: chat.regenerate,
     startPrompt,

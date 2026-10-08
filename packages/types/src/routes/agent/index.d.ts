@@ -25,16 +25,6 @@ export interface AgentConversationRecord {
   last_update_timestamp: Date;
 }
 
-/** Agent 会话分组统计；当前按 scenario 分组，不引入额外分组表。 */
-export interface AgentConversationGroupRecord {
-  /** 分组对应的会话场景。 */
-  scenario: AgentScenario;
-  /** 当前过滤条件下的会话数量。 */
-  count: number;
-  /** 组内最近一条消息时间。 */
-  last_message_timestamp: Date | null;
-}
-
 /** Agent 消息历史记录。 */
 export interface AgentMessageRecord {
   /** 服务端消息标识。 */
@@ -92,17 +82,6 @@ export type AgentAction = {
     resp: {
       list: AgentConversationRecord[];
       count: number;
-    };
-    method: 'POST';
-  };
-  /** 查询当前用户的会话分组统计。 */
-  'conversation-group-list': {
-    body: {
-      /** 按状态过滤；不传时排除 deleted。 */
-      status?: AgentConversationStatus[];
-    };
-    resp: {
-      list: AgentConversationGroupRecord[];
     };
     method: 'POST';
   };

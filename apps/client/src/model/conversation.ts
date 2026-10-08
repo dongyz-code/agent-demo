@@ -2,6 +2,9 @@ import { create } from 'zustand';
 
 import type { AgentConversationStatus, AgentScenario } from '@repo/types';
 
+/** 本地已创建但尚未被会话列表响应确认的会话 id，用于避免旧响应覆盖新会话。 */
+const locallyCreatedConversationIds = new Set<string>();
+
 /** 会话列表项；字段复用 @repo/types 的 Agent 原子类型，组装形状由客户端 store 定义。 */
 export type Conversation = {
   /** 服务端会话 id；路由参数和 Agent 接口共用该值。 */
@@ -24,7 +27,7 @@ type ConversationState = {
   conversationHistoryLoading: boolean;
   /** 首次请求由服务端创建会话后，写入真实会话记录。 */
   createConversationFromServer: (conversationId: string, title: string) => void;
-  /** 用服务端历史记录替换会话列表，并标记历史已加载。 */
+  /** 用服务端历史记录合并会话列表，并标记历史已加载。 */
   setConversationHistory: (conversations: Conversation[]) => void;
   /** 更新会话历史加载状态。 */
   setConversationHistoryLoading: (loading: boolean) => void;
@@ -59,13 +62,23 @@ export const useConversationModel = create<ConversationState>()((set, get) => ({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+    locallyCreatedConversationIds.add(conversationId);
     set((state) => ({
       conversations: [conversation, ...state.conversations],
     }));
   },
   setConversationHistory: (conversations) => {
+    for (const conversation of conversations) {
+      locallyCreatedConversationIds.delete(conversation.id);
+    }
+
+    const unconfirmedConversations = get().conversations.filter(
+      (conversation) => locallyCreatedConversationIds.has(conversation.id),
+    );
     set({
-      conversations,
+      conversations: [...unconfirmedConversations, ...conversations].sort(
+        (left, right) => right.createdAt - left.createdAt,
+      ),
       conversationHistoryLoaded: true,
       conversationHistoryLoading: false,
     });
@@ -74,6 +87,7 @@ export const useConversationModel = create<ConversationState>()((set, get) => ({
     set({ conversationHistoryLoading: loading });
   },
   resetConversationState: () => {
+    locallyCreatedConversationIds.clear();
     set({
       conversations: [],
       conversationHistoryLoaded: false,
@@ -81,6 +95,7 @@ export const useConversationModel = create<ConversationState>()((set, get) => ({
     });
   },
   removeConversation: (conversationId) => {
+    locallyCreatedConversationIds.delete(conversationId);
     set((state) => ({
       conversations: state.conversations.filter(
         (conversation) => conversation.id !== conversationId,

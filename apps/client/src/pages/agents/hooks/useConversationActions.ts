@@ -1,4 +1,5 @@
 import { useParams } from '@tanstack/react-router';
+import { toast } from 'sonner';
 
 import { useConversationModel } from '@/model';
 import { routerGo } from '@/router';
@@ -37,6 +38,11 @@ export function useConversationActions() {
    * 草稿不创建业务 id、不进入会话列表；首次发送后由服务端创建真实会话。
    */
   async function startNew() {
+    if (agentChatRegistry.isDraftStreaming()) {
+      toast.error('当前回复仍在生成，请稍后再新建会话');
+      return;
+    }
+
     agentChatRegistry.resetDraft();
     await routerGo('agents', {
       params: { conversationId: undefined },

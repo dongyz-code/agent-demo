@@ -29,10 +29,7 @@ export default function AgentPage() {
       <MessageComposer
         isStreaming={isStreaming}
         onSend={(text, reasoning) => {
-          chat.sendMessage(
-            { text, metadata: { reasoning } },
-            { body: { reasoning } },
-          );
+          void chat.sendMessage(text, reasoning);
         }}
         onStop={() => {
           chat.stop();
