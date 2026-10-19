@@ -34,7 +34,7 @@ pnpm --filter @repo/client test -- -t "name"    # 按用例名过滤
 - `apps/client` — React 19 + TanStack Router/Query + zustand + Tailwind v4。路由声明在 `apps/client/src/router/routes.tsx`，页面用 `lazyRouteComponent` 动态导入；跳转走 `router/methods.ts` 的 helper，不要手写 URL；改路由要同步更新 `routes.tsx` 与路由类型。
 - `apps/admin` — Vue 3 + vue-router + Pinia + Element Plus + Tailwind v4 + `@repo/ui`。视图在 `src/views`，API 聚合在 `src/api/index.ts`，路由在 `src/router`。搜索表单优先用 `VSchemaForm` 的 `mode="search"`（字段经 `columns` schema 声明），仅在 schema-form 覆盖不了时才自定义或用旧 `useFormItems`。
 - `apps/server` — Fastify（经 `@repo/utils-node` 的 `createFastify`）+ Drizzle ORM + pg。入口 `src/index.ts` → `src/server.ts`；配置经 `@repo/configs` 的 `getSysConf` 加载（`src/configs`），数据库在 `src/database`（schema 拆成 `access/columns/log/main/structure/system/task`）。服务端不内置测试。
-- `packages/*` — `types`（路由/通用类型）、`shared`（**跨端共享**的权限常量/类型/纯函数，禁止引入 DB、Fastify、浏览器等单端副作用，见 `packages/shared/src/index.ts` 顶部注释）、`configs`（运行时配置加载）、`ui`（Vue 组件库）、`openid`、`eslint-config`、`typescript-config`、`scripts`。
+- `packages/*` — `types`（路由/通用类型）、`shared`（**跨端共享**的权限常量/类型/纯函数，禁止引入 DB、Fastify、浏览器等单端副作用，见 `packages/shared/src/index.ts` 顶部注释）、`configs`（运行时配置加载）、`ui`（Vue 组件库）、`eslint-config`、`typescript-config`。
 - `packages/utils/*` — 按运行环境拆分：`browser`、`node`、`common`、`redis`、`duckdb`、`elasticsearch`、`swagger`。客户端只引 `@repo/utils-browser`，服务端只引 `@repo/utils-node`。
 - 不要编辑生成目录：`dist/`、`build/`、`.turbo/`、`node_modules/`，以及 `docker/temp/`。
 

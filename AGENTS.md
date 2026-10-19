@@ -2,7 +2,7 @@
 
 ## 项目结构与模块组织
 
-这是一个 pnpm/Turbo monorepo。应用放在 `apps/`：`apps/client` 是 React/Vite 客户端，`apps/admin` 是 Vue/Vite 管理端，`apps/server` 是 TypeScript Node 服务。共享包放在 `packages/`，包括 `types`、`ui`、`configs`、`openid`、`scripts`，以及 `packages/utils/*` 下的工具包。各包源码放在自己的 `src/` 下；资源文件放在 `src/assets`、`src/static` 或 `apps/server/static`。不要编辑生成目录 `dist/`、`build/`、`.turbo/` 或 `node_modules/`。
+这是一个 pnpm/Turbo monorepo。应用放在 `apps/`：`apps/client` 是 React/Vite 客户端，`apps/admin` 是 Vue/Vite 管理端，`apps/server` 是 TypeScript Node 服务。共享包放在 `packages/`，包括 `types`、`shared`、`configs`、`ui`、`eslint-config`、`typescript-config`，以及 `packages/utils/*` 下的工具包。各包源码放在自己的 `src/` 下；资源文件放在 `src/assets`、`src/static` 或 `apps/server/static`。不要编辑生成目录 `dist/`、`build/`、`.turbo/` 或 `node_modules/`。
 
 ## 构建与开发命令
 
