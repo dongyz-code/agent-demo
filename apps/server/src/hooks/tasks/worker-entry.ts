@@ -1,11 +1,12 @@
 import { taskDatabase } from './database.js';
+import { loadTaskScript } from './script-loader.js';
 import { TaskCanceledError } from './types.js';
 
 import type {
   TaskProgressInput,
-  TaskRunInput,
-  TaskScriptModule,
+  TaskRunContext,
   TaskWorkerInput,
+  TaskWorkerRuntimeStore,
   TaskWorkerResult,
 } from './types.js';
 import type { TaskLogLevel } from '@repo/types';
@@ -28,7 +29,7 @@ process.once('disconnect', () => {
 });
 
 /**
- * 校验父进程命令，执行任务脚本并在 IPC 刷新后退出。
+ * 校验父进程命令，执行任务定义并在 IPC 刷新后退出。
  *
  * @param message 父进程发送的未知 IPC 消息。
  * @returns 结果发送完成后结束当前任务子进程。
@@ -43,7 +44,7 @@ async function handleStartMessage(message: unknown): Promise<void> {
       errorMessage: '任务子进程启动参数无效',
     };
   } else {
-    result = await runTask(message.input);
+    result = await runTask(message.input, taskDatabase);
   }
   await sendResult(result);
   workerCompleted = true;
@@ -51,21 +52,25 @@ async function handleStartMessage(message: unknown): Promise<void> {
 }
 
 /**
- * 动态导入脚本并执行一个已领取任务。
+ * 按持久化模块入口加载任务定义并执行一个已领取任务。
  *
- * @param input Dispatcher 发送的任务、attempt、lease、script 和 data。
+ * @param input Dispatcher 发送的任务、attempt、lease、scriptPath 和 data。
+ * @param database Worker 可访问的最小任务持久化能力。
  * @returns 可安全通过 IPC 返回的成功结果或错误摘要。
  */
-async function runTask(input: TaskWorkerInput): Promise<TaskWorkerResult> {
+async function runTask(
+  input: TaskWorkerInput,
+  database: TaskWorkerRuntimeStore,
+): Promise<TaskWorkerResult> {
   try {
-    const script = (await import(input.script)) as TaskScriptModule;
-    const runInput = createTaskRunInput(input);
-    await runInput.throwIfCanceled();
-    const scriptResult = await script.default(runInput);
-    await runInput.throwIfCanceled();
+    const handler = await loadTaskScript(input.scriptPath);
+    const context = createTaskRunContext(input, database);
+    await context.throwIfCanceled();
+    const definitionResult = await handler(input.data, context);
+    await context.throwIfCanceled();
     let result: unknown = null;
-    if (scriptResult !== undefined) {
-      const serialized = JSON.stringify(scriptResult);
+    if (definitionResult !== undefined) {
+      const serialized = JSON.stringify(definitionResult);
       if (serialized === undefined) {
         throw new Error('TASK_RESULT_INVALID: 任务结果无法序列化');
       }
@@ -77,18 +82,14 @@ async function runTask(input: TaskWorkerInput): Promise<TaskWorkerResult> {
       result,
     };
   } catch (error) {
-    let errorCode = 'TASK_SCRIPT_FAILED';
-    if (error && typeof error === 'object' && 'code' in error) {
-      const code = String(error.code).trim();
-      if (code) errorCode = code.slice(0, 255);
-    }
+    let errorCode = extractTaskErrorCode(error);
     if (
-      errorCode === 'TASK_SCRIPT_FAILED' &&
+      errorCode === 'TASK_EXECUTION_FAILED' &&
       error instanceof TaskCanceledError
     ) {
       errorCode = 'TASK_CANCELED';
     }
-    let errorMessage = '任务脚本执行失败';
+    let errorMessage = '任务定义执行失败';
     if (error instanceof Error && error.message.trim()) {
       errorMessage = error.message.trim().slice(0, 1_000);
     }
@@ -102,26 +103,58 @@ async function runTask(input: TaskWorkerInput): Promise<TaskWorkerResult> {
 }
 
 /**
- * 为任务脚本创建受当前 lease 保护的单对象运行参数。
+ * 从异常对象或稳定错误消息前缀中提取任务错误码。
+ *
+ * @param error 任务定义或模块加载阶段抛出的未知异常。
+ * @returns 最长 255 个字符的稳定错误码。
+ */
+function extractTaskErrorCode(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = String(error.code).trim();
+    if (code) return code.slice(0, 255);
+  }
+  if (error instanceof Error) {
+    const match = /^(TASK_[A-Z0-9_]+):/u.exec(error.message.trim());
+    if (match?.[1]) return match[1].slice(0, 255);
+  }
+  return 'TASK_EXECUTION_FAILED';
+}
+
+/**
+ * 为任务执行函数创建受当前 lease 保护的运行上下文。
  *
  * @param input 当前任务、attempt、lease 和业务数据。
- * @returns 只暴露 data、日志、进度和取消检查的运行参数。
+ * @param database Worker 可访问的最小任务持久化能力。
+ * @returns 只暴露任务标识、日志、进度、checkpoint 和取消检查的运行上下文。
  */
-function createTaskRunInput(input: TaskWorkerInput): TaskRunInput {
+function createTaskRunContext(
+  input: TaskWorkerInput,
+  database: TaskWorkerRuntimeStore,
+): TaskRunContext {
   return {
     taskId: input.taskId,
     attempt: input.attempt,
-    data: input.data,
-    log: {
-      info: async (message) => await writeContextLog(input, 'info', message),
-      debug: async (message) => await writeContextLog(input, 'debug', message),
-      error: async (message) => await writeContextLog(input, 'error', message),
+    checkpoint: input.checkpoint,
+    saveCheckpoint: async (checkpoint) => {
+      const saved = await database.saveTaskRuntimeCheckpoint(
+        input.taskId,
+        input.leaseId,
+        checkpoint,
+      );
+      if (!saved) throw new TaskCanceledError();
     },
-    progress: async (progress) => await updateContextProgress(input, progress),
+    log: {
+      info: async (message) =>
+        await writeContextLog(input, database, 'info', message),
+      debug: async (message) =>
+        await writeContextLog(input, database, 'debug', message),
+      error: async (message) =>
+        await writeContextLog(input, database, 'error', message),
+    },
+    progress: async (progress) =>
+      await updateContextProgress(input, database, progress),
     throwIfCanceled: async () => {
-      if (
-        await taskDatabase.assertTaskLeaseActive(input.taskId, input.leaseId)
-      ) {
+      if (await database.assertTaskLeaseActive(input.taskId, input.leaseId)) {
         return;
       }
       throw new TaskCanceledError();
@@ -133,18 +166,20 @@ function createTaskRunInput(input: TaskWorkerInput): TaskRunInput {
  * 校验日志并关联当前 attempt 持久化。
  *
  * @param input 当前子进程任务输入。
+ * @param database Worker 可访问的最小任务持久化能力。
  * @param level 日志级别。
  * @param message 已脱敏业务消息。
  * @returns 日志写入完成后结束，lease 失效时抛出取消异常。
  */
 async function writeContextLog(
   input: TaskWorkerInput,
+  database: TaskWorkerRuntimeStore,
   level: TaskLogLevel,
   message: string,
 ): Promise<void> {
   const logMessage = message.trim();
   if (!logMessage) return;
-  const appended = await taskDatabase.appendTaskRuntimeLog({
+  const appended = await database.appendTaskRuntimeLog({
     taskId: input.taskId,
     leaseId: input.leaseId,
     attempt: input.attempt,
@@ -158,11 +193,13 @@ async function writeContextLog(
  * 校验公共进度输入并使用当前 lease 更新任务。
  *
  * @param input 当前子进程任务输入。
- * @param progress 任务脚本报告的阶段、进度和数量。
+ * @param database Worker 可访问的最小任务持久化能力。
+ * @param progress 任务定义报告的阶段、进度和数量。
  * @returns 更新成功后结束，lease 失效时抛出取消异常。
  */
 async function updateContextProgress(
   input: TaskWorkerInput,
+  database: TaskWorkerRuntimeStore,
   progress: TaskProgressInput,
 ): Promise<void> {
   if (
@@ -172,7 +209,7 @@ async function updateContextProgress(
   ) {
     throw new Error('TASK_PROGRESS_INVALID: progress 必须是 0 到 100 的整数');
   }
-  const updated = await taskDatabase.updateTaskRuntimeProgress({
+  const updated = await database.updateTaskRuntimeProgress({
     taskId: input.taskId,
     leaseId: input.leaseId,
     ...progress,
@@ -199,7 +236,7 @@ function isTaskWorkerStartMessage(
 /**
  * 等待 IPC 结果刷新，父进程通道缺失时直接结束。
  *
- * @param result 任务脚本的安全执行结果。
+ * @param result 任务定义的安全执行结果。
  * @returns IPC callback 触发或通道缺失后结束。
  */
 async function sendResult(result: TaskWorkerResult): Promise<void> {

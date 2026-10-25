@@ -30,25 +30,8 @@ export type TaskLogLevel = 'debug' | 'info' | 'error';
 
 export type TaskTriggerMethod = 'manual' | 'auto';
 
-/** 文档处理阶段单次执行状态。 */
-export type FileProcessingStageRunStatus =
-  | 'running'
-  | 'succeeded'
-  | 'failed'
-  | 'canceled'
-  | 'interrupted';
-
 /** 文档后台任务可选择执行的版本处理操作。 */
 export type DocumentTaskOperation = 'preview' | 'rag';
-
-/** 文件处理任务当前阶段。 */
-export type FileProcessingStage =
-  | 'queued'
-  | 'rag'
-  | 'rag-completed'
-  | 'preview'
-  | 'preview-completed'
-  | 'completed';
 
 /** 文件处理任务的创建来源。 */
 export type FileProcessingTriggerSource =
@@ -118,11 +101,15 @@ export type AppItem = BaseCols & {
 export type TaskItem = {
   /** 通用任务标识。 */
   task_id: string;
-  /** 稳定任务名称。 */
-  task_name: string;
+  /** 相对于服务端 hooks 目录的任务脚本入口。 */
+  script_path: string;
+  /** 业务方用于关联领域对象的稳定标识。 */
+  correlation_id: string | null;
+  /** 多个任务脚本共享的并发分组。 */
+  group_name: string;
   /** 面向任务中心展示的业务名称。 */
   display_name: string;
-  /** 任务脚本报告的当前业务阶段。 */
+  /** 任务定义报告的当前业务阶段。 */
   current_stage: string | null;
   /** 整数进度，范围为 0 到 100。 */
   progress: number;
@@ -130,7 +117,7 @@ export type TaskItem = {
   processed_items: number;
   /** 待处理项目总数。 */
   total_items: number;
-  /** 任务脚本成功返回的可序列化结果。 */
+  /** 任务定义成功返回的可序列化结果。 */
   result: unknown;
   /** 已创建的执行尝试数量。 */
   attempt_count: number;
@@ -140,7 +127,7 @@ export type TaskItem = {
   retry_delay_ms: number;
   /** 单次执行超时，单位毫秒。 */
   timeout_ms: number;
-  /** 单实例同名任务并发上限。 */
+  /** 当前并发分组跨服务实例的总并发上限。 */
   concurrency: number;
   /** retrying 状态的下次可领取时间。 */
   next_run_at: Date | null;

@@ -163,16 +163,20 @@ export async function updateDocumentDatasetRelations(
  * 为内容失败重试或成功重跑重新准备仍指向该版本的全部知识库关系。
  *
  * @param input 文档、不可变版本和审计用户。
+ * @param executor 可选入队事务，确保关系重置与新任务同事务提交。
  * @returns 被重新设为 pending 的关系数量。
  */
-export async function prepareDocumentRagRelationsForReprocessing(input: {
-  /** 文档稳定标识。 */
-  documentId: string;
-  /** 本次重新处理的文档版本。 */
-  documentVersionId: string;
-  /** 当前操作用户。 */
-  userId: string;
-}): Promise<number> {
+export async function prepareDocumentRagRelationsForReprocessing(
+  input: {
+    /** 文档稳定标识。 */
+    documentId: string;
+    /** 本次重新处理的文档版本。 */
+    documentVersionId: string;
+    /** 当前操作用户。 */
+    userId: string;
+  },
+  executor: Pick<typeof db, 'update'> = db,
+): Promise<number> {
   const where = buildWhere((filter) => {
     filter.push(
       eq(schemas.rag_dataset_documents.document_id, input.documentId),
@@ -188,7 +192,7 @@ export async function prepareDocumentRagRelationsForReprocessing(input: {
       ),
     );
   });
-  const rows = await db
+  const rows = await executor
     .update(schemas.rag_dataset_documents)
     .set({
       pending_version_id: input.documentVersionId,

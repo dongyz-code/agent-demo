@@ -13,7 +13,6 @@ import type {
   SettleTaskAttemptInput,
   SettleTaskAttemptResult,
   TaskAttemptOutcome,
-  TaskScriptModule,
   TaskWorkerInput,
   TaskWorkerResult,
 } from './types.js';
@@ -49,8 +48,7 @@ interface TaskWorkerExit {
 
 /** TaskDispatcher 收敛 attempt 时使用的统一入口。 */
 type TaskSettler = (
-  script: string,
-  input: Omit<SettleTaskAttemptInput, 'onTerminalFailure'>,
+  input: SettleTaskAttemptInput,
 ) => Promise<SettleTaskAttemptResult>;
 
 /**
@@ -137,7 +135,7 @@ export class TaskDispatcher {
   // 调度内部流程：领取候选、恢复过期任务并统一加载终态回调。
 
   /**
-   * 在全局和同名并发空位内领取并启动任务。
+   * 在全局和分组并发空位内领取并启动任务。
    *
    * @returns 本轮候选完成领取尝试后结束，不等待任务执行。
    */
@@ -157,11 +155,11 @@ export class TaskDispatcher {
         ) {
           break;
         }
-        let activeNameCount = 0;
+        let activeGroupCount = 0;
         for (const active of this.activeExecutions.values()) {
-          if (active.name === candidate.name) activeNameCount++;
+          if (active.groupName === candidate.groupName) activeGroupCount++;
         }
-        if (activeNameCount >= candidate.concurrency) continue;
+        if (activeGroupCount >= candidate.concurrency) continue;
         const claimed = await this.database.claimTask(
           candidate.taskId,
           this.dispatcherId,
@@ -171,8 +169,7 @@ export class TaskDispatcher {
         const execution = new TaskExecution(
           claimed,
           this.database,
-          async (script, input) =>
-            await this.settleTaskWithScript(script, input),
+          async (input) => await this.database.settleTaskAttempt(input),
           () => {
             this.activeExecutions.delete(claimed.taskId);
             this.notify();
@@ -184,7 +181,7 @@ export class TaskDispatcher {
             {
               event: 'task.supervision_failed',
               taskId: claimed.taskId,
-              taskName: claimed.name,
+              scriptPath: claimed.scriptPath,
               err: error,
             },
             '任务子进程监督失败',
@@ -211,7 +208,7 @@ export class TaskDispatcher {
       for (const row of expired) {
         if (this.activeExecutions.has(row.taskId)) continue;
         if (!row.attemptId || !row.leaseId) continue;
-        await this.settleTaskWithScript(row.script, {
+        await this.database.settleTaskAttempt({
           taskId: row.taskId,
           attemptId: row.attemptId,
           leaseId: row.leaseId,
@@ -224,37 +221,6 @@ export class TaskDispatcher {
       this.recovering = false;
     }
   }
-
-  /**
-   * 按需加载最终失败生命周期并收敛当前 attempt。
-   *
-   * @param script 当前任务持久化的内部模块 URL。
-   * @param input 不含脚本生命周期函数的状态收敛输入。
-   * @returns 状态收敛结果。
-   */
-  private async settleTaskWithScript(
-    script: string,
-    input: Omit<SettleTaskAttemptInput, 'onTerminalFailure'>,
-  ): Promise<SettleTaskAttemptResult> {
-    let onTerminalFailure: TaskScriptModule['onTerminalFailure'];
-    try {
-      const taskModule = (await import(script)) as TaskScriptModule;
-      onTerminalFailure = taskModule.onTerminalFailure;
-    } catch (error) {
-      logger.warn(
-        {
-          event: 'task.settlement_script_load_failed',
-          taskId: input.taskId,
-          err: error,
-        },
-        '任务脚本无法加载，将只收敛通用任务状态',
-      );
-    }
-    return await this.database.settleTaskAttempt({
-      ...input,
-      onTerminalFailure,
-    });
-  }
 }
 
 /**
@@ -263,7 +229,7 @@ export class TaskDispatcher {
 class TaskExecution {
   /** 已启动的 Node.js 子进程。 */
   private child: ChildProcess | undefined;
-  /** 任务脚本通过 IPC 返回的结果。 */
+  /** Worker 通过 IPC 返回的任务定义执行结果。 */
   private workerResult: TaskWorkerResult | undefined;
   /** Dispatcher 主动终止 Worker 子进程的原因。 */
   private stopReason: TaskExecutionStopReason | undefined;
@@ -282,9 +248,9 @@ class TaskExecution {
   /** stderr 尚未遇到换行的尾部数据。 */
   private stderrBuffer = '';
 
-  /** 已领取任务的稳定名称。 */
-  get name(): string {
-    return this.claimed.name;
+  /** 已领取任务的并发分组。 */
+  get groupName(): string {
+    return this.claimed.groupName;
   }
 
   /**
@@ -334,11 +300,12 @@ class TaskExecution {
       this.timeoutTimer.unref();
       const input: TaskWorkerInput = {
         taskId: this.claimed.taskId,
-        script: this.claimed.script,
+        scriptPath: this.claimed.scriptPath,
         attemptId: this.claimed.attemptId,
         attempt: this.claimed.attempt,
         leaseId: this.claimed.leaseId,
         data: this.claimed.data,
+        checkpoint: this.claimed.checkpoint,
       };
       this.child.send({ type: 'start', input });
       const exit = await exitPromise;
@@ -356,7 +323,7 @@ class TaskExecution {
           {
             event: 'task.settlement_failed',
             taskId: this.claimed.taskId,
-            taskName: this.claimed.name,
+            scriptPath: this.claimed.scriptPath,
             err: error,
           },
           '任务结果收敛失败，将由过期 lease 恢复流程处理',
@@ -369,7 +336,7 @@ class TaskExecution {
       if (error instanceof Error && error.message.trim()) {
         message = error.message.trim().slice(0, 1_000);
       }
-      await this.settle(this.claimed.script, {
+      await this.settle({
         taskId: this.claimed.taskId,
         attemptId: this.claimed.attemptId,
         leaseId: this.claimed.leaseId,
@@ -627,7 +594,7 @@ class TaskExecution {
     if (this.stopReason === 'canceled') return;
     if (this.stopReason === 'lease_lost') return;
     if (this.stopReason === 'timed_out') {
-      await this.settle(this.claimed.script, {
+      await this.settle({
         taskId: this.claimed.taskId,
         attemptId: this.claimed.attemptId,
         leaseId: this.claimed.leaseId,
@@ -638,7 +605,7 @@ class TaskExecution {
       return;
     }
     if (this.workerResult?.success && exit.code === 0) {
-      await this.settle(this.claimed.script, {
+      await this.settle({
         taskId: this.claimed.taskId,
         attemptId: this.claimed.attemptId,
         leaseId: this.claimed.leaseId,
@@ -652,7 +619,7 @@ class TaskExecution {
       if (this.workerResult.errorCode === 'TASK_CANCELED') {
         outcome = 'interrupted';
       }
-      await this.settle(this.claimed.script, {
+      await this.settle({
         taskId: this.claimed.taskId,
         attemptId: this.claimed.attemptId,
         leaseId: this.claimed.leaseId,
@@ -664,7 +631,7 @@ class TaskExecution {
     }
     let exitMessage = `任务子进程异常退出，退出码：${exit.code ?? 'unknown'}`;
     if (exit.signal) exitMessage = `任务子进程被信号 ${exit.signal} 终止`;
-    await this.settle(this.claimed.script, {
+    await this.settle({
       taskId: this.claimed.taskId,
       attemptId: this.claimed.attemptId,
       leaseId: this.claimed.leaseId,

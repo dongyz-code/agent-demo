@@ -18,38 +18,33 @@ import {
 } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { buildWhere, db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
-import { task } from '@/hooks/tasks/task.js';
+import {
+  buildWhere,
+  db,
+  pgAdvisoryXactLock,
+  schemas,
+} from '@/database/index.js';
 import { binaryContentType } from '@repo/shared';
 import { documentsConfig } from './config.js';
+import { resolveDocumentVersion } from './document/resolve-version.js';
 import { documentFile } from './file/index.js';
-import { documentPreview } from './preview/index.js';
 import { documentRag } from './rag/index.js';
+import { enqueueDocumentCleanup } from './tasks/cleanup.js';
 import {
-  DOCUMENT_TASK_CANCELED_ERROR_CODE,
-  DOCUMENT_TASK_CANCELED_MESSAGE,
-} from './tasks/index.js';
-
+  cancelDocumentProcessingTasks,
+  enqueueDocumentProcess,
+} from './document-process-action.js';
 import type {
   DocumentDetail,
   DocumentInfo,
   DocumentPreviewPageInfo,
   DocumentPreviewPageVariant,
   DocumentPreviewWindow,
-  DocumentTaskOperation,
   DocumentVersionInfo,
-  FileProcessingTaskDetail,
-  FileProcessingTaskInfo,
   FileProcessingTriggerSource,
   RagDatasetDocumentSummary,
 } from '@repo/types';
 import type { DocumentDatasetRelationMode } from './rag/index.js';
-import type {
-  AddDocumentProcessingTaskInput,
-  AddDocumentTaskInput,
-  DocumentCleanupTaskData,
-  DocumentFileTaskData,
-} from './tasks/index.js';
 
 /** 文档复杂搜索的服务端输入。 */
 interface SearchDocumentsInput {
@@ -125,8 +120,6 @@ interface DocumentVersionBinding {
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 30;
-/** 当前文档 RAG 配置；v2 表示远程文档统一使用 TextIn xParse 异步解析。 */
-const DOCUMENT_RAG_CONFIG_VERSION = 'document-rag-v2';
 
 /** 页面窗口查询输入。 */
 interface GetDocumentPreviewPagesInput {
@@ -154,14 +147,7 @@ interface ApplyDocumentDatasetAssignmentInput {
   userId: string;
   /** 上传自动触发或用户手动操作。 */
   triggerSource?: FileProcessingTriggerSource;
-  /** 可选 RAG 处理配置版本。 */
-  ragConfigVersion?: string;
 }
-
-/** documents 域唯一的通用任务名称。 */
-const DOCUMENT_TASK_NAME = 'document.process';
-/** documents 整体任务的子进程脚本模块。 */
-const DOCUMENT_TASK_SCRIPT = new URL('./tasks/index.js', import.meta.url).href;
 
 /** 预览页签名下载文件名扩展名，按页面 MIME 选择。 */
 function previewPageExtension(contentType: string): string {
@@ -216,24 +202,6 @@ async function loadPreviewPageRows(
       ),
     )
     .orderBy(asc(schemas.document_preview_pages.page_number));
-}
-
-/**
- * 根据文档处理操作生成任务中心展示名称。
- *
- * @param operations 同一任务需要执行的预览或 RAG 操作。
- * @returns 能直接说明业务动作的中文任务名称。
- */
-function getDocumentTaskDisplayName(
-  operations: DocumentTaskOperation[],
-): string {
-  if (operations.length === 1 && operations[0] === 'preview') {
-    return '生成文档预览';
-  }
-  if (operations.length === 1 && operations[0] === 'rag') {
-    return '文档 RAG 预处理';
-  }
-  return '生成文档预览并进行 RAG 预处理';
 }
 
 /**
@@ -388,63 +356,6 @@ class DocumentAction {
   }
 
   /**
-   * 查询当前或显式指定的文档版本及其源文件内部行。
-   *
-   * @param documentId 文档稳定标识。
-   * @param documentVersionId 可选显式版本；为空时使用 activeVersion。
-   * @param userId 当前用户，现阶段数据范围为创建人。
-   * @returns 文档、版本和源文件联合行。
-   */
-  private async resolveDocumentVersion(
-    documentId: string,
-    documentVersionId: string | undefined,
-    userId: string,
-  ) {
-    const where = buildWhere((filter) => {
-      filter.push(
-        eq(schemas.documents.document_id, documentId),
-        eq(schemas.documents.create_user_id, userId),
-        ne(schemas.documents.status, 'deleted'),
-      );
-    });
-    const [row] = await db
-      .select({
-        document: schemas.documents,
-        version: schemas.document_versions,
-        file: schemas.files,
-      })
-      .from(schemas.documents)
-      .innerJoin(
-        schemas.document_versions,
-        and(
-          eq(
-            schemas.document_versions.document_id,
-            schemas.documents.document_id,
-          ),
-          documentVersionId
-            ? eq(
-                schemas.document_versions.document_version_id,
-                documentVersionId,
-              )
-            : eq(
-                schemas.document_versions.document_version_id,
-                schemas.documents.active_version_id,
-              ),
-        ),
-      )
-      .innerJoin(
-        schemas.files,
-        eq(schemas.files.file_id, schemas.document_versions.source_file_id),
-      )
-      .where(where)
-      .limit(1);
-    if (!row) {
-      throw new ROOT_ERROR('相关文件不存在');
-    }
-    return row;
-  }
-
-  /**
    * 为当前或显式指定的文档版本签发源文件下载地址。
    *
    * @param documentId 文档稳定标识。
@@ -457,7 +368,7 @@ class DocumentAction {
     documentVersionId: string | undefined,
     userId: string,
   ) {
-    const row = await this.resolveDocumentVersion(
+    const row = await resolveDocumentVersion(
       documentId,
       documentVersionId,
       userId,
@@ -580,10 +491,7 @@ class DocumentAction {
       string,
       typeof schemas.document_preview_pages.$inferSelect
     >();
-    const coverVariantByVersion = new Map<
-      string,
-      DocumentPreviewPageVariant
-    >();
+    const coverVariantByVersion = new Map<string, DocumentPreviewPageVariant>();
     for (const row of rows) {
       const versionId = row.version.document_version_id;
       const clearCover = clearCoverByVersion.get(versionId);
@@ -853,7 +761,7 @@ class DocumentAction {
     documentVersionId: string,
     userId: string,
   ) {
-    await this.resolveDocumentVersion(documentId, documentVersionId, userId);
+    await resolveDocumentVersion(documentId, documentVersionId, userId);
     const relationCount = await db.transaction(async (tx) => {
       await pgAdvisoryXactLock(tx, 'document-active', documentId);
       const now = new Date();
@@ -891,7 +799,7 @@ class DocumentAction {
     });
 
     if (documentsConfig.fileProcessing.enabled && relationCount) {
-      await this.addDocumentTask(
+      await enqueueDocumentProcess(
         {
           documentId,
           documentVersionId,
@@ -924,26 +832,11 @@ class DocumentAction {
       .where(documentWhere)
       .limit(1);
     if (!document) return 'ok';
-    const versionRows = await db
-      .select({ id: schemas.document_versions.document_version_id })
-      .from(schemas.document_versions)
-      .where(eq(schemas.document_versions.document_id, documentId));
-    const versionIds = versionRows.map((row) => row.id);
-    let processingTaskIds: string[] = [];
-    if (versionIds.length) {
-      const taskRows = await db
-        .select({ id: schemas.file_processing_tasks.task_id })
-        .from(schemas.file_processing_tasks)
-        .where(
-          inArray(
-            schemas.file_processing_tasks.document_version_id,
-            versionIds,
-          ),
-        );
-      processingTaskIds = taskRows.map((row) => row.id);
-    }
-    await this.addDocumentTask({ documentId, operations: ['cleanup'] }, userId);
-    await this.cancelDocumentTasksForRemoval(processingTaskIds, userId);
+    await cancelDocumentProcessingTasks(documentId, userId, {
+      errorCode: 'DOCUMENT_REMOVED',
+      message: '文档已删除，文件处理任务已取消',
+    });
+    await enqueueDocumentCleanup(documentId, userId);
     return 'ok';
   }
 
@@ -967,7 +860,7 @@ class DocumentAction {
       throw new ROOT_ERROR('非法参数');
     }
     const pageSize = Math.min(requestedPageSize, MAX_PAGE_SIZE);
-    const resolved = await this.resolveDocumentVersion(
+    const resolved = await resolveDocumentVersion(
       input.documentId,
       input.documentVersionId,
       userId,
@@ -1028,14 +921,14 @@ class DocumentAction {
     >,
     userId: string,
   ): Promise<DocumentPreviewWindow> {
-    const resolved = await this.resolveDocumentVersion(
+    const resolved = await resolveDocumentVersion(
       input.documentId,
       input.documentVersionId,
       userId,
     );
     let triggerSource: FileProcessingTriggerSource = 'rerun';
     if (resolved.version.preview_status === 'failed') triggerSource = 'retry';
-    await this.addDocumentTask(
+    await enqueueDocumentProcess(
       {
         documentId: input.documentId,
         documentVersionId: resolved.version.document_version_id,
@@ -1095,12 +988,11 @@ class DocumentAction {
       input.mode !== 'remove' &&
       input.datasetIds.length
     ) {
-      await this.addDocumentTask(
+      await enqueueDocumentProcess(
         {
           documentId: input.documentId,
           documentVersionId: input.documentVersionId,
           operations: ['rag'],
-          ragConfigVersion: input.ragConfigVersion,
           triggerSource: input.triggerSource ?? 'manual',
         },
         input.userId,
@@ -1133,280 +1025,6 @@ class DocumentAction {
       triggerSource: 'manual',
     });
     return await this.getDetail(documentId, userId);
-  }
-
-  /**
-   * 创建一个选择 RAG、预览或物理清理操作的文档后台任务。
-   *
-   * @param input 文档、操作集合、可选版本、触发来源和 RAG 配置。
-   * @param userId 当前操作用户，用于数据范围和审计。
-   * @returns 新建任务标识；无需重复生成就绪预览时返回 null。
-   */
-  async addDocumentTask(
-    input: AddDocumentTaskInput,
-    userId: string,
-  ): Promise<string | null> {
-    const requestedOperations = [...new Set(input.operations)];
-    if (!requestedOperations.length) {
-      throw new Error('DOCUMENT_TASK_OPERATIONS_REQUIRED: 至少选择一个操作');
-    }
-    if (input.operations[0] === 'cleanup') {
-      if (requestedOperations.length !== 1) {
-        throw new Error('DOCUMENT_TASK_OPERATIONS_INVALID: 清理操作必须独占');
-      }
-      return await task.add({
-        name: DOCUMENT_TASK_NAME,
-        displayName: '删除文档',
-        script: DOCUMENT_TASK_SCRIPT,
-        data: {
-          operations: ['cleanup'],
-          documentId: input.documentId,
-          userId,
-        } satisfies DocumentCleanupTaskData,
-        retry: {
-          times: documentsConfig.fileProcessing.maxRetries,
-          delay: documentsConfig.fileProcessing.retryDelayMs,
-        },
-        timeout: documentsConfig.fileProcessing.timeoutMs,
-        concurrency: documentsConfig.fileProcessing.concurrency,
-      });
-    }
-    if (!documentsConfig.fileProcessing.enabled) {
-      throw new ROOT_ERROR('服务异常');
-    }
-    const processingInput = input as AddDocumentProcessingTaskInput;
-    const operations = (['preview', 'rag'] as const).filter((operation) =>
-      requestedOperations.includes(operation),
-    );
-    const resolved = await this.resolveDocumentVersion(
-      processingInput.documentId,
-      processingInput.documentVersionId,
-      userId,
-    );
-    if (operations.includes('preview')) {
-      const contentType =
-        resolved.file.content_type ?? resolved.file.declared_content_type;
-      if (!documentPreview.supports(contentType)) {
-        throw new ROOT_ERROR('数据异常');
-      }
-    }
-    const documentVersionId = resolved.version.document_version_id;
-    const triggerSource = processingInput.triggerSource ?? 'manual';
-    const forceNewTask = triggerSource === 'retry' || triggerSource === 'rerun';
-    const previewReady =
-      operations.length === 1 &&
-      operations[0] === 'preview' &&
-      resolved.version.preview_status === 'ready' &&
-      resolved.version.preview_converter_version ===
-        documentPreview.configVersion;
-    if (previewReady && !forceNewTask) return null;
-    if (forceNewTask && operations.includes('rag')) {
-      await documentRag.prepareRelationsForReprocessing({
-        documentId: processingInput.documentId,
-        documentVersionId,
-        userId,
-      });
-    }
-    const operationConfigVersions: Partial<
-      Record<DocumentTaskOperation, string>
-    > = {};
-    if (operations.includes('rag')) {
-      operationConfigVersions.rag =
-        processingInput.ragConfigVersion ?? DOCUMENT_RAG_CONFIG_VERSION;
-    }
-    if (operations.includes('preview')) {
-      operationConfigVersions.preview = documentPreview.configVersion;
-    }
-    const data: DocumentFileTaskData = {
-      operations,
-      fileId: resolved.file.file_id,
-      documentId: processingInput.documentId,
-      documentVersionId,
-      triggerSource,
-      operationConfigVersions,
-      userId,
-    };
-    return await task.add({
-      name: DOCUMENT_TASK_NAME,
-      displayName: getDocumentTaskDisplayName(operations),
-      script: DOCUMENT_TASK_SCRIPT,
-      data,
-      retry: {
-        times: documentsConfig.fileProcessing.maxRetries,
-        delay: documentsConfig.fileProcessing.retryDelayMs,
-      },
-      timeout: documentsConfig.fileProcessing.timeoutMs,
-      concurrency: documentsConfig.fileProcessing.concurrency,
-    });
-  }
-
-  /**
-   * 查询文档处理任务详情及阶段时间线。
-   *
-   * @param taskId 通用任务标识。
-   * @returns 文件、状态、结果摘要、阶段记录和自动 attempt。
-   */
-  async getProcessingTask(taskId: string): Promise<FileProcessingTaskDetail> {
-    const genericTask = await task.get(taskId);
-    if (!genericTask) throw new ROOT_ERROR('相关文件不存在');
-    const [row] = await db
-      .select({
-        fileTask: schemas.file_processing_tasks,
-        filename: schemas.files.filename,
-      })
-      .from(schemas.file_processing_tasks)
-      .leftJoin(
-        schemas.files,
-        eq(schemas.files.file_id, schemas.file_processing_tasks.file_id),
-      )
-      .where(eq(schemas.file_processing_tasks.task_id, taskId))
-      .limit(1);
-    if (!row) throw new ROOT_ERROR('相关文件不存在');
-    const stageRuns = await db
-      .select()
-      .from(schemas.file_processing_task_stage_runs)
-      .where(eq(schemas.file_processing_task_stage_runs.task_id, taskId))
-      .orderBy(
-        schemas.file_processing_task_stage_runs.start_timestamp,
-        schemas.file_processing_task_stage_runs.attempt,
-      );
-    return {
-      ...this.toTaskInfo(genericTask, row),
-      operationConfigVersions: {
-        rag: row.fileTask.content_config_version ?? undefined,
-        preview: row.fileTask.preview_config_version ?? undefined,
-      },
-      resultSummary: row.fileTask.result_summary
-        ? (JSON.parse(row.fileTask.result_summary) as Record<string, unknown>)
-        : null,
-      stageRuns: stageRuns.map((stage) => ({
-        stage: stage.stage,
-        attempt: stage.attempt,
-        status: stage.status,
-        processedItems: stage.processed_items,
-        totalItems: stage.total_items,
-        errorCode: stage.error_code,
-        errorMessage: stage.error_message,
-        startedAt: stage.start_timestamp,
-        endedAt: stage.end_timestamp,
-      })),
-      attempts: genericTask.attempts,
-    };
-  }
-
-  /**
-   * 取消一个活动文档处理任务并收敛领域状态。
-   *
-   * @param taskId 文档处理通用任务标识。
-   * @param userId 当前操作用户。
-   * @returns 取消提交完成后结束；任务不存在或已终结时抛出业务错误。
-   */
-  async cancelProcessingTask(taskId: string, userId: string): Promise<void> {
-    const [fileTask] = await db
-      .select({ id: schemas.file_processing_tasks.task_id })
-      .from(schemas.file_processing_tasks)
-      .where(eq(schemas.file_processing_tasks.task_id, taskId))
-      .limit(1);
-    if (!fileTask) throw new ROOT_ERROR('相关文件不存在');
-    const canceled = await task.cancel(taskId, {
-      errorCode: DOCUMENT_TASK_CANCELED_ERROR_CODE,
-      message: DOCUMENT_TASK_CANCELED_MESSAGE,
-      userId,
-    });
-    if (!canceled) throw new ROOT_ERROR('数据异常');
-  }
-
-  /**
-   * 因文档删除批量取消关联的文件处理任务。
-   *
-   * @param taskIds 文档版本关联的全部文件处理任务标识。
-   * @param userId 发起文档删除的审计用户。
-   * @returns 所有取消请求提交后结束。
-   */
-  private async cancelDocumentTasksForRemoval(
-    taskIds: string[],
-    userId: string,
-  ): Promise<void> {
-    for (const taskId of taskIds) {
-      await task.cancel(taskId, {
-        errorCode: 'DOCUMENT_REMOVED',
-        message: '文档已删除，文件处理任务已取消',
-        userId,
-      });
-    }
-  }
-
-  /**
-   * 将通用任务和 documents 扩展记录组合为业务任务摘要。
-   *
-   * @param genericTask 通过公共 task API 读取的任务和 attempt。
-   * @param row documents 扩展与可选源文件名称。
-   * @returns 不暴露通用任务内部表结构的文档处理摘要。
-   */
-  private toTaskInfo(
-    genericTask: NonNullable<Awaited<ReturnType<typeof task.get>>>,
-    row: {
-      /** 文档任务领域扩展。 */
-      fileTask: typeof schemas.file_processing_tasks.$inferSelect;
-      /** 文档被物理清理后为空。 */
-      filename: string | null;
-    },
-  ): FileProcessingTaskInfo {
-    const retryableStatuses = ['succeeded', 'failed', 'canceled', 'timed_out'];
-    return {
-      taskId: genericTask.task_id,
-      documentId: row.fileTask.document_id,
-      documentVersionId: row.fileTask.document_version_id,
-      operations: row.fileTask.task_parts,
-      filename: row.filename ?? '已删除文件',
-      executionNo: row.fileTask.execution_no,
-      triggerSource: row.fileTask.trigger_source,
-      status: genericTask.status,
-      stage: (genericTask.current_stage ??
-        'queued') as FileProcessingTaskInfo['stage'],
-      progress: genericTask.progress,
-      processedItems: genericTask.processed_items,
-      totalItems: genericTask.total_items,
-      errorCode: genericTask.error_code,
-      errorMessage: genericTask.error_message,
-      retryable:
-        row.fileTask.task_parts.includes('rag') &&
-        retryableStatuses.includes(genericTask.status),
-      createdAt: genericTask.create_timestamp,
-      startedAt: genericTask.start_timestamp,
-      endedAt: genericTask.end_timestamp,
-    };
-  }
-
-  /**
-   * 以原任务的文档版本和处理配置创建人工重试任务。
-   *
-   * @param taskId 已终结的文档处理任务标识。
-   * @param userId 当前操作用户，用于文档范围与审计。
-   * @returns 新建重试任务详情。
-   */
-  async retryProcessingTask(
-    taskId: string,
-    userId: string,
-  ): Promise<FileProcessingTaskInfo> {
-    const source = await this.getProcessingTask(taskId);
-    if (
-      !['succeeded', 'failed', 'canceled', 'timed_out'].includes(source.status)
-    ) {
-      throw new ROOT_ERROR('数据异常');
-    }
-    const retriedTaskId = await this.addDocumentTask(
-      {
-        documentId: source.documentId,
-        documentVersionId: source.documentVersionId,
-        operations: source.operations,
-        ragConfigVersion: source.operationConfigVersions.rag,
-        triggerSource: source.status === 'succeeded' ? 'rerun' : 'retry',
-      },
-      userId,
-    );
-    if (!retriedTaskId) throw new ROOT_ERROR('数据异常');
-    return await this.getProcessingTask(retriedTaskId);
   }
 }
 

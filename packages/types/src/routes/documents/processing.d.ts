@@ -1,89 +1,48 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type {
   DocumentTaskOperation,
-  FileProcessingStage,
-  FileProcessingStageRunStatus,
-  FileProcessingTriggerSource,
   TaskAttemptItem,
+  TaskItem,
   TaskStatus,
 } from '../models.js';
 
 /** 文件处理任务可对外展示的状态。 */
 export type FileProcessingTaskStatus = TaskStatus;
 
-/** 文件处理阶段执行记录。 */
-export interface FileProcessingStageRunInfo {
-  /** 当前阶段。 */
-  stage: FileProcessingStage;
-  /** 同一阶段的尝试序号。 */
-  attempt: number;
-  /** 阶段执行状态。 */
-  status: FileProcessingStageRunStatus;
-  /** 阶段处理数量。 */
-  processedItems: number;
-  /** 阶段总数量。 */
-  totalItems: number;
-  /** 稳定错误码。 */
-  errorCode: string | null;
-  /** 安全错误摘要。 */
-  errorMessage: string | null;
-  /** 阶段开始时间。 */
-  startedAt: Date;
-  /** 阶段结束时间。 */
-  endedAt: Date | null;
+/** 文档处理任务持久化的不可变输入。 */
+export interface DocumentProcessTaskData {
+  /** 同一任务实例选择执行的文档操作。 */
+  operations: DocumentTaskOperation[];
+  /** 被处理的源文件标识。 */
+  fileId: string;
+  /** 逻辑文档标识。 */
+  documentId: string;
+  /** 本次处理绑定的不可变文档版本。 */
+  documentVersionId: string;
+  /** 创建任务的审计用户。 */
+  userId: string;
 }
 
-/** 文件处理任务摘要。 */
-export interface FileProcessingTaskInfo {
-  /** 通用任务标识。 */
-  taskId: string;
-  /** 任务所属文档。 */
-  documentId: string;
-  /** 任务绑定的不可变文档版本。 */
-  documentVersionId: string;
-  /** 当前文档任务选择执行的操作。 */
-  operations: DocumentTaskOperation[];
-  /** 文件显示名称。 */
-  filename: string;
-  /** 同一文件的执行序号。 */
-  executionNo: number;
-  /** 任务创建来源。 */
-  triggerSource: FileProcessingTriggerSource;
-  /** 当前任务状态。 */
-  status: FileProcessingTaskStatus;
-  /** 当前执行阶段。 */
-  stage: FileProcessingStage;
-  /** 整数进度。 */
-  progress: number;
-  /** 已处理项目数量。 */
-  processedItems: number;
-  /** 待处理项目总数。 */
-  totalItems: number;
-  /** 稳定错误码。 */
-  errorCode: string | null;
-  /** 安全错误摘要。 */
-  errorMessage: string | null;
-  /** 是否允许基于本次记录创建新任务。 */
-  retryable: boolean;
-  /** 任务创建时间。 */
-  createdAt: Date;
-  /** 任务开始时间。 */
-  startedAt: Date | null;
-  /** 任务结束时间。 */
-  endedAt: Date | null;
+/** 文档处理任务成功返回的领域摘要。 */
+export interface DocumentProcessResult {
+  /** 可选预览结果。 */
+  preview?: Record<string, unknown>;
+  /** 可选 RAG 结果。 */
+  rag?: Record<string, unknown>;
 }
 
 /** 文件处理任务详情。 */
-export interface FileProcessingTaskDetail extends FileProcessingTaskInfo {
-  /** 各处理操作使用的配置版本。 */
-  operationConfigVersions: Partial<Record<DocumentTaskOperation, string>>;
-  /** 任务结果摘要。 */
-  resultSummary: Record<string, unknown> | null;
-  /** 阶段执行时间线。 */
-  stageRuns: FileProcessingStageRunInfo[];
+export interface FileProcessingTaskDetail extends TaskItem {
+  /** 文档处理任务输入。 */
+  data: DocumentProcessTaskData;
+  /** 文档处理结果摘要。 */
+  result: DocumentProcessResult | null;
   /** 通用运行时按序保存的自动执行尝试。 */
   attempts: TaskAttemptItem[];
 }
+
+/** 文件处理任务摘要与详情使用同一通用任务模型。 */
+export type FileProcessingTaskInfo = FileProcessingTaskDetail;
 
 /** documents 域的文件处理任务接口集合。 */
 export type FileProcessingAction = ApiMultAction<{

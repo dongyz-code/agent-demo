@@ -47,7 +47,7 @@ export const documentsConfig = {
   },
   fileProcessing: {
     enabled: FILE_PROCESSING_ENABLED,
-    /** 汇总文档任务的单实例并发，内容、预览和清理共同占用。 */
+    /** 汇总文档任务的跨实例并发，内容、预览和清理共同占用。 */
     concurrency: 2,
     /** 汇总文档任务首次执行之外允许的最大自动重试次数。 */
     maxRetries: 3,

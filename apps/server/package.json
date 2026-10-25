@@ -7,8 +7,7 @@
     "build": "rimraf build && tsc && tsc-alias -p tsconfig.json --outDir build",
     "dev": "tsx src/index.ts",
     "lint": "tsc",
-    "test:password": "tsx --test src/utils/password.test.ts",
-    "test:tasks": "tsx --test src/hooks/tasks/*.test.ts"
+    "test:password": "tsx --test src/utils/password.test.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.2",

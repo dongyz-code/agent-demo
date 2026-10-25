@@ -7,4 +7,3 @@ export * from './task.js';
 export * from './file.js';
 export * from './document.js';
 export * from './rag.js';
-export * from './file-processing-task.js';

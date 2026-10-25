@@ -16,7 +16,10 @@
         <el-button :icon="IconParkOutlineRefresh" @click="getList(true)">
           刷新
         </el-button>
-        <div v-if="statusCounts.length" class="flex flex-wrap items-center gap-2">
+        <div
+          v-if="statusCounts.length"
+          class="flex flex-wrap items-center gap-2"
+        >
           <el-tag
             v-for="item in statusCounts"
             :key="item.status"
@@ -46,10 +49,7 @@
         </template>
       </v-table>
 
-      <page-component
-        class="mt-4"
-        @update:model-value="getListDebounce()"
-      />
+      <page-component class="mt-4" @update:model-value="getListDebounce()" />
     </div>
 
     <v-dialog
@@ -68,8 +68,9 @@
         </el-button>
       </div>
       <pre
-        class="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-lg bg-gray-950 p-4 text-xs leading-6 text-gray-100"
-      >{{ taskLogText }}</pre>
+        class="max-h-[70vh] overflow-auto rounded-lg bg-gray-950 p-4 text-xs leading-6 whitespace-pre-wrap text-gray-100"
+        >{{ taskLogText }}</pre
+      >
     </v-dialog>
   </section>
 </template>
@@ -83,13 +84,7 @@ import {
   handleTime,
   numSplit,
 } from '@repo/utils-browser';
-import {
-  VDialog,
-  VSchemaForm,
-  VTable,
-  loadingFunc,
-  usePage,
-} from '@repo/ui';
+import { VDialog, VSchemaForm, VTable, loadingFunc, usePage } from '@repo/ui';
 
 import { staticMapping, staticOptions } from '@/constants';
 import { useStore } from '@/models';
@@ -172,14 +167,14 @@ const tableData = computed(() =>
     return {
       self,
       taskName: self.display_name,
+      scriptPath: self.script_path,
+      group: self.group_name,
+      policy: `并发 ${self.concurrency} · 重试 ${self.max_retries} · 超时 ${handleTime(self.timeout_ms)}`,
       statusText: staticMapping.task_status.get(self.status),
       stage: self.current_stage ?? '-',
       progress: `${self.progress}%`,
       attempts: `${self.attempt_count} / ${self.max_retries + 1}`,
-      createdAt: dayJsformat(
-        self.create_timestamp,
-        'YYYY-MM-DD HH:mm:ss',
-      ),
+      createdAt: dayJsformat(self.create_timestamp, 'YYYY-MM-DD HH:mm:ss'),
       duration,
       errorMessage: self.error_message ?? '-',
     };
@@ -188,7 +183,10 @@ const tableData = computed(() =>
 
 /** 通用任务容器列表列；唯一业务操作是查看日志。 */
 const tableRows: TableRow[] = [
-  { label: '任务名称', value: 'taskName', minWidth: 260 },
+  { label: '任务名称', value: 'taskName', minWidth: 220 },
+  { label: '任务脚本', value: 'scriptPath', minWidth: 220 },
+  { label: '并发组', value: 'group', width: 110 },
+  { label: '策略快照', value: 'policy', minWidth: 220 },
   { label: '状态', value: 'status', slot: 'status', width: 110 },
   { label: '当前阶段', value: 'stage', minWidth: 140 },
   { label: '进度', value: 'progress', width: 80 },
@@ -196,7 +194,13 @@ const tableRows: TableRow[] = [
   { label: '创建时间', value: 'createdAt', width: 180 },
   { label: '累计用时', value: 'duration', width: 120 },
   { label: '错误摘要', value: 'errorMessage', minWidth: 200 },
-  { label: '操作', value: 'actions', slot: 'actions', width: 110, fixed: 'right' },
+  {
+    label: '操作',
+    value: 'actions',
+    slot: 'actions',
+    width: 110,
+    fixed: 'right',
+  },
 ];
 
 /** 任务分页组件固定放在列表底部。 */
@@ -222,10 +226,7 @@ const { getList, getListLoading } = loadingFunc({
       const countsPromise = withCount
         ? api('/sys/task/counts', { form: taskForm.value })
         : Promise.resolve(undefined);
-      const [result, counts] = await Promise.all([
-        listPromise,
-        countsPromise,
-      ]);
+      const [result, counts] = await Promise.all([listPromise, countsPromise]);
       tasks.value = result.list;
       if (withCount) setPageData({ total: result.count });
       if (counts) {
@@ -267,9 +268,7 @@ async function getLogs(): Promise<void> {
  * @param row 当前通用任务展示行。
  * @returns 日志弹窗打开并完成首次加载后结束。
  */
-async function openLogs(
-  row: (typeof tableData.value)[number],
-): Promise<void> {
+async function openLogs(row: (typeof tableData.value)[number]): Promise<void> {
   taskLog.taskId = row.self.task_id;
   taskLog.title = `${row.taskName} · 任务日志`;
   taskLog.data = [];
@@ -284,10 +283,7 @@ async function openLogs(
  * @returns 单行日志文本。
  */
 function formatTaskLog(item: TaskLogItem): string {
-  const timestamp = dayJsformat(
-    item.create_timestamp,
-    'YYYY-MM-DD HH:mm:ss',
-  );
+  const timestamp = dayJsformat(item.create_timestamp, 'YYYY-MM-DD HH:mm:ss');
   return `[${timestamp}] [Attempt ${item.attempt}] [${item.level}] ${item.message}`;
 }
 

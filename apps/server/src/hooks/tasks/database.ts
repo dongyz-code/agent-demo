@@ -12,29 +12,30 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
-import { db, schemas } from '@/database/index.js';
+import { db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
 import { uuidv7 } from '@/utils/index.js';
 import type {
   TaskAttemptStatus,
-  TaskItem,
   TaskLogLevel,
   TaskSqlFilter,
   TaskStatus,
 } from '@repo/types';
 import type { SQL } from 'drizzle-orm';
+import { normalizeTaskPage, shouldRetryTaskAttempt } from './policies.js';
 import type {
   ClaimedTask,
   RunnableTaskCandidate,
   SettleTaskAttemptInput,
   SettleTaskAttemptResult,
   TaskCancelOptions,
+  TaskDetail,
   TaskListOptions,
   TaskLogOptions,
+  TaskPolicySnapshot,
   TaskProgressInput,
-  TaskScriptModule,
-  TaskScriptTransaction,
-  TaskSnapshot,
+  TaskTransaction,
 } from './types.js';
 
 /** 支持任务入队与日志写入的数据库执行器。 */
@@ -43,7 +44,9 @@ type TaskInsertExecutor = Pick<typeof db, 'insert' | 'select'>;
 /** 任务列表和详情对外返回的稳定字段。 */
 const TASK_PUBLIC_FIELDS = {
   task_id: schemas.tasks.task_id,
-  task_name: schemas.tasks.task_name,
+  script_path: schemas.tasks.script_path,
+  correlation_id: schemas.tasks.correlation_id,
+  group_name: schemas.tasks.group_name,
   display_name: schemas.tasks.display_name,
   current_stage: schemas.tasks.current_stage,
   progress: schemas.tasks.progress,
@@ -65,6 +68,12 @@ const TASK_PUBLIC_FIELDS = {
   last_update_timestamp: schemas.tasks.last_update_timestamp,
 } as const;
 
+/** 单任务详情额外返回调用方保存的执行数据。 */
+const TASK_DETAIL_FIELDS = {
+  ...TASK_PUBLIC_FIELDS,
+  data: schemas.tasks.data,
+} as const;
+
 /** 执行尝试对外返回的稳定字段。 */
 const TASK_ATTEMPT_PUBLIC_FIELDS = {
   attempt_id: schemas.task_attempts.attempt_id,
@@ -80,6 +89,9 @@ const TASK_ATTEMPT_PUBLIC_FIELDS = {
   end_timestamp: schemas.task_attempts.end_timestamp,
 } as const;
 
+/** 候选查询中用于统计同分组运行任务数量的任务表别名。 */
+const RUNNING_TASK = alias(schemas.tasks, 'running_task');
+
 /**
  * 聚合通用任务的查询、事务、执行权与状态迁移。
  */
@@ -94,25 +106,48 @@ export class TaskDatabase {
   // 公共任务操作：创建、查询、日志与取消。
 
   /**
-   * 使用 task 包内部事务创建通用任务与初始日志。
+   * 在可选事务中写入任务主记录和入队日志。
    *
-   * @param snapshot 已校验的稳定名称、展示名称、脚本、数据和策略快照。
-   * @param onCreate 脚本可选创建生命周期函数。
+   * @param snapshot 脚本入口、并发分组、展示名称和策略快照。
+   * @param data 会 JSON 序列化并传给任务脚本的数据。
+   * @param options 可预先分配的任务标识和共享事务。
    * @returns 新建任务标识。
    */
   async addTask<TData>(
-    snapshot: TaskSnapshot<TData>,
-    onCreate?: TaskScriptModule<TData>['onCreate'],
+    snapshot: TaskPolicySnapshot,
+    data: TData,
+    options: {
+      /** 调用方预分配的任务标识。 */
+      taskId?: string;
+      /** 业务方用于关联领域对象的稳定标识。 */
+      correlationId?: string | null;
+      /** 与领域写入共享的事务。 */
+      transaction?: TaskTransaction;
+    } = {},
   ): Promise<string> {
-    const taskId = uuidv7();
-    const now = new Date();
-    await this.connection.transaction(async (transaction) => {
+    if (options.taskId !== undefined && !options.taskId.trim()) {
+      throw new Error('TASK_ID_INVALID: 任务标识不能为空');
+    }
+    const taskId = options.taskId ?? uuidv7();
+    const insert = async (transaction: TaskTransaction): Promise<void> => {
+      let serialized: string | undefined;
+      try {
+        serialized = JSON.stringify(data);
+      } catch {
+        throw new Error('TASK_DATA_INVALID: 任务数据无法序列化');
+      }
+      if (serialized === undefined) {
+        throw new Error('TASK_DATA_INVALID: 任务数据无法序列化');
+      }
+      const storedData = JSON.parse(serialized) as TData;
+      const now = new Date();
       await transaction.insert(schemas.tasks).values({
         task_id: taskId,
-        task_name: snapshot.name,
+        script_path: snapshot.scriptPath,
+        correlation_id: options.correlationId ?? null,
+        group_name: snapshot.groupName,
         display_name: snapshot.displayName,
-        script: snapshot.script,
-        data: snapshot.data,
+        data: storedData,
         status: 'queued',
         current_stage: null,
         progress: 0,
@@ -135,11 +170,6 @@ export class TaskDatabase {
         end_timestamp: null,
         last_update_timestamp: now,
       });
-      await onCreate?.({
-        taskId,
-        data: snapshot.data,
-        transaction,
-      });
       await this.appendTaskLog(
         {
           taskId,
@@ -149,36 +179,26 @@ export class TaskDatabase {
         },
         transaction,
       );
-    });
+    };
+    if (options.transaction) await insert(options.transaction);
+    else await this.connection.transaction(insert);
     return taskId;
-  }
-
-  /**
-   * 读取任务脚本 URL，供 task.cancel 在进入状态事务前加载生命周期函数。
-   *
-   * @param taskId 通用任务标识。
-   * @returns 任务不存在时返回 undefined。
-   */
-  async getTaskScript(taskId: string): Promise<string | undefined> {
-    const [row] = await this.connection
-      .select({ script: schemas.tasks.script })
-      .from(schemas.tasks)
-      .where(eq(schemas.tasks.task_id, taskId))
-      .limit(1);
-    return row?.script;
   }
 
   /**
    * 查询单个通用任务及全部 attempt。
    *
    * @param taskId 通用任务标识。
-   * @returns 任务不存在时返回 null。
+   * @returns 任务不存在或类型不匹配时返回 null。
    */
-  async getTask(taskId: string) {
+  async getTask<TData = unknown, TResult = unknown>(
+    taskId: string,
+  ): Promise<TaskDetail<TData, TResult> | null> {
+    const conditions: SQL[] = [eq(schemas.tasks.task_id, taskId)];
     const [item] = await this.connection
-      .select(TASK_PUBLIC_FIELDS)
+      .select(TASK_DETAIL_FIELDS)
       .from(schemas.tasks)
-      .where(eq(schemas.tasks.task_id, taskId))
+      .where(and(...conditions))
       .limit(1);
     if (!item) return null;
     const attempts = await this.connection
@@ -186,7 +206,12 @@ export class TaskDatabase {
       .from(schemas.task_attempts)
       .where(eq(schemas.task_attempts.task_id, taskId))
       .orderBy(asc(schemas.task_attempts.attempt));
-    return { ...item, attempts };
+    return {
+      ...item,
+      data: item.data as TData,
+      result: item.result as TResult | null,
+      attempts,
+    };
   }
 
   /**
@@ -197,13 +222,7 @@ export class TaskDatabase {
    */
   async listTasks(options: TaskListOptions = {}) {
     const where = this.taskWhere(options.filter);
-    let offset = 0;
-    let size = 10;
-    if (options.limit && options.limit.length >= 2) {
-      offset = Math.max(0, Math.floor(options.limit[0] ?? 0));
-      const end = Math.max(offset, Math.floor(options.limit[1] ?? offset));
-      size = Math.max(1, end - offset);
-    }
+    const { offset, size } = normalizeTaskPage(options.limit);
     const listPromise = this.connection
       .select(TASK_PUBLIC_FIELDS)
       .from(schemas.tasks)
@@ -292,7 +311,7 @@ export class TaskDatabase {
   }
 
   /**
-   * 仅在当前任务 lease 仍有效时追加脚本结构化日志。
+   * 仅在当前任务 lease 仍有效时追加任务定义日志。
    *
    * @param input 任务、lease、attempt、级别和已脱敏消息。
    * @returns 日志与 lease 守卫同事务写入时返回 true。
@@ -330,22 +349,19 @@ export class TaskDatabase {
   }
 
   /**
-   * 取消 queued、retrying 或 running 任务并执行脚本生命周期。
+   * 取消 queued、retrying 或 running 任务。
    *
    * @param taskId 通用任务标识。
-   * @param options 取消用户、稳定错误码和安全原因。
-   * @param onCancel 脚本可选取消生命周期函数。
+   * @param options 取消用户、稳定错误码、安全原因和可选共享事务。
    * @returns 实际取消活动任务时返回 true。
    */
   async cancelTask(
     taskId: string,
     options: TaskCancelOptions,
-    onCancel?: TaskScriptModule['onCancel'],
   ): Promise<boolean> {
-    return await this.connection.transaction(async (tx) => {
+    const cancel = async (tx: TaskTransaction): Promise<boolean> => {
       const [current] = await tx
         .select({
-          data: schemas.tasks.data,
           attemptId: schemas.tasks.current_attempt_id,
           attempt: schemas.tasks.attempt_count,
           status: schemas.tasks.status,
@@ -355,8 +371,9 @@ export class TaskDatabase {
         .for('update')
         .limit(1);
       if (!current) return false;
-      if (!['queued', 'running', 'retrying'].includes(current.status))
+      if (!['queued', 'running', 'retrying'].includes(current.status)) {
         return false;
+      }
       const now = new Date();
       const errorCode = options.errorCode ?? 'TASK_CANCELED';
       const message = options.message ?? '任务已取消';
@@ -390,14 +407,6 @@ export class TaskDatabase {
             ),
           );
       }
-      await onCancel?.({
-        taskId,
-        data: current.data,
-        userId: options.userId ?? null,
-        errorCode,
-        errorMessage: message,
-        transaction: tx,
-      });
       await this.appendTaskLog(
         {
           taskId,
@@ -408,13 +417,18 @@ export class TaskDatabase {
         tx,
       );
       return true;
-    });
+    };
+    if (options.transaction) return await cancel(options.transaction);
+    return await this.connection.transaction(cancel);
   }
 
   // Dispatcher 执行权：候选、领取、PID、lease 与运行进度。
 
   /**
    * 返回一轮调度可尝试领取的等待任务。
+   *
+   * 查询会排除全局同分组运行数已经达到并发上限的任务，避免固定候选窗口被
+   * 暂时不可领取的任务占满。
    *
    * @param limit 最大候选数量。
    * @returns 按创建时间排列的候选任务。
@@ -431,14 +445,20 @@ export class TaskDatabase {
         lte(schemas.tasks.next_run_at, now),
       ),
     );
+    const hasGroupCapacity = sql<boolean>`(
+      select count(*)
+      from ${RUNNING_TASK}
+      where ${RUNNING_TASK.group_name} = ${schemas.tasks.group_name}
+        and ${RUNNING_TASK.status} = 'running'
+    ) < ${schemas.tasks.concurrency}`;
     return await this.connection
       .select({
         taskId: schemas.tasks.task_id,
-        name: schemas.tasks.task_name,
+        groupName: schemas.tasks.group_name,
         concurrency: schemas.tasks.concurrency,
       })
       .from(schemas.tasks)
-      .where(runnable)
+      .where(and(runnable, hasGroupCapacity))
       .orderBy(asc(schemas.tasks.create_timestamp))
       .limit(limit);
   }
@@ -449,7 +469,7 @@ export class TaskDatabase {
    * @param taskId 候选任务标识。
    * @param dispatcherId 当前持有任务 lease 的服务调度实例标识。
    * @param leaseDurationMs 单次 lease 有效期。
-   * @returns 领取成功后的监督快照；状态已变化时返回 undefined。
+   * @returns 领取成功后的监督快照；状态或分组并发不允许时返回 undefined。
    */
   async claimTask(
     taskId: string,
@@ -458,9 +478,6 @@ export class TaskDatabase {
   ): Promise<ClaimedTask | undefined> {
     return await this.connection.transaction(async (tx) => {
       const now = new Date();
-      const attemptId = uuidv7();
-      const leaseId = uuidv7();
-      const leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
       const runnable = or(
         eq(schemas.tasks.status, 'queued'),
         and(
@@ -468,6 +485,30 @@ export class TaskDatabase {
           lte(schemas.tasks.next_run_at, now),
         ),
       );
+      const [candidate] = await tx
+        .select({
+          groupName: schemas.tasks.group_name,
+          concurrency: schemas.tasks.concurrency,
+        })
+        .from(schemas.tasks)
+        .where(and(eq(schemas.tasks.task_id, taskId), runnable))
+        .for('update')
+        .limit(1);
+      if (!candidate) return;
+      await pgAdvisoryXactLock(tx, 'task-group', candidate.groupName);
+      const [running] = await tx
+        .select({ value: countSql() })
+        .from(schemas.tasks)
+        .where(
+          and(
+            eq(schemas.tasks.group_name, candidate.groupName),
+            eq(schemas.tasks.status, 'running'),
+          ),
+        );
+      if ((running?.value ?? 0) >= candidate.concurrency) return;
+      const attemptId = uuidv7();
+      const leaseId = uuidv7();
+      const leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
       const [claimed] = await tx
         .update(schemas.tasks)
         .set({
@@ -490,10 +531,11 @@ export class TaskDatabase {
         })
         .where(and(eq(schemas.tasks.task_id, taskId), runnable))
         .returning({
-          name: schemas.tasks.task_name,
-          script: schemas.tasks.script,
+          scriptPath: schemas.tasks.script_path,
+          groupName: schemas.tasks.group_name,
           attempt: schemas.tasks.attempt_count,
           data: schemas.tasks.data,
+          checkpoint: schemas.tasks.checkpoint,
           timeoutMs: schemas.tasks.timeout_ms,
           concurrency: schemas.tasks.concurrency,
         });
@@ -514,12 +556,13 @@ export class TaskDatabase {
       });
       return {
         taskId,
-        name: claimed.name,
-        script: claimed.script,
+        scriptPath: claimed.scriptPath,
+        groupName: claimed.groupName,
         attemptId,
         attempt: claimed.attempt,
         leaseId,
         data: claimed.data,
+        checkpoint: claimed.checkpoint,
         timeoutMs: claimed.timeoutMs,
         concurrency: claimed.concurrency,
       };
@@ -603,7 +646,7 @@ export class TaskDatabase {
    * @returns 任务仍由当前 lease 持有时返回 true。
    */
   async guardTaskLease(
-    transaction: TaskScriptTransaction,
+    transaction: TaskTransaction,
     taskId: string,
     leaseId: string,
   ): Promise<boolean> {
@@ -616,7 +659,7 @@ export class TaskDatabase {
   }
 
   /**
-   * 使用当前 lease 更新任务脚本报告的进度。
+   * 使用当前 lease 更新任务定义报告的进度。
    *
    * @param input 任务、lease、阶段、进度和数量摘要。
    * @returns 当前 lease 更新成功时返回 true。
@@ -643,6 +686,39 @@ export class TaskDatabase {
     return Boolean(updated);
   }
 
+  /**
+   * 仅在当前任务 lease 仍有效时保存 checkpoint。
+   *
+   * @param taskId 通用任务标识。
+   * @param leaseId 当前领取生成的 lease。
+   * @param checkpoint 可 JSON 序列化的轻量恢复信息。
+   * @returns 当前 lease 仍有效时返回 true。
+   */
+  async saveTaskRuntimeCheckpoint(
+    taskId: string,
+    leaseId: string,
+    checkpoint: unknown,
+  ): Promise<boolean> {
+    let serialized: string | undefined;
+    try {
+      serialized = JSON.stringify(checkpoint);
+    } catch {
+      throw new Error('TASK_CHECKPOINT_INVALID: 恢复信息无法序列化');
+    }
+    if (serialized === undefined) {
+      throw new Error('TASK_CHECKPOINT_INVALID: 恢复信息无法序列化');
+    }
+    const [updated] = await this.connection
+      .update(schemas.tasks)
+      .set({
+        checkpoint: JSON.parse(serialized) as unknown,
+        last_update_timestamp: new Date(),
+      })
+      .where(this.activeLeaseWhere(taskId, leaseId))
+      .returning({ taskId: schemas.tasks.task_id });
+    return Boolean(updated);
+  }
+
   // 状态收敛与恢复：完成 attempt，并回收已经过期的 lease。
 
   /**
@@ -657,7 +733,6 @@ export class TaskDatabase {
     return await this.connection.transaction(async (tx) => {
       const [current] = await tx
         .select({
-          data: schemas.tasks.data,
           attempt: schemas.tasks.attempt_count,
           maxRetries: schemas.tasks.max_retries,
           retryDelayMs: schemas.tasks.retry_delay_ms,
@@ -742,6 +817,10 @@ export class TaskDatabase {
       let attemptStatus: TaskAttemptStatus = 'failed';
       if (input.outcome === 'timed_out') attemptStatus = 'timed_out';
       if (input.outcome === 'interrupted') attemptStatus = 'interrupted';
+      const retryScheduled = shouldRetryTaskAttempt(
+        current.attempt,
+        current.maxRetries,
+      );
       await tx
         .update(schemas.task_attempts)
         .set({
@@ -757,7 +836,7 @@ export class TaskDatabase {
             eq(schemas.task_attempts.status, 'running'),
           ),
         );
-      if (current.attempt <= current.maxRetries) {
+      if (retryScheduled) {
         const nextRunAt = new Date(now.getTime() + current.retryDelayMs);
         await tx
           .update(schemas.tasks)
@@ -800,14 +879,6 @@ export class TaskDatabase {
           last_update_timestamp: now,
         })
         .where(eq(schemas.tasks.task_id, input.taskId));
-      await input.onTerminalFailure?.({
-        taskId: input.taskId,
-        data: current.data,
-        transaction: tx,
-        errorCode,
-        errorMessage,
-        reason: input.outcome,
-      });
       await this.appendTaskLog(
         {
           taskId: input.taskId,
@@ -825,13 +896,12 @@ export class TaskDatabase {
    * 查询已经超过 lease 到期时间的运行任务。
    *
    * @param limit 单轮恢复上限。
-   * @returns 恢复收敛所需的任务、attempt 和 lease。
+   * @returns 恢复收敛所需的 attempt 和 lease。
    */
   async listExpiredRunningTasks(limit: number) {
     return await this.connection
       .select({
         taskId: schemas.tasks.task_id,
-        script: schemas.tasks.script,
         attemptId: schemas.tasks.current_attempt_id,
         leaseId: schemas.tasks.lease_id,
       })
@@ -859,13 +929,37 @@ export class TaskDatabase {
     if (filter.task_id) {
       conditions.push(eq(schemas.tasks.task_id, filter.task_id));
     }
-    if (filter.name) {
-      if (Array.isArray(filter.name)) {
-        if (filter.name.length) {
-          conditions.push(inArray(schemas.tasks.task_name, filter.name));
+    if (filter.script_path) {
+      if (Array.isArray(filter.script_path)) {
+        if (filter.script_path.length) {
+          conditions.push(
+            inArray(schemas.tasks.script_path, filter.script_path),
+          );
         }
       } else {
-        conditions.push(eq(schemas.tasks.task_name, filter.name));
+        conditions.push(eq(schemas.tasks.script_path, filter.script_path));
+      }
+    }
+    if (filter.correlation_id) {
+      if (Array.isArray(filter.correlation_id)) {
+        if (filter.correlation_id.length) {
+          conditions.push(
+            inArray(schemas.tasks.correlation_id, filter.correlation_id),
+          );
+        }
+      } else {
+        conditions.push(
+          eq(schemas.tasks.correlation_id, filter.correlation_id),
+        );
+      }
+    }
+    if (filter.group_name) {
+      if (Array.isArray(filter.group_name)) {
+        if (filter.group_name.length) {
+          conditions.push(inArray(schemas.tasks.group_name, filter.group_name));
+        }
+      } else {
+        conditions.push(eq(schemas.tasks.group_name, filter.group_name));
       }
     }
     if (filter.status) {
@@ -890,11 +984,12 @@ export class TaskDatabase {
     }
     const search = filter.search?.trim();
     if (search) {
-      const nameSearch = or(
-        ilike(schemas.tasks.task_name, `%${search}%`),
+      const typeSearch = or(
+        ilike(schemas.tasks.script_path, `%${search}%`),
         ilike(schemas.tasks.display_name, `%${search}%`),
+        ilike(schemas.tasks.correlation_id, `%${search}%`),
       );
-      if (nameSearch) conditions.push(nameSearch);
+      if (typeSearch) conditions.push(typeSearch);
     }
     if (filter.create_timestamp?.[0]) {
       conditions.push(

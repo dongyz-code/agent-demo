@@ -1,34 +1,48 @@
-## 1. 数据模型与公共契约
+## 1. 简化任务 API
 
-- [x] 1.1 重建共享任务状态、attempt、日志、查询和脚本类型，删除注册、业务事务与旧 add 类型
-- [x] 1.2 重建 tasks 表并新增 task_attempts、task_logs 表，持久化 name、script、data 与策略快照，删除通用幂等和业务展示字段
-- [x] 1.3 建立唯一公共 task API，完成单对象 add、get、list、logs、cancel 契约
+- [x] 1.1 将 `defineTask` 收窄为脚本路径、并发分组、重试和超时配置，只返回类型化 enqueue
+- [x] 1.2 删除 `prepare`、`onCancel`、`onFailure`、WeakMap 定义存储和默认句柄反查
+- [x] 1.3 将任务标识合并为持久化 `script_path`，更新查询、列表、过滤和管理端展示
+- [x] 1.4 支持预先分配 taskId 和共享事务，由领域代码显式完成准备与入队
 
-## 2. 执行内核
+## 2. 脚本执行内核
 
-- [x] 2.1 实现原子领取、attempt 创建、lease 续期、进度更新和成功/失败/重试/取消/超时状态机
-- [x] 2.2 实现结构化持久日志和 TaskRunInput，支持 debug、info、error、进度与取消检查
-- [x] 2.3 重写父 Worker，实现全局与同名任务并发、子进程监督、heartbeat、超时、SIGTERM/SIGKILL 和 stdout/stderr 日志
-- [x] 2.4 重写子进程入口，直接导入持久化 script 并使用 IPC 返回安全执行结果
-- [x] 2.5 实现启动及周期 stale 恢复，保留 interrupted attempt 并按策略重新调度
+- [x] 2.1 将模块加载器改为脚本加载器，按 `script_path` 调用默认导出函数
+- [x] 2.2 保留原子领取、attempt、lease、分组并发、重试、超时、取消和 stale 恢复
+- [x] 2.3 保留 PostgreSQL 任务、attempt 和结构化日志
+- [x] 2.4 删除最终失败路径中的业务回调加载
 
-## 3. 文档任务迁移
+## 3. documents 迁移
 
-- [x] 3.1 将文档内容、预览和清理收敛为唯一 `document.process` 脚本任务，共用重试、超时、并发及生命周期导出
-- [x] 3.2 统一内容、预览和清理的单对象 task.add 与判别式 data，删除 transaction、去重键和业务展示参数
-- [x] 3.3 使用 TaskRunInput 重写文档阶段运行时和 runner，移除 lease、complete、fail 依赖并保留领域幂等
-- [x] 3.4 重写文档任务取消、人工重试与详情，将自动 attempt 和人工业务执行历史正确分离
-- [x] 3.5 将 documents/tasks 收敛为 task、runtime、stage 三个文件，并让所有业务调用方只依赖 task 领域入口
-- [x] 3.6 将文档 data 重建为可选 parts，使内容与预览在同一任务实例内组合或跳过，清理保持独占 part
+- [x] 3.1 将文档处理快照解析迁移到 `enqueueDocumentProcess` 显式领域函数
+- [x] 3.2 将文档逻辑删除和清理任务创建迁移到 `enqueueDocumentCleanup`
+- [x] 3.3 将文档取消收敛迁移到 `cancelDocumentProcessingTask`
+- [x] 3.4 将 process 和 cleanup 改为默认导出执行函数
+- [x] 3.5 更新上传、文档操作、取消路由和读取接口调用方
+- [x] 3.6 更新 `hooks/tasks` 与 `hooks/documents` README
 
-## 4. 任务中心与清理
+## 4. 验证
 
-- [x] 4.1 重写任务中心查询与路由类型，按任务名称提供详情、分页、统计和结构化日志并保持权限边界
-- [x] 4.2 删除旧 create、lifecycle、center、log、worker 契约及全部残留引用，不保留兼容转发层
-- [x] 4.3 更新 tasks 与 documents README，准确描述单对象 add、script、状态机和接入流程
+- [x] 4.1 运行服务端 TypeScript 检查
+- [x] 4.2 运行 `@repo/types` TypeScript 检查
+- [x] 4.3 运行修改文件 ESLint
+- [x] 4.4 运行 OpenSpec strict 校验
+- [x] 4.5 运行 `git diff --check`
+- [x] 4.6 确认未新增 `*.test.ts` 或测试脚本
 
-## 5. 验证
+## 5. 移除文档专用任务层
 
-- [x] 5.1 为参数校验、状态转换、重试次数、超时终态和同名并发选择增加针对性测试
-- [x] 5.2 运行服务端类型检查、构建、OpenSpec strict 校验和 git diff 检查并修复全部问题
-- [x] 5.3 验证 script 持久化与子进程动态导入，并覆盖整体文档任务 parts 选择
+- [x] 5.1 删除 `file_processing_tasks`、`file_processing_task_stage_runs` 和 `stage.ts`
+- [x] 5.2 为通用任务增加 `correlation_id` 与自动重试 `checkpoint`
+- [x] 5.3 删除文档任务对扩展表、执行序号、阶段 attempt 和结果摘要的依赖
+- [x] 5.4 将 `tasks/process.ts` 收窄为任务声明、预览/RAG 执行和失败状态收敛
+- [x] 5.5 将文档处理入队、取消、详情和人工重试迁移到 `document-process-action.ts`
+- [x] 5.6 删除文档必须先取消活动处理任务，再创建清理任务
+
+## 6. 简化后的验证
+
+- [x] 6.1 运行服务端与共享类型 TypeScript 检查
+- [x] 6.2 运行管理端类型检查
+- [x] 6.3 运行修改文件 ESLint
+- [x] 6.4 运行 OpenSpec strict 校验
+- [x] 6.5 运行 `git diff --check`

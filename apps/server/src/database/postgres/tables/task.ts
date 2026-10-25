@@ -11,17 +11,21 @@ export const tasks = pgTable(
   {
     /** UUIDv7 通用任务标识。 */
     task_id: varchar255('task_id').primaryKey(),
-    /** 稳定任务名称，同时用于同名任务并发分组。 */
-    task_name: varchar255('task_name').notNull(),
+    /** 相对于服务端 hooks 目录的任务脚本入口。 */
+    script_path: varchar255('script_path').notNull(),
+    /** 业务方用于关联领域对象的稳定标识。 */
+    correlation_id: varchar255('correlation_id'),
+    /** 多个任务脚本共享的并发分组。 */
+    group_name: varchar255('group_name').notNull(),
     /** 面向任务中心展示的业务名称。 */
     display_name: varchar255('display_name').notNull(),
-    /** 子进程动态导入的服务端脚本模块 URL。 */
-    script: text('script').notNull(),
     /** 可被 JSON 序列化的任务数据。 */
     data: jsonb('data').notNull(),
+    /** 自动重试时可继续使用的轻量恢复信息。 */
+    checkpoint: jsonb('checkpoint'),
     /** 当前生命周期状态。 */
     status: varchar255('status').$type<TaskStatus>().notNull(),
-    /** 任务脚本报告的当前业务阶段。 */
+    /** 任务定义报告的当前业务阶段。 */
     current_stage: varchar255('current_stage'),
     /** 整数进度，范围为 0 到 100。 */
     progress: integer('progress').notNull().default(0),
@@ -29,7 +33,7 @@ export const tasks = pgTable(
     processed_items: integer('processed_items').notNull().default(0),
     /** 待处理项目总数。 */
     total_items: integer('total_items').notNull().default(0),
-    /** 任务脚本成功返回的可序列化结果。 */
+    /** 任务定义成功返回的可序列化结果。 */
     result: jsonb('result'),
     /** 已创建的执行尝试数量。 */
     attempt_count: integer('attempt_count').notNull().default(0),
@@ -39,7 +43,7 @@ export const tasks = pgTable(
     retry_delay_ms: integer('retry_delay_ms').notNull().default(0),
     /** 单次执行超时，单位毫秒。 */
     timeout_ms: integer('timeout_ms').notNull(),
-    /** 单实例同名任务并发上限。 */
+    /** 同一并发分组跨服务实例的总并发上限。 */
     concurrency: integer('concurrency').notNull(),
     /** retrying 状态的下次可领取时间。 */
     next_run_at: timestamptz('next_run_at'),
@@ -68,7 +72,9 @@ export const tasks = pgTable(
       table.next_run_at,
       table.create_timestamp,
     ),
-    index('tasks_name_idx').on(table.task_name),
+    index('tasks_script_idx').on(table.script_path),
+    index('tasks_correlation_idx').on(table.correlation_id),
+    index('tasks_group_status_idx').on(table.group_name, table.status),
     index('tasks_create_timestamp_idx').on(table.create_timestamp),
     index('tasks_lease_expiry_idx').on(table.status, table.lease_expires_at),
   ],

@@ -1,21 +1,21 @@
 import type { ApiMultAction } from '../../common/index.js';
-import type {
-  TaskItem,
-  TaskLogItem,
-  TaskStatus,
-} from '../models.js';
+import type { TaskItem, TaskLogItem, TaskStatus } from '../models.js';
 
 /** 通用任务中心过滤条件。 */
 export type TaskSqlFilter = {
   /** 任务标识精确过滤。 */
   task_id?: string;
-  /** 一个或多个稳定任务名称。 */
-  name?: string | string[];
+  /** 一个或多个任务脚本入口。 */
+  script_path?: string | string[];
+  /** 一个或多个业务关联标识。 */
+  correlation_id?: string | string[];
+  /** 一个或多个并发分组。 */
+  group_name?: string | string[];
   /** 一个或多个生命周期状态。 */
   status?: TaskStatus | TaskStatus[];
   /** 当前业务阶段。 */
   current_stage?: string | string[];
-  /** 稳定任务名称或业务展示名称模糊匹配。 */
+  /** 任务脚本入口或业务展示名称模糊匹配。 */
   search?: string;
   /** 创建时间闭区间。 */
   create_timestamp?: (Date | null)[];

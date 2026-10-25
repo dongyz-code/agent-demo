@@ -1,4 +1,4 @@
-import { documentAction } from '@/hooks/documents/document-action.js';
+import { retryDocumentProcessingTask } from '@/hooks/documents/document-process-action.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
@@ -7,10 +7,7 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.task.retry'),
   handler: async ({ body, __token }) => {
-    return await documentAction.retryProcessingTask(
-      body.taskId,
-      __token.user_id,
-    );
+    return await retryDocumentProcessingTask(body.taskId, __token.user_id);
   },
 });
 

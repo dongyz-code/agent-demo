@@ -7,6 +7,7 @@ import { buildWhere, db, schemas } from '@/database/index.js';
 import { contentTypesByExtension, getFileExtension } from '@repo/shared';
 import { documentsConfig } from './config.js';
 import { documentAction } from './document-action.js';
+import { enqueueDocumentProcess } from './document-process-action.js';
 import { documentFile } from './file/index.js';
 
 import type { SupportedFileExtension } from '@repo/shared';
@@ -342,7 +343,7 @@ class UploadAction {
       userId,
     );
     try {
-      await documentAction.addDocumentTask(
+      await enqueueDocumentProcess(
         {
           documentId: binding.document.documentId,
           documentVersionId: binding.documentVersionId,
