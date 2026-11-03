@@ -18,8 +18,8 @@ import type { DocumentPreviewPageVariant } from '@repo/types';
 
 const WEBP_CONTENT_TYPE = contentTypesByExtension.webp.mime[0];
 const JPEG_CONTENT_TYPE = contentTypesByExtension.jpeg.mime[0];
-/** 源文件字节数上限，与上传限制一致。 */
-const MAX_SOURCE_BYTES = documentsConfig.upload.maxFileSizeBytes;
+/** 转换器读取源文件的字节数上限。 */
+const MAX_SOURCE_BYTES = documentsConfig.preview.maxSourceBytes;
 /** 单文档预览页数上限。 */
 const MAX_PAGE_COUNT = 1_000;
 /** WebP 单维像素硬上限，超过则降级为 JPEG 编码。 */
@@ -82,10 +82,6 @@ export interface DocumentPageSource {
   contentType: string;
   /** 源文件字节数。 */
   size: number;
-  /** 私有对象 Bucket。 */
-  bucket: string;
-  /** 私有对象路径。 */
-  objectKey: string;
   /** 每次调用均返回一个新的源对象读取流。 */
   open: () => Promise<Readable>;
 }

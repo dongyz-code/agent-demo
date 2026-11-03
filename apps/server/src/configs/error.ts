@@ -142,6 +142,18 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       code: ROOT_ERROR_CODE_CONFLICT,
     },
     {
+      key: '文档处理正在进行，请稍后重试',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
+      key: '上传会话状态已变更',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
+      key: '文件上传: 上传会话状态已变更，请刷新后重试',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
       key: '相关文件不存在',
       code: ROOT_ERROR_CODE_NOT_FOUND,
     },

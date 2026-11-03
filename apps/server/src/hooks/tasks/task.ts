@@ -13,6 +13,7 @@ import type {
   TaskLogOptions,
   TaskOptions,
   TaskPolicySnapshot,
+  TaskTransaction,
 } from './types.js';
 
 /** 未显式配置并发分组时使用的稳定分组。 */
@@ -122,6 +123,18 @@ export class TaskApi {
     taskId: string,
   ): Promise<TaskDetail<TData, TResult> | null> {
     return await this.database.getTask<TData, TResult>(taskId);
+  }
+
+  /**
+   * 批量读取任务输入与状态，供领域去重和活动任务协调使用。
+   *
+   * @typeParam TData 对应任务脚本的持久化输入类型。
+   * @param taskIds 已由业务关联范围筛选的任务标识。
+   * @param transaction 可选调用方事务。
+   * @returns 与标识顺序一致的任务快照，不额外读取 attempt 历史。
+   */
+  getMany<TData = unknown>(taskIds: string[], transaction?: TaskTransaction) {
+    return this.database.getTasks<TData>(taskIds, transaction);
   }
 
   /**

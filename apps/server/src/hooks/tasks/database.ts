@@ -215,24 +215,53 @@ export class TaskDatabase {
   }
 
   /**
+   * 批量读取业务协调需要的任务输入与状态，不加载每次 attempt。
+   *
+   * @typeParam TData 由任务脚本约定的持久化输入类型。
+   * @param taskIds 已由业务关联范围筛选的任务标识。
+   * @param executor 可选领域事务，保证状态判断与领域变更使用相同提交边界。
+   * @returns 按传入标识顺序排列的现存任务，跳过已不存在的记录。
+   */
+  async getTasks<TData = unknown>(
+    taskIds: string[],
+    executor: Pick<typeof db, 'select'> = this.connection,
+  ) {
+    if (!taskIds.length) return [];
+    const rows = await executor
+      .select(TASK_DETAIL_FIELDS)
+      .from(schemas.tasks)
+      .where(inArray(schemas.tasks.task_id, taskIds));
+    const byId = new Map(rows.map((row) => [row.task_id, row]));
+    return taskIds.flatMap((taskId) => {
+      const row = byId.get(taskId);
+      if (!row) return [];
+      return [{ ...row, data: row.data as TData }];
+    });
+  }
+
+  /**
    * 分页查询通用任务。
    *
    * @param options 过滤、分页和计数开关。
    * @returns 当前页任务和可选总数。
    */
   async listTasks(options: TaskListOptions = {}) {
+    const executor = options.transaction ?? this.connection;
     const where = this.taskWhere(options.filter);
     const { offset, size } = normalizeTaskPage(options.limit);
-    const listPromise = this.connection
+    const listPromise = executor
       .select(TASK_PUBLIC_FIELDS)
       .from(schemas.tasks)
       .where(where)
-      .orderBy(desc(schemas.tasks.create_timestamp))
+      .orderBy(
+        desc(schemas.tasks.create_timestamp),
+        desc(schemas.tasks.task_id),
+      )
       .offset(offset)
       .limit(size);
     let countPromise: Promise<{ value: number }[]> = Promise.resolve([]);
     if (options.withCount) {
-      countPromise = this.connection
+      countPromise = executor
         .select({ value: countSql() })
         .from(schemas.tasks)
         .where(where);

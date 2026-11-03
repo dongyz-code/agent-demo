@@ -1,6 +1,7 @@
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
@@ -51,8 +52,8 @@ interface CompleteMultipartInput extends MultipartObjectReference {
 
 /** 服务端写入对象所需的信息。 */
 interface PutObjectInput extends ContentObjectReference {
-  /** 待写入的完整内容或可读流。 */
-  content: Buffer | Uint8Array | Readable;
+  /** 已在受控大小内收集的完整内容。 */
+  content: Buffer | Uint8Array;
 }
 
 /** 签发对象读取地址所需的信息。 */
@@ -66,7 +67,7 @@ interface PresignGetInput extends ContentObjectReference {
 }
 
 /**
- * documents 域使用的 S3 对象存储适配器。
+ * upload 内部使用的 S3 对象存储适配器，物理位置不进入公开接口。
  *
  * 该类只封装 S3 客户端状态、对象命令和预签名，不负责文件名清洗、
  * 对象路径生成、分片方案计算或上传会话状态迁移。
@@ -212,13 +213,18 @@ export class S3ObjectStorage {
    * @returns 终止完成时无返回值。
    */
   async abortMultipart(input: MultipartObjectReference): Promise<void> {
-    await this.internalClient.send(
-      new AbortMultipartUploadCommand({
-        Bucket: input.bucket,
-        Key: input.objectKey,
-        UploadId: input.uploadId,
-      }),
-    );
+    try {
+      await this.internalClient.send(
+        new AbortMultipartUploadCommand({
+          Bucket: input.bucket,
+          Key: input.objectKey,
+          UploadId: input.uploadId,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NoSuchUpload') return;
+      throw error;
+    }
   }
 
   /**
@@ -262,6 +268,26 @@ export class S3ObjectStorage {
         Key: input.objectKey,
         ContentType: input.contentType,
         Body: input.content,
+      }),
+    );
+  }
+
+  /**
+   * 将临时对象固化到独立位置，避免旧上传签名覆盖已发布文件。
+   *
+   * @param source 临时对象所在位置。
+   * @param target 只由服务端生成的最终位置。
+   * @returns 复制完成时结束，随后必须验证最终对象。
+   */
+  async copy(source: ObjectReference, target: ObjectReference): Promise<void> {
+    const copySource = [source.bucket, ...source.objectKey.split('/')]
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    await this.internalClient.send(
+      new CopyObjectCommand({
+        Bucket: target.bucket,
+        Key: target.objectKey,
+        CopySource: copySource,
       }),
     );
   }

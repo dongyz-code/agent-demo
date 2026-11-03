@@ -196,6 +196,6 @@ export const textInParser: DocumentParser = {
     if (typeof result.markdown !== 'string') {
       throw new ROOT_ERROR('TextIn 未返回 Markdown 内容');
     }
-    return parseTextContent(result.markdown, input.file.fileId, true);
+    return parseTextContent(result.markdown, input.file.key, true);
   },
 };

@@ -122,6 +122,8 @@ export interface TaskHandle<TData> {
 
 /** 通用任务分页查询输入。 */
 export interface TaskListOptions {
+  /** 与领域状态迁移共享的只读任务查询事务。 */
+  transaction?: TaskTransaction;
   /** 任务过滤条件。 */
   filter?: TaskSqlFilter;
   /** `[offset, end)` 分页区间。 */

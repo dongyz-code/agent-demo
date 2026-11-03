@@ -155,8 +155,30 @@ export interface DocumentSegment {
   tokenCount: number;
 }
 
+/** 已上传文件完成文档版本绑定后的业务结果。 */
+export interface DocumentUploadResult {
+  /** 新建或新增版本所属的文档。 */
+  documentId: string;
+  /** 新建或复用的文档版本。 */
+  documentVersionId: string;
+  /** 文档内递增版本号。 */
+  version: number;
+  /** 本次请求是否创建了新版本。 */
+  created: boolean;
+}
+
 /** 文档中心公共接口集合。 */
 export type DocumentAction = ApiMultAction<{
+  /** 将已上传的文档源文件幂等绑定为新文档或新版本。 */
+  'version/create': {
+    body: {
+      /** upload 返回的已验证文档源文件句柄。 */
+      key: string;
+      /** 已有文档标识；为空时创建文档。 */
+      documentId?: string;
+    };
+    resp: DocumentUploadResult;
+  };
   search: {
     body: {
       /** 文档名称或当前文件名关键词。 */

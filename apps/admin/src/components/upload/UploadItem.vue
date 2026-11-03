@@ -11,7 +11,9 @@
         <div v-if="!item.error" class="mt-1 text-xs text-gray-400">
           {{ stageText }}<span v-if="item.restored"> · 已恢复</span>
         </div>
-        <div v-if="item.error" class="mt-1 text-xs text-red-500">{{ item.error }}</div>
+        <div v-if="item.error" class="mt-1 text-xs text-red-500">
+          {{ item.error }}
+        </div>
       </div>
       <div class="flex shrink-0 gap-1">
         <el-button v-if="canPauseResume" link @click="$emit('pause-resume')">
@@ -57,9 +59,14 @@ const progressStatus = computed(() => {
   return undefined;
 });
 const showProgress = computed(() =>
-  ['uploading', 'paused', 'confirming', 'complete', 'failed'].includes(
-    props.item.stage,
-  ),
+  [
+    'uploading',
+    'paused',
+    'confirming',
+    'binding',
+    'complete',
+    'failed',
+  ].includes(props.item.stage),
 );
 const canPauseResume = computed(() =>
   ['uploading', 'paused'].includes(props.item.stage),
@@ -76,7 +83,8 @@ const stageLabels: Record<UploadQueueStage, string> = {
   initializing: '正在初始化上传会话',
   uploading: '正在传输文件',
   paused: '已暂停',
-  confirming: '文件已传输，正在验证并创建文档版本',
+  confirming: '文件已传输，正在验证',
+  binding: '文件已上传，正在创建文档版本',
   complete: '文档已入库',
   failed: '上传失败',
 };

@@ -3,9 +3,9 @@ import sanitizeHtml from 'sanitize-html';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db, schemas } from '@/database/index.js';
-import { NUL } from '@/utils/index.js';
+import { lockDocument } from '../access.js';
 import { documentsConfig } from '../config.js';
-import { documentFile } from '../file/index.js';
+import { upload } from '@/hooks/upload/index.js';
 import { textParser } from './parser-text.js';
 import { textInParser } from './parser-textin.js';
 import { createDocumentSegments } from './segment.js';
@@ -15,14 +15,6 @@ import type { DocumentParser } from './types.js';
 
 /** 解析器按可信 MIME 匹配，新增实现时只在入口注册一次。 */
 const documentParsers: DocumentParser[] = [textParser, textInParser];
-
-/** 需要由文档清理任务删除的私有对象位置。 */
-interface DocumentCleanupStoredObject {
-  /** 对象所在 Bucket。 */
-  bucket: string;
-  /** 对象私有路径。 */
-  objectKey: string;
-}
 
 /** 文档物理清理所需的业务输入。 */
 export interface DocumentCleanupInput {
@@ -74,7 +66,7 @@ class DocumentProcessor {
     input: DocumentContentProcessInput,
   ): Promise<DocumentContentProcessResult> {
     await input.assertActive();
-    const file = await documentFile.getReadableSource(input.fileId);
+    const file = await upload.getReadableSource(input.fileId);
     const parser = documentParsers.find((item) =>
       item.contentTypes.includes(file.contentType),
     );
@@ -165,10 +157,10 @@ class DocumentProcessor {
    */
   async cleanup(input: DocumentCleanupInput): Promise<DocumentCleanupResult> {
     await input.assertActive();
-    const objects = await loadDocumentCleanupObjects(input.documentId);
-    await deleteDocumentStoredObjects(objects, input);
+    const keys = await loadDocumentCleanupKeys(input.documentId);
+    await deleteDocumentStoredObjects(keys, input);
     await deleteDocumentDatabaseRows(input);
-    return { deletedObjectCount: objects.length };
+    return { deletedObjectCount: keys.length };
   }
 }
 
@@ -176,50 +168,38 @@ class DocumentProcessor {
 export const documentProcessor = new DocumentProcessor();
 
 /**
- * 顺序删除去重后的文档对象，并在每次远程动作前后检查取消。
+ * 删除业务已确认释放的文件对象，保留文件行供取消或失败后继续清理。
  *
- * @param objects 页面和源文件对象位置。
- * @param input 文档标识和通用存活检查。
- * @returns 所有对象均已删除时结束。
+ * @param keys 文档源文件与页面文件的去重句柄。
+ * @param input 已删除文档与通用执行权检查。
+ * @returns 所有对象均删除后结束；每个文件前后检查任务取消。
  */
 async function deleteDocumentStoredObjects(
-  objects: DocumentCleanupStoredObject[],
+  keys: string[],
   input: DocumentCleanupInput,
 ): Promise<void> {
-  const uniqueObjects = new Map(
-    objects.map((object) => [
-      `${object.bucket}${NUL}${object.objectKey}`,
-      object,
-    ]),
-  );
-  for (const object of uniqueObjects.values()) {
+  for (const key of keys) {
     await input.assertActive();
-    await documentFile.remove({
-      bucket: object.bucket,
-      objectKey: object.objectKey,
-    });
+    await upload.removeObjects([key]);
     await input.assertActive();
   }
 }
 
 /**
- * 读取已删除文档当前仍有数据库记录的页面和源文件对象。
+ * 读取已删除文档仍被领域行引用的全部文件，禁止清理活动文档。
  *
  * @param documentId 被逻辑删除的文档标识。
- * @returns 页面与源文件的私有对象位置；文档已被物理删除时返回空数组。
+ * @returns 源文件与双层页面文件的去重句柄；物理删除完成时为空。
  */
-async function loadDocumentCleanupObjects(
-  documentId: string,
-): Promise<DocumentCleanupStoredObject[]> {
+async function loadDocumentCleanupKeys(documentId: string): Promise<string[]> {
   const [document] = await db
     .select({ status: schemas.documents.status })
     .from(schemas.documents)
     .where(eq(schemas.documents.document_id, documentId))
     .limit(1);
   if (!document) return [];
-  if (document.status !== 'deleted') {
+  if (document.status !== 'deleted')
     throw new ROOT_ERROR('只有已逻辑删除的文档可以清理');
-  }
   const versions = await db
     .select({
       id: schemas.document_versions.document_version_id,
@@ -229,22 +209,15 @@ async function loadDocumentCleanupObjects(
     .where(eq(schemas.document_versions.document_id, documentId));
   if (!versions.length) return [];
   const versionIds = versions.map((version) => version.id);
-  const fileIds = versions.map((version) => version.fileId);
-  const [pages, quickPages, files] = await Promise.all([
+  const [pages, quickPages] = await Promise.all([
     db
-      .select({
-        bucket: schemas.document_preview_pages.bucket,
-        objectKey: schemas.document_preview_pages.object_key,
-      })
+      .select({ key: schemas.document_preview_pages.file_id })
       .from(schemas.document_preview_pages)
       .where(
         inArray(schemas.document_preview_pages.document_version_id, versionIds),
       ),
     db
-      .select({
-        bucket: schemas.document_preview_quick_pages.bucket,
-        objectKey: schemas.document_preview_quick_pages.object_key,
-      })
+      .select({ key: schemas.document_preview_quick_pages.file_id })
       .from(schemas.document_preview_quick_pages)
       .where(
         inArray(
@@ -252,15 +225,14 @@ async function loadDocumentCleanupObjects(
           versionIds,
         ),
       ),
-    db
-      .select({
-        bucket: schemas.files.bucket,
-        objectKey: schemas.files.object_key,
-      })
-      .from(schemas.files)
-      .where(inArray(schemas.files.file_id, fileIds)),
   ]);
-  return [...pages, ...quickPages, ...files];
+  return [
+    ...new Set([
+      ...versions.map((version) => version.fileId),
+      ...pages.map((page) => page.key),
+      ...quickPages.map((page) => page.key),
+    ]),
+  ];
 }
 
 /**
@@ -274,6 +246,8 @@ async function deleteDocumentDatabaseRows(
 ): Promise<void> {
   await input.assertActive();
   await db.transaction(async (tx) => {
+    await lockDocument(tx, input.documentId);
+    await input.assertActive();
     const [document] = await tx
       .select({ status: schemas.documents.status })
       .from(schemas.documents)
@@ -292,6 +266,32 @@ async function deleteDocumentDatabaseRows(
         .where(eq(schemas.document_versions.document_id, input.documentId));
       const versionIds = versions.map((version) => version.id);
       const fileIds = versions.map((version) => version.fileId);
+      if (versionIds.length) {
+        const [pages, quickPages] = await Promise.all([
+          tx
+            .select({ key: schemas.document_preview_pages.file_id })
+            .from(schemas.document_preview_pages)
+            .where(
+              inArray(
+                schemas.document_preview_pages.document_version_id,
+                versionIds,
+              ),
+            ),
+          tx
+            .select({ key: schemas.document_preview_quick_pages.file_id })
+            .from(schemas.document_preview_quick_pages)
+            .where(
+              inArray(
+                schemas.document_preview_quick_pages.document_version_id,
+                versionIds,
+              ),
+            ),
+        ]);
+        fileIds.push(
+          ...pages.map((page) => page.key),
+          ...quickPages.map((page) => page.key),
+        );
+      }
       await tx
         .delete(schemas.rag_dataset_documents)
         .where(eq(schemas.rag_dataset_documents.document_id, input.documentId));
@@ -323,14 +323,7 @@ async function deleteDocumentDatabaseRows(
             inArray(schemas.document_versions.document_version_id, versionIds),
           );
       }
-      if (fileIds.length) {
-        await tx
-          .delete(schemas.file_upload_sessions)
-          .where(inArray(schemas.file_upload_sessions.file_id, fileIds));
-        await tx
-          .delete(schemas.files)
-          .where(inArray(schemas.files.file_id, fileIds));
-      }
+      await upload.deleteRecords(fileIds, tx);
       await tx
         .delete(schemas.documents)
         .where(eq(schemas.documents.document_id, input.documentId));

@@ -1,18 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import {
   and,
-  asc,
   count,
-  countDistinct,
   desc,
   eq,
   gte,
   ilike,
   inArray,
-  lt,
   lte,
   max,
-  ne,
   or,
   sql,
 } from 'drizzle-orm';
@@ -24,17 +20,22 @@ import {
   pgAdvisoryXactLock,
   schemas,
 } from '@/database/index.js';
-import { binaryContentType } from '@repo/shared';
+import {
+  documentAccessWhere,
+  lockDocument,
+  requireDocument,
+} from './access.js';
+import { documentPreview } from './preview/index.js';
 import { documentsConfig } from './config.js';
 import { resolveDocumentVersion } from './document/resolve-version.js';
-import { documentFile } from './file/index.js';
+import { upload } from '@/hooks/upload/index.js';
 import { documentRag } from './rag/index.js';
 import { enqueueDocumentCleanup } from './tasks/cleanup.js';
-import {
-  cancelDocumentProcessingTasks,
-  enqueueDocumentProcess,
-} from './document-process-action.js';
+import { enqueueDocumentProcess } from './document-process-action.js';
 import type {
+  DocumentAction as DocumentApi,
+  DocumentUploadResult,
+  FileAccess,
   DocumentDetail,
   DocumentInfo,
   DocumentPreviewPageInfo,
@@ -45,6 +46,7 @@ import type {
   RagDatasetDocumentSummary,
 } from '@repo/types';
 import type { DocumentDatasetRelationMode } from './rag/index.js';
+import type { DbTransaction } from '@/database/index.js';
 
 /** 文档复杂搜索的服务端输入。 */
 interface SearchDocumentsInput {
@@ -71,11 +73,10 @@ type CurrentDocumentRow = {
   file: typeof schemas.files.$inferSelect;
 };
 
-/** 两个预览层级共用的页面数据库行结构。 */
-type StoredPreviewPage = typeof schemas.document_preview_pages.$inferSelect;
-
 /** 当前页文档使用的固定批量聚合结果。 */
 interface DocumentAggregates {
+  /** 一次批量查询生成的封面文件访问地址。 */
+  coverAccessByFile: Map<string, FileAccess>;
   /** 每个文档的版本数量。 */
   versionCountByDocument: Map<string, number>;
   /** 每个文档的知识库关系摘要。 */
@@ -149,61 +150,6 @@ interface ApplyDocumentDatasetAssignmentInput {
   triggerSource?: FileProcessingTriggerSource;
 }
 
-/** 预览页签名下载文件名扩展名，按页面 MIME 选择。 */
-function previewPageExtension(contentType: string): string {
-  return contentType === 'image/jpeg' ? 'jpg' : 'webp';
-}
-
-/**
- * 按页面层级读取一个连续窗口，避免公共接口感知内部双表结构。
- *
- * @param documentVersionId 不可变文档版本标识。
- * @param startPage 从 1 开始的窗口起始页。
- * @param pageSize 受服务端上限约束的窗口大小。
- * @param variant 本次需要读取的快速或清晰层级。
- * @returns 按页码升序排列的内部页面行。
- */
-async function loadPreviewPageRows(
-  documentVersionId: string,
-  startPage: number,
-  pageSize: number,
-  variant: DocumentPreviewPageVariant,
-): Promise<StoredPreviewPage[]> {
-  if (variant === 'quick') {
-    return await db
-      .select()
-      .from(schemas.document_preview_quick_pages)
-      .where(
-        and(
-          eq(
-            schemas.document_preview_quick_pages.document_version_id,
-            documentVersionId,
-          ),
-          gte(schemas.document_preview_quick_pages.page_number, startPage),
-          lt(
-            schemas.document_preview_quick_pages.page_number,
-            startPage + pageSize,
-          ),
-        ),
-      )
-      .orderBy(asc(schemas.document_preview_quick_pages.page_number));
-  }
-  return await db
-    .select()
-    .from(schemas.document_preview_pages)
-    .where(
-      and(
-        eq(
-          schemas.document_preview_pages.document_version_id,
-          documentVersionId,
-        ),
-        gte(schemas.document_preview_pages.page_number, startPage),
-        lt(schemas.document_preview_pages.page_number, startPage + pageSize),
-      ),
-    )
-    .orderBy(asc(schemas.document_preview_pages.page_number));
-}
-
 /**
  * 文档查询、版本、预览、知识库和处理任务业务动作。
  *
@@ -211,10 +157,52 @@ async function loadPreviewPageRows(
  */
 class DocumentAction {
   /**
+   * 将通用上传结果绑定为文档版本，并在同一事务内调度首次预览。
+   *
+   * @param input 已验证文档源文件句柄和可选目标文档。
+   * @param userId 当前用户，用于文件所有权、文档范围和审计。
+   * @returns 幂等的文档版本结果；绑定失败不影响已完成上传。
+   */
+  async bindUploadedFile(
+    input: DocumentApi['version/create']['body'],
+    userId: string,
+  ): Promise<DocumentUploadResult> {
+    return await db.transaction(async (transaction) => {
+      const result = await this.createVersionFromFile(
+        {
+          fileId: input.key,
+          documentId: input.documentId,
+          ragEnabled: false,
+        },
+        userId,
+        transaction,
+      );
+      if (result.created && documentsConfig.fileProcessing.enabled) {
+        await enqueueDocumentProcess(
+          {
+            documentId: result.document.documentId,
+            documentVersionId: result.documentVersionId,
+            operations: ['preview'],
+            triggerSource: 'upload',
+          },
+          userId,
+          transaction,
+        );
+      }
+      return {
+        documentId: result.document.documentId,
+        documentVersionId: result.documentVersionId,
+        version: result.version,
+        created: result.created,
+      };
+    });
+  }
+
+  /**
    * 搜索授权范围内的文档聚合摘要。
    *
    * @param input 筛选、分页和可选知识库范围。
-   * @param userId 当前用户，现阶段数据范围为创建人。
+   * @param userId 当前用户；系统管理员可以访问全部文档。
    * @returns 文档列表及可选总数。
    */
   async search(
@@ -224,10 +212,7 @@ class DocumentAction {
     const [start = 0, end = 20] = input.limit ?? [];
     const [createdStart, createdEnd] = input.createdAt ?? [];
     const where = buildWhere((filter) => {
-      filter.push(
-        eq(schemas.documents.create_user_id, userId),
-        ne(schemas.documents.status, 'deleted'),
-      );
+      filter.push(documentAccessWhere(userId));
       const search = input.search?.trim();
       if (search) {
         filter.push(
@@ -263,25 +248,7 @@ class DocumentAction {
         )`);
       }
     });
-    const baseQuery = db
-      .select({
-        document: schemas.documents,
-        version: schemas.document_versions,
-        file: schemas.files,
-      })
-      .from(schemas.documents)
-      .innerJoin(
-        schemas.document_versions,
-        eq(
-          schemas.document_versions.document_version_id,
-          schemas.documents.active_version_id,
-        ),
-      )
-      .innerJoin(
-        schemas.files,
-        eq(schemas.files.file_id, schemas.document_versions.source_file_id),
-      )
-      .where(where);
+    const baseQuery = this.selectCurrentDocumentRows(where);
     const [rows, countResult] = await Promise.all([
       baseQuery
         .orderBy(desc(schemas.documents.create_timestamp))
@@ -289,23 +256,8 @@ class DocumentAction {
         .limit(Math.max(0, end - start)),
       input.withCount
         ? db
-            .select({ value: countDistinct(schemas.documents.document_id) })
-            .from(schemas.documents)
-            .innerJoin(
-              schemas.document_versions,
-              eq(
-                schemas.document_versions.document_version_id,
-                schemas.documents.active_version_id,
-              ),
-            )
-            .innerJoin(
-              schemas.files,
-              eq(
-                schemas.files.file_id,
-                schemas.document_versions.source_file_id,
-              ),
-            )
-            .where(where)
+            .select({ value: count() })
+            .from(this.selectCurrentDocumentRows(where).as('current_documents'))
         : Promise.resolve([]),
     ]);
     if (!rows.length) {
@@ -324,17 +276,11 @@ class DocumentAction {
    * 查询单个文档详情与完整版本历史。
    *
    * @param documentId 文档稳定标识。
-   * @param userId 当前用户，现阶段数据范围为创建人。
+   * @param userId 当前用户；系统管理员可以访问全部文档。
    * @returns 文档聚合详情。
    */
   async getDetail(documentId: string, userId: string): Promise<DocumentDetail> {
-    const where = buildWhere((filter) => {
-      filter.push(
-        eq(schemas.documents.document_id, documentId),
-        eq(schemas.documents.create_user_id, userId),
-        ne(schemas.documents.status, 'deleted'),
-      );
-    });
+    const where = documentAccessWhere(userId, documentId);
     const [current] = await this.selectCurrentDocumentRows(where).limit(1);
     if (!current) {
       throw new ROOT_ERROR('相关文件不存在');
@@ -373,11 +319,7 @@ class DocumentAction {
       documentVersionId,
       userId,
     );
-    const signed = await documentFile.presignGet({
-      bucket: row.file.bucket,
-      objectKey: row.file.object_key,
-      contentType: row.file.content_type ?? binaryContentType,
-      filename: row.file.filename,
+    const signed = await upload.getUrl(row.file.file_id, {
       disposition: 'attachment',
     });
     return {
@@ -506,7 +448,12 @@ class DocumentAction {
         coverVariantByVersion.set(versionId, 'quick');
       }
     }
+    const coverAccessByFile = await upload.getUrls(
+      [...coverByVersion.values()].map((page) => page.file_id),
+      { disposition: 'inline' },
+    );
     return {
+      coverAccessByFile,
       versionCountByDocument: new Map(
         versionCounts.map((row) => [row.documentId, row.value]),
       ),
@@ -538,7 +485,7 @@ class DocumentAction {
       cover: cover
         ? await this.toPreviewPageInfo(
             cover,
-            `${row.document.name}-page-1.${previewPageExtension(cover.content_type)}`,
+            aggregates.coverAccessByFile.get(cover.file_id)!,
             aggregates.coverVariantByVersion.get(
               row.version.document_version_id,
             ) ?? 'clear',
@@ -574,22 +521,15 @@ class DocumentAction {
    * 为已通过文档权限校验的封面页面签发短期访问地址。
    *
    * @param page 快速表或清晰表中的第一页内部行。
-   * @param filename 响应使用的安全下载文件名。
+   * @param access 批量生成的短期访问地址，调用前已校验文档权限。
    * @param variant 当前页面实际所属层级。
    * @returns 不包含对象存储位置的公共页面描述。
    */
-  private async toPreviewPageInfo(
+  private toPreviewPageInfo(
     page: typeof schemas.document_preview_pages.$inferSelect,
-    filename: string,
+    access: FileAccess,
     variant: DocumentPreviewPageVariant,
-  ): Promise<DocumentPreviewPageInfo> {
-    const signed = await documentFile.presignGet({
-      bucket: page.bucket,
-      objectKey: page.object_key,
-      contentType: page.content_type,
-      filename,
-      disposition: 'inline',
-    });
+  ): DocumentPreviewPageInfo {
     return {
       documentVersionId: page.document_version_id,
       pageNumber: page.page_number,
@@ -598,8 +538,8 @@ class DocumentAction {
       height: page.height,
       contentType: page.content_type,
       size: page.size,
-      url: signed.url,
-      expiresAt: signed.expiresAt,
+      url: access.url,
+      expiresAt: access.expiresAt,
     };
   }
 
@@ -608,116 +548,78 @@ class DocumentAction {
    *
    * @param input 源文件、可选目标文档及新文档默认策略。
    * @param userId 当前操作用户，用于数据范围与审计。
+   * @param transaction 可选外层事务，使版本创建和处理任务入队原子提交。
    * @returns 已创建或复用的文档版本绑定。
    */
   async createVersionFromFile(
     input: CreateDocumentVersionFromFileInput,
     userId: string,
+    transaction?: DbTransaction,
   ): Promise<DocumentVersionBinding> {
-    const file = await documentFile.getStored(input.fileId);
-    if (file.status !== 'verified' || file.create_user_id !== userId) {
-      throw new ROOT_ERROR('数据异常');
+    if (!transaction) {
+      return await db.transaction(
+        async (tx) => await this.createVersionFromFile(input, userId, tx),
+      );
+    }
+    const file = await upload.requireOwned(input.fileId, userId, transaction);
+    if (file.purpose !== 'document') throw new ROOT_ERROR('非法参数');
+
+    const tx = transaction;
+    await pgAdvisoryXactLock(tx, 'document-source', input.fileId);
+    const [existing] = await tx
+      .select({
+        documentId: schemas.documents.document_id,
+        name: schemas.documents.name,
+        documentVersionId: schemas.document_versions.document_version_id,
+        version: schemas.document_versions.version,
+      })
+      .from(schemas.document_versions)
+      .innerJoin(
+        schemas.documents,
+        eq(
+          schemas.documents.document_id,
+          schemas.document_versions.document_id,
+        ),
+      )
+      .where(eq(schemas.document_versions.source_file_id, input.fileId))
+      .limit(1);
+    if (existing) {
+      await lockDocument(tx, existing.documentId);
+      await requireDocument(existing.documentId, userId, tx);
+      if (input.documentId && existing.documentId !== input.documentId) {
+        throw new ROOT_ERROR('数据异常');
+      }
+      return {
+        document: {
+          documentId: existing.documentId,
+          name: existing.name,
+        },
+        documentVersionId: existing.documentVersionId,
+        version: existing.version,
+        created: false,
+      };
     }
 
-    return await db.transaction(async (tx) => {
-      await pgAdvisoryXactLock(tx, 'document-source', input.fileId);
-      const [existing] = await tx
-        .select({
-          documentId: schemas.documents.document_id,
-          name: schemas.documents.name,
-          documentVersionId: schemas.document_versions.document_version_id,
-          version: schemas.document_versions.version,
-        })
-        .from(schemas.document_versions)
-        .innerJoin(
-          schemas.documents,
-          eq(
-            schemas.documents.document_id,
-            schemas.document_versions.document_id,
-          ),
-        )
-        .where(eq(schemas.document_versions.source_file_id, input.fileId))
-        .limit(1);
-      if (existing) {
-        if (input.documentId && existing.documentId !== input.documentId) {
-          throw new ROOT_ERROR('数据异常');
-        }
-        return {
-          document: {
-            documentId: existing.documentId,
-            name: existing.name,
-          },
-          documentVersionId: existing.documentVersionId,
-          version: existing.version,
-          created: false,
-        };
-      }
-
-      const now = new Date();
-      if (!input.documentId) {
-        const documentId = randomUUID();
-        const documentVersionId = randomUUID();
-        const name = input.name?.trim() || file.filename;
-        await tx.insert(schemas.documents).values({
-          document_id: documentId,
-          name,
-          active_version_id: documentVersionId,
-          rag_enabled: input.ragEnabled ?? false,
-          status: 'active',
-          create_user_id: userId,
-          create_timestamp: now,
-          last_update_user_id: userId,
-          last_update_timestamp: now,
-        });
-        await tx.insert(schemas.document_versions).values({
-          document_version_id: documentVersionId,
-          document_id: documentId,
-          version: 1,
-          source_file_id: input.fileId,
-          preview_status: 'pending',
-          preview_page_count: 0,
-          preview_error: null,
-          preview_converter_version: null,
-          create_user_id: userId,
-          create_timestamp: now,
-          last_update_user_id: userId,
-          last_update_timestamp: now,
-        });
-        return {
-          document: { documentId, name },
-          documentVersionId,
-          version: 1,
-          created: true,
-        };
-      }
-
-      const targetDocumentId = input.documentId;
-      await pgAdvisoryXactLock(tx, 'document-version', targetDocumentId);
-      const where = buildWhere((filter) => {
-        filter.push(
-          eq(schemas.documents.document_id, targetDocumentId),
-          eq(schemas.documents.create_user_id, userId),
-          ne(schemas.documents.status, 'deleted'),
-        );
-      });
-      const [document] = await tx
-        .select()
-        .from(schemas.documents)
-        .where(where)
-        .limit(1);
-      if (!document) {
-        throw new ROOT_ERROR('相关文件不存在');
-      }
-      const [latest] = await tx
-        .select({ version: max(schemas.document_versions.version) })
-        .from(schemas.document_versions)
-        .where(eq(schemas.document_versions.document_id, targetDocumentId));
-      const version = (latest?.version ?? 0) + 1;
+    const now = new Date();
+    if (!input.documentId) {
+      const documentId = randomUUID();
       const documentVersionId = randomUUID();
+      const name = input.name?.trim() || file.filename;
+      await tx.insert(schemas.documents).values({
+        document_id: documentId,
+        name,
+        active_version_id: documentVersionId,
+        rag_enabled: input.ragEnabled ?? false,
+        status: 'active',
+        create_user_id: userId,
+        create_timestamp: now,
+        last_update_user_id: userId,
+        last_update_timestamp: now,
+      });
       await tx.insert(schemas.document_versions).values({
         document_version_id: documentVersionId,
-        document_id: targetDocumentId,
-        version,
+        document_id: documentId,
+        version: 1,
         source_file_id: input.fileId,
         preview_status: 'pending',
         preview_page_count: 0,
@@ -728,24 +630,54 @@ class DocumentAction {
         last_update_user_id: userId,
         last_update_timestamp: now,
       });
-      await tx
-        .update(schemas.documents)
-        .set({
-          active_version_id: documentVersionId,
-          last_update_user_id: userId,
-          last_update_timestamp: now,
-        })
-        .where(eq(schemas.documents.document_id, targetDocumentId));
       return {
-        document: {
-          documentId: document.document_id,
-          name: document.name,
-        },
+        document: { documentId, name },
         documentVersionId,
-        version,
+        version: 1,
         created: true,
       };
+    }
+
+    const targetDocumentId = input.documentId;
+    await lockDocument(tx, targetDocumentId);
+    const document = await requireDocument(targetDocumentId, userId, tx);
+    const [latest] = await tx
+      .select({ version: max(schemas.document_versions.version) })
+      .from(schemas.document_versions)
+      .where(eq(schemas.document_versions.document_id, targetDocumentId));
+    const version = (latest?.version ?? 0) + 1;
+    const documentVersionId = randomUUID();
+    await tx.insert(schemas.document_versions).values({
+      document_version_id: documentVersionId,
+      document_id: targetDocumentId,
+      version,
+      source_file_id: input.fileId,
+      preview_status: 'pending',
+      preview_page_count: 0,
+      preview_error: null,
+      preview_converter_version: null,
+      create_user_id: userId,
+      create_timestamp: now,
+      last_update_user_id: userId,
+      last_update_timestamp: now,
     });
+    await tx
+      .update(schemas.documents)
+      .set({
+        active_version_id: documentVersionId,
+        last_update_user_id: userId,
+        last_update_timestamp: now,
+      })
+      .where(eq(schemas.documents.document_id, targetDocumentId));
+    return {
+      document: {
+        documentId: document.document_id,
+        name: document.name,
+      },
+      documentVersionId,
+      version,
+      created: true,
+    };
   }
 
   /**
@@ -754,61 +686,43 @@ class DocumentAction {
    * @param documentId 文档稳定标识。
    * @param documentVersionId 目标版本标识。
    * @param userId 当前操作用户。
-   * @returns 更新后的文档详情。
+   * @returns 更新后的文档详情；同版本 RAG 正在执行时回滚本次变更并提示稍后重试。
    */
   async setActiveVersion(
     documentId: string,
     documentVersionId: string,
     userId: string,
   ) {
-    await resolveDocumentVersion(documentId, documentVersionId, userId);
-    const relationCount = await db.transaction(async (tx) => {
-      await pgAdvisoryXactLock(tx, 'document-active', documentId);
-      const now = new Date();
-      const where = buildWhere((filter) => {
-        filter.push(
-          eq(schemas.documents.document_id, documentId),
-          eq(schemas.documents.create_user_id, userId),
-          ne(schemas.documents.status, 'deleted'),
-        );
-      });
-      const [updated] = await tx
+    await db.transaction(async (tx) => {
+      await lockDocument(tx, documentId);
+      await resolveDocumentVersion(documentId, documentVersionId, userId, tx);
+      await tx
         .update(schemas.documents)
         .set({
           active_version_id: documentVersionId,
           last_update_user_id: userId,
-          last_update_timestamp: now,
+          last_update_timestamp: new Date(),
         })
-        .where(where)
-        .returning({ id: schemas.documents.document_id });
-      if (!updated) {
-        throw new ROOT_ERROR('相关文件不存在');
-      }
-      const relations = await tx
-        .update(schemas.rag_dataset_documents)
-        .set({
-          pending_version_id: documentVersionId,
-          rag_status: 'pending',
-          rag_error: null,
-          last_update_user_id: userId,
-          last_update_timestamp: now,
-        })
-        .where(eq(schemas.rag_dataset_documents.document_id, documentId))
-        .returning({ id: schemas.rag_dataset_documents.dataset_document_id });
-      return relations.length;
-    });
-
-    if (documentsConfig.fileProcessing.enabled && relationCount) {
-      await enqueueDocumentProcess(
-        {
-          documentId,
-          documentVersionId,
-          operations: ['rag'],
-          triggerSource: 'manual',
-        },
+        .where(documentAccessWhere(userId, documentId));
+      const relations = await documentRag.setPendingVersion(tx, {
+        documentId,
+        documentVersionId,
         userId,
-      );
-    }
+      });
+      if (documentsConfig.fileProcessing.enabled && relations) {
+        await enqueueDocumentProcess(
+          {
+            documentId,
+            documentVersionId,
+            operations: ['rag'],
+            triggerSource: 'manual',
+            reuseActive: false,
+          },
+          userId,
+          tx,
+        );
+      }
+    });
     return await this.getDetail(documentId, userId);
   }
 
@@ -820,22 +734,13 @@ class DocumentAction {
    * @returns 固定成功结果；已经删除时同样成功。
    */
   async remove(documentId: string, userId: string): Promise<'ok'> {
-    const documentWhere = buildWhere((filter) => {
-      filter.push(
-        eq(schemas.documents.document_id, documentId),
-        eq(schemas.documents.create_user_id, userId),
-      );
-    });
+    const documentWhere = documentAccessWhere(userId, documentId, true);
     const [document] = await db
       .select({ id: schemas.documents.document_id })
       .from(schemas.documents)
       .where(documentWhere)
       .limit(1);
     if (!document) return 'ok';
-    await cancelDocumentProcessingTasks(documentId, userId, {
-      errorCode: 'DOCUMENT_REMOVED',
-      message: '文档已删除，文件处理任务已取消',
-    });
     await enqueueDocumentCleanup(documentId, userId);
     return 'ok';
   }
@@ -882,21 +787,20 @@ class DocumentAction {
         pages: [],
       };
     }
-    const rows = await loadPreviewPageRows(
+    const rows = await documentPreview.loadPages(
       version.document_version_id,
       startPage,
       pageSize,
       variant,
     );
-    const pages = await Promise.all(
-      rows.map(
-        async (page) =>
-          await this.signPreviewPage(
-            page,
-            `${resolved.document.name}-page-${page.page_number}.${previewPageExtension(page.content_type)}`,
-            variant,
-          ),
-      ),
+    const accessByFile = await upload.getUrls(
+      rows.map((page) => page.file_id),
+      {
+        disposition: 'inline',
+      },
+    );
+    const pages = rows.map((page) =>
+      this.toPreviewPageInfo(page, accessByFile.get(page.file_id)!, variant),
     );
     return {
       documentId: input.documentId,
@@ -941,40 +845,7 @@ class DocumentAction {
   }
 
   /**
-   * 为已通过文档权限校验的窗口页面签发短期内联地址。
-   *
-   * @param page 快速表或清晰表中的页面内部行。
-   * @param filename 响应使用的安全文件名。
-   * @param variant 当前页面实际所属层级。
-   * @returns 不包含对象存储位置的公共页面描述。
-   */
-  private async signPreviewPage(
-    page: typeof schemas.document_preview_pages.$inferSelect,
-    filename: string,
-    variant: DocumentPreviewPageVariant,
-  ): Promise<DocumentPreviewPageInfo> {
-    const signed = await documentFile.presignGet({
-      bucket: page.bucket,
-      objectKey: page.object_key,
-      contentType: page.content_type,
-      filename,
-      disposition: 'inline',
-    });
-    return {
-      documentVersionId: page.document_version_id,
-      pageNumber: page.page_number,
-      variant,
-      width: page.width,
-      height: page.height,
-      contentType: page.content_type,
-      size: page.size,
-      url: signed.url,
-      expiresAt: signed.expiresAt,
-    };
-  }
-
-  /**
-   * 修改知识库关系，并为同一 DocumentVersion 最多创建一个 RAG 任务。
+   * 在同一事务内修改知识库关系并创建 RAG 任务，拒绝覆盖正在处理的同版本。
    *
    * @param input 文档版本、知识库集合、变更方式、处理配置和审计用户。
    * @returns 关系更新及 RAG 任务触发完成后结束。
@@ -982,22 +853,26 @@ class DocumentAction {
   private async applyDocumentDatasetAssignment(
     input: ApplyDocumentDatasetAssignmentInput,
   ): Promise<void> {
-    await documentRag.updateRelations(input);
-    if (
-      documentsConfig.fileProcessing.enabled &&
-      input.mode !== 'remove' &&
-      input.datasetIds.length
-    ) {
-      await enqueueDocumentProcess(
-        {
-          documentId: input.documentId,
-          documentVersionId: input.documentVersionId,
-          operations: ['rag'],
-          triggerSource: input.triggerSource ?? 'manual',
-        },
-        input.userId,
-      );
-    }
+    await db.transaction(async (transaction) => {
+      await documentRag.updateRelations(input, transaction);
+      if (
+        documentsConfig.fileProcessing.enabled &&
+        input.mode !== 'remove' &&
+        input.datasetIds.length
+      ) {
+        await enqueueDocumentProcess(
+          {
+            documentId: input.documentId,
+            documentVersionId: input.documentVersionId,
+            operations: ['rag'],
+            triggerSource: input.triggerSource ?? 'manual',
+            reuseActive: false,
+          },
+          input.userId,
+          transaction,
+        );
+      }
+    });
   }
 
   /**

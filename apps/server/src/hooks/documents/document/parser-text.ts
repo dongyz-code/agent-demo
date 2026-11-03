@@ -17,9 +17,9 @@ export const textParser: DocumentParser = {
     const source = await readText(file);
     const extension = getFileExtension(file.filename);
     if (extension === 'csv') {
-      return parseCsv(source, file.fileId);
+      return parseCsv(source, file.key);
     }
-    return parseTextContent(source, file.fileId, extension === 'md');
+    return parseTextContent(source, file.key, extension === 'md');
   },
 };
 

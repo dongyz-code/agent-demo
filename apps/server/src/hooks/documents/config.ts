@@ -15,12 +15,10 @@ function normalizeEndpoint(value: string): string {
 const FILE_PROCESSING_ENABLED = true;
 
 export const documentsConfig = {
-  upload: {
-    presignExpiresSeconds: 20 * 60,
-    multipartThresholdBytes: 50 * 1024 * 1024,
-    partSizeBytes: 16 * 1024 * 1024,
-    maxFileSizeBytes: 200 * 1024 * 1024,
-    sessionExpiresSeconds: 24 * 60 * 60,
+  preview: {
+    /** 转换器允许读取的源文件上限，独立于上传传输配置。 */
+    maxSourceBytes: 200 * 1024 * 1024,
+    /** 文本预览只读取有限内容，避免生成无界页面。 */
     maxTextPreviewBytes: 1024 * 1024,
   },
   document: {

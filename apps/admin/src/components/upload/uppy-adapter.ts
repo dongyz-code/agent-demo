@@ -5,10 +5,7 @@ import GoldenRetriever from '@uppy/golden-retriever';
 import { api } from '@/utils';
 import { binaryContentType, contentTypesByExtension } from '@repo/shared';
 import { getUploadErrorMessage } from './utils';
-import {
-  documentMaxFileSizeBytes,
-  resolveDeclaredContentType,
-} from './config';
+import { documentMaxFileSizeBytes, resolveDeclaredContentType } from './config';
 
 import type { UppyFile } from '@uppy/core';
 import type {
@@ -29,17 +26,14 @@ const NON_RETRYABLE_ERROR_PARTS = [
 ];
 
 /** 需要创建新上传尝试而不能复用旧 session 的错误片段。 */
-const RESTART_REQUIRED_ERROR_PARTS = [
-  '上传会话已过期',
-  '上传会话已结束',
-];
+const RESTART_REQUIRED_ERROR_PARTS = ['上传会话已过期', '上传会话已结束'];
 
 /** 浏览器同时执行的对象存储请求上限，控制带宽竞争和内存占用。 */
 const DOCUMENT_UPLOAD_CONCURRENCY = 4;
 
-/** 创建使用项目文档上传接口的 Uppy 实例和队列操作。 */
+/** 创建文档上传队列，传输走通用 upload，入库走独立文档绑定接口。 */
 export function createUploadUppy(options: UploaderOptions) {
-  const uploaderId = ['agent-demo-upload', options.instanceKey].join('-');
+  const uploaderId = ['agent-demo-upload-v2', options.instanceKey].join('-');
   const uppy = new Uppy<UploadFileMeta, UploadResponseBody>({
     id: uploaderId,
     autoProceed: false,
@@ -93,7 +87,7 @@ export function createUploadUppy(options: UploaderOptions) {
       };
     },
     async listParts(_file, upload) {
-      const result = await api('/documents/upload-list-parts', {
+      const result = await api('/upload/list-parts', {
         sessionId: upload.key,
       });
       return result.parts.map((part) => ({
@@ -103,7 +97,7 @@ export function createUploadUppy(options: UploaderOptions) {
       }));
     },
     async signPart(_file, upload) {
-      const result = await api('/documents/upload-sign-parts', {
+      const result = await api('/upload/sign-parts', {
         sessionId: upload.key,
         partNumber: upload.partNumber,
       });
@@ -115,11 +109,11 @@ export function createUploadUppy(options: UploaderOptions) {
       return { location: '', file: storedFile };
     },
     async abortMultipartUpload(_file, upload) {
-      await api('/documents/upload-abort', { sessionId: upload.key });
+      await api('/upload/abort', { sessionId: upload.key });
     },
   });
 
-  /** 普通 PutObject 完成后在 Uppy 成功前执行可信验证和文档绑定。 */
+  /** 普通直传完成后分别执行文件验证和文档绑定，两个结果独立保存。 */
   const completeSingleUploads = async (fileIds: string[]) => {
     await Promise.all(
       fileIds.map(async (fileId) => {
@@ -165,6 +159,10 @@ export function createUploadUppy(options: UploaderOptions) {
   async function initializeFile(fileId: string): Promise<boolean> {
     const file = uppy.getFile(fileId);
     if (!file || file.meta.storedFile) return true;
+    if (file.meta.uploadedFile) {
+      await completePendingFile(file.id);
+      return Boolean(uppy.getFile(file.id)?.meta.storedFile);
+    }
     setFileStage(file.id, 'initializing');
     try {
       const uploadAttemptId = file.meta.uploadAttemptId ?? crypto.randomUUID();
@@ -182,12 +180,12 @@ export function createUploadUppy(options: UploaderOptions) {
         retryable: false,
         restartRequired: false,
       });
-      const initialized = await api('/documents/upload-init', {
+      const initialized = await api('/upload/init', {
         filename: file.name,
         contentType,
         size: file.size ?? 0,
         idempotencyKey: uploadAttemptId,
-        documentId,
+        purpose: 'document',
       });
       uppy.setFileMeta(file.id, {
         ...uppy.getFile(file.id).meta,
@@ -220,15 +218,29 @@ export function createUploadUppy(options: UploaderOptions) {
   }
 
   /**
-   * 完成服务端验证、保存文档结果并独立通知页面刷新。
+   * 分别保存文件句柄和文档结果，业务绑定失败后只重试绑定。
    *
    * @param file 当前 Uppy 文件。
    * @param sessionId 服务端上传会话标识。
    * @returns 文档版本绑定结果。
    */
   async function completeUploadAndNotify(file: ManagedFile, sessionId: string) {
+    let current = uppy.getFile(file.id);
+    if (!current) throw new Error('文件已从队列移除');
+    let uploadedFile = current.meta.uploadedFile;
+    if (!uploadedFile) {
+      uploadedFile = await api('/upload/complete', { sessionId });
+      current = uppy.getFile(file.id);
+      if (!current) throw new Error('文件已从队列移除');
+      uppy.setFileMeta(file.id, { ...current.meta, uploadedFile });
+    }
+    setFileStage(file.id, 'binding');
     const storedFile =
-      file.meta.storedFile ?? (await completeStoredUpload(sessionId));
+      current.meta.storedFile ??
+      (await api('/documents/document-version-create', {
+        key: uploadedFile.key,
+        documentId: current.meta.documentId ?? undefined,
+      }));
     storeDocumentResult(file.id, storedFile);
     await notifyUploaded(storedFile);
     return storedFile;
@@ -238,13 +250,17 @@ export function createUploadUppy(options: UploaderOptions) {
   async function retryFile(fileId: string): Promise<void> {
     let file = uppy.getFile(fileId);
     if (!file || file.meta.retryable === false) return;
+    if (file.meta.uploadedFile) {
+      await completePendingFile(file.id);
+      return;
+    }
     if (file.meta.restartRequired) {
       resetUploadAttempt(file.id);
       file = uppy.getFile(file.id);
     }
     if (file.meta.sessionId && file.progress.uploadComplete) {
       try {
-        const status = await api('/documents/upload-status', {
+        const status = await api('/upload/status', {
           sessionId: file.meta.sessionId,
         });
         if (status.status === 'completed' || status.status === 'completing') {
@@ -269,10 +285,10 @@ export function createUploadUppy(options: UploaderOptions) {
   async function removeFile(fileId: string): Promise<void> {
     const file = uppy.getFile(fileId);
     const sessionId = file?.meta.sessionId;
-    const completed = Boolean(file?.meta.storedFile);
+    const completed = Boolean(file?.meta.uploadedFile || file?.meta.storedFile);
     if (file) uppy.removeFile(fileId);
     if (sessionId && !completed) {
-      await api('/documents/upload-abort', { sessionId }).catch(() => undefined);
+      await api('/upload/abort', { sessionId }).catch(() => undefined);
     }
   }
 
@@ -308,12 +324,18 @@ export function createUploadUppy(options: UploaderOptions) {
         ...file.meta,
         restored: true,
       });
-      if (file.isGhost || !file.meta.sessionId) {
+      if (file.meta.storedFile) continue;
+      if (file.meta.uploadedFile) {
+        detachFileFromCurrentUploads(file.id);
+        await completePendingFile(file.id);
+        continue;
+      }
+      if (!file.meta.sessionId) {
         uppy.removeFile(file.id);
         continue;
       }
       try {
-        const status = await api('/documents/upload-status', {
+        const status = await api('/upload/status', {
           sessionId: file.meta.sessionId,
         });
         if (status.status === 'completed') {
@@ -331,6 +353,10 @@ export function createUploadUppy(options: UploaderOptions) {
             file.id,
             '上次上传会话已结束，请重试或重新选择文件',
           );
+          continue;
+        }
+        if (file.isGhost) {
+          await removeFile(file.id);
           continue;
         }
         if (await initializeFile(file.id)) hasResumableUpload = true;
@@ -352,9 +378,7 @@ export function createUploadUppy(options: UploaderOptions) {
     if (!file?.meta.sessionId) return;
     setFileStage(file.id, 'confirming');
     try {
-      const storedFile = await completeStoredUpload(file.meta.sessionId);
-      storeDocumentResult(file.id, storedFile);
-      await notifyUploaded(storedFile);
+      await completeUploadAndNotify(file, file.meta.sessionId);
     } catch (error) {
       setFileFailure(file.id, error, '文件验证或文档入库失败');
     }
@@ -438,7 +462,10 @@ export function createUploadUppy(options: UploaderOptions) {
   }
 
   /** 丢弃终态 session 元数据并为同一 Blob 创建新的上传尝试。 */
-  function resetUploadAttempt(fileId: string, error: string | null = null): void {
+  function resetUploadAttempt(
+    fileId: string,
+    error: string | null = null,
+  ): void {
     const file = uppy.getFile(fileId);
     if (!file) return;
     const {
@@ -448,6 +475,7 @@ export function createUploadUppy(options: UploaderOptions) {
       uploadUrl: _uploadUrl,
       uploadHeaders: _uploadHeaders,
       storedFile: _storedFile,
+      uploadedFile: _uploadedFile,
       ...preservedMeta
     } = file.meta;
     let stage: NonNullable<ManagedFile['meta']['stage']> = 'waiting';
@@ -511,16 +539,6 @@ export function createUploadUppy(options: UploaderOptions) {
     prepareContext,
     clearDismissedFiles,
   };
-}
-
-/**
- * 完成服务端对象合并、可信验证和文档版本绑定。
- *
- * @param sessionId 服务端上传会话标识。
- * @returns 文档版本绑定结果。
- */
-async function completeStoredUpload(sessionId: string) {
-  return await api('/documents/upload-complete', { sessionId });
 }
 
 /** 断言预处理器已为文件建立可写上传会话。 */

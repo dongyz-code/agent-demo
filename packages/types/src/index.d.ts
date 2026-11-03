@@ -4,6 +4,7 @@ import type { Login } from './routes/login/index.js';
 import type { Sys } from './routes/sys/index.js';
 import type { DocumentsAction } from './routes/documents/index.js';
 import type { AgentAction } from './routes/agent/index.js';
+import type { Upload } from './routes/upload/index.js';
 
 export type API = {
   prefix: '/api';
@@ -12,10 +13,12 @@ export type API = {
     '/sys': ApiMultActionToApi<Sys>;
     '/documents': ApiMultActionToApi<DocumentsAction>;
     '/agent': ApiMultActionToApi<AgentAction>;
+    '/upload': ApiMultActionToApi<Upload>;
   };
 };
 
 export type * from './common/index.js';
+export type * from './upload.js';
 export type * from './routes/index.js';
 export type * from '@repo/shared/permission';
 

@@ -10,6 +10,7 @@ import { timestampsTrigger } from '../declaration/presets.js';
 
 import type {
   StoredFileStatus,
+  FilePurpose,
   UploadMode,
   UploadSessionStatus,
 } from '@repo/types';
@@ -19,6 +20,8 @@ export const files = pgTable(
   {
     /** 通用文件稳定标识。 */
     file_id: varchar255('file_id').primaryKey(),
+    /** 上传时冻结的用途，业务绑定不得跨用途使用。 */
+    purpose: varchar255('purpose').$type<FilePurpose>().notNull(),
     /** 用户上传时的显示名称。 */
     filename: text('filename').notNull(),
     /** 经服务端规范化后的扩展名，不包含点。 */
@@ -57,8 +60,6 @@ export const file_upload_sessions = pgTable(
     session_id: varchar255('session_id').primaryKey(),
     /** 初始化时创建的通用文件标识。 */
     file_id: varchar255('file_id').notNull(),
-    /** 新增版本时的目标文档；新建文档时为空。 */
-    document_id: varchar255('document_id'),
     /** 客户端请求幂等键。 */
     idempotency_key: varchar255('idempotency_key').notNull(),
     /** 单对象或 Multipart 模式。 */

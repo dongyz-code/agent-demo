@@ -96,17 +96,12 @@ export const document_preview_pages = pgTable(
     content_type: varchar255('content_type').notNull(),
     /** 页面图片字节数。 */
     size: bigint('size', { mode: 'number' }).notNull(),
-    /** 私有页面对象所在 Bucket，仅供服务端使用。 */
-    bucket: varchar255('bucket').notNull(),
-    /** 私有页面对象路径，不得返回普通客户端。 */
-    object_key: text('object_key').notNull(),
+    /** upload 管理的已验证页面文件句柄。 */
+    file_id: varchar255('file_id').notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.document_version_id, table.page_number] }),
-    uniqueIndex('document_preview_pages_object_unique').on(
-      table.bucket,
-      table.object_key,
-    ),
+    uniqueIndex('document_preview_pages_file_unique').on(table.file_id),
   ],
 );
 
@@ -126,17 +121,12 @@ export const document_preview_quick_pages = pgTable(
     content_type: varchar255('content_type').notNull(),
     /** 页面图片字节数。 */
     size: bigint('size', { mode: 'number' }).notNull(),
-    /** 私有页面对象所在 Bucket，仅供服务端使用。 */
-    bucket: varchar255('bucket').notNull(),
-    /** 私有页面对象路径，不得返回普通客户端。 */
-    object_key: text('object_key').notNull(),
+    /** upload 管理的已验证快速页面文件句柄。 */
+    file_id: varchar255('file_id').notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.document_version_id, table.page_number] }),
-    uniqueIndex('document_preview_quick_pages_object_unique').on(
-      table.bucket,
-      table.object_key,
-    ),
+    uniqueIndex('document_preview_quick_pages_file_unique').on(table.file_id),
   ],
 );
 

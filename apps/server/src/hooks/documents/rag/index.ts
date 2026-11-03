@@ -1,9 +1,12 @@
 import { eq } from 'drizzle-orm';
 
-import { db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
+import { lockDocument, requireDocument } from '../access.js';
 import { documentProcessor } from '../document/index.js';
 import { embedAndIndexSegments } from './indexing.js';
 import {
+  setDocumentRagPendingVersion,
+  failDocumentRagRelations,
   markDocumentRagRelationsProcessing,
   prepareDocumentRagRelationsForReprocessing,
   publishDocumentRagRelations,
@@ -57,6 +60,7 @@ async function processDocumentRag(
     documentId: input.documentId,
     documentVersionId: input.documentVersionId,
     userId: input.userId,
+    assertActive: input.assertActive,
   });
   const content = await documentProcessor.process({
     fileId: input.fileId,
@@ -67,7 +71,7 @@ async function processDocumentRag(
     assertActive: input.assertActive,
   });
   await input.assertActive();
-  await persistDocumentSegments(input.documentVersionId, {
+  await persistDocumentSegments(input, {
     segments: content.segments,
     segmentProfileVersion: content.segmentProfileVersion,
   });
@@ -82,6 +86,7 @@ async function processDocumentRag(
     documentId: input.documentId,
     documentVersionId: input.documentVersionId,
     userId: input.userId,
+    assertActive: input.assertActive,
   });
   return {
     segmentCount: content.segments.length,
@@ -94,6 +99,10 @@ async function processDocumentRag(
 export const documentRag = {
   /** 解析并发布指定文档版本的 RAG 内容。 */
   process: processDocumentRag,
+  /** 在版本切换事务中对齐所有知识库关系。 */
+  setPendingVersion: setDocumentRagPendingVersion,
+  /** 在调用方事务中收敛当前版本关系失败状态。 */
+  fail: failDocumentRagRelations,
   /** 按 add、remove 或 replace 修改文档知识库关系。 */
   updateRelations: updateDocumentDatasetRelations,
   /** 为新一轮处理准备 pending 知识库关系。 */
@@ -105,12 +114,12 @@ export type { DocumentDatasetRelationMode } from './relations.js';
 /**
  * 幂等替换当前版本唯一一套 Segment。
  *
- * @param documentVersionId 本次替换 Segment 的不可变文档版本。
+ * @param input 当前执行的文档版本、审计信息与存活检查。
  * @param result 待发布 Segment 与切分策略版本。
  * @returns 数据库中的版本 Segment 替换完成后结束。
  */
 async function persistDocumentSegments(
-  documentVersionId: string,
+  input: DocumentRagProcessInput,
   result: {
     /** 本次生成的全部 Segment。 */
     segments: DocumentSegment[];
@@ -119,17 +128,22 @@ async function persistDocumentSegments(
   },
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    await pgAdvisoryXactLock(tx, 'document-segments', documentVersionId);
+    await lockDocument(tx, input.documentId);
+    await input.assertActive();
+    await requireDocument(input.documentId, input.userId, tx);
     await tx
       .delete(schemas.document_segments)
       .where(
-        eq(schemas.document_segments.document_version_id, documentVersionId),
+        eq(
+          schemas.document_segments.document_version_id,
+          input.documentVersionId,
+        ),
       );
     if (result.segments.length) {
       await tx.insert(schemas.document_segments).values(
         result.segments.map((segment) => ({
           segment_id: segment.segmentId,
-          document_version_id: documentVersionId,
+          document_version_id: input.documentVersionId,
           parent_segment_id: segment.parentSegmentId,
           content: segment.content,
           embedding_content: segment.embeddingContent,

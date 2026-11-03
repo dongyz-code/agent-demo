@@ -2,7 +2,6 @@ import type { ApiMultAction } from '../../common/index.js';
 import type { DocumentAction } from './document.js';
 import type { Rag } from './dataset.js';
 import type { FileProcessingAction } from './processing.js';
-import type { Upload } from './upload.js';
 
 /**
  * documents 域统一接口集合。
@@ -27,18 +26,8 @@ export type DocumentsAction = ApiMultAction<{
   'document-preview-pages': DocumentAction['preview/pages'];
   /** 重试当前或指定版本的预览。 */
   'document-preview-retry': DocumentAction['preview/retry'];
-  /** 初始化上传会话。 */
-  'upload-init': Upload['init'];
-  /** 签名上传分片。 */
-  'upload-sign-parts': Upload['sign-parts'];
-  /** 查询已上传分片。 */
-  'upload-list-parts': Upload['list-parts'];
-  /** 完成上传。 */
-  'upload-complete': Upload['complete'];
-  /** 取消上传。 */
-  'upload-abort': Upload['abort'];
-  /** 上传会话状态。 */
-  'upload-status': Upload['status'];
+  /** 将通用文件句柄绑定为文档版本。 */
+  'document-version-create': DocumentAction['version/create'];
   /** 文件处理任务详情。 */
   'processing-detail': FileProcessingAction['detail'];
   /** 取消文件处理任务。 */
@@ -79,11 +68,10 @@ export type {
   DocumentParsedBlock,
   DocumentSegment,
   DocumentAction,
+  DocumentUploadResult,
 } from './document.js';
 
 /** 知识库实体与接口类型。 */
 export type * from './dataset.js';
 /** 文件处理任务实体与接口类型。 */
 export type * from './processing.js';
-/** 上传实体与接口类型。 */
-export type * from './upload.js';

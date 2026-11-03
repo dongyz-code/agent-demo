@@ -1,10 +1,12 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
-import { db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
+import { db, schemas } from '@/database/index.js';
 import { defineTask, task } from '@/hooks/tasks/task.js';
+import { lockDocument, requireDocument } from '../access.js';
 import { documentsConfig } from '../config.js';
 import { documentProcessor } from '../document/index.js';
+import { cancelDocumentProcessesForRemoval } from '../document-process-action.js';
 
 import type { TaskRunContext } from '@/hooks/tasks/task.js';
 
@@ -37,19 +39,20 @@ export async function enqueueDocumentCleanup(
     throw new ROOT_ERROR('相关文件不存在');
   }
   const taskId = task.createId();
-  return await db.transaction(async (transaction) => {
-    await pgAdvisoryXactLock(transaction, 'document-cleanup', documentId);
-    const [document] = await transaction
-      .select({ status: schemas.documents.status })
-      .from(schemas.documents)
-      .where(
-        and(
-          eq(schemas.documents.document_id, documentId),
-          eq(schemas.documents.create_user_id, actorUserId),
-        ),
-      )
-      .limit(1);
-    if (!document) throw new ROOT_ERROR('相关文件不存在');
+  let canceledIds: string[] = [];
+  const result = await db.transaction(async (transaction) => {
+    await lockDocument(transaction, documentId);
+    const document = await requireDocument(
+      documentId,
+      actorUserId,
+      transaction,
+      true,
+    );
+    canceledIds = await cancelDocumentProcessesForRemoval(
+      transaction,
+      documentId,
+      actorUserId,
+    );
     const now = new Date();
     if (document.status !== 'deleted') {
       await transaction
@@ -74,6 +77,8 @@ export async function enqueueDocumentCleanup(
     });
     return taskId;
   });
+  for (const canceledId of canceledIds) task.interrupt(canceledId);
+  return result;
 }
 
 /**

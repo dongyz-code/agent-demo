@@ -3,3 +3,4 @@ export type * from './login/index.js';
 export type * from './sys/index.js';
 export type * from './documents/index.js';
 export type * from './agent/index.js';
+export type * from './upload/index.js';

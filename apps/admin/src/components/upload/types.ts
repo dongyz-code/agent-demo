@@ -1,10 +1,10 @@
-import type { DocumentUploadResult, UploadMode } from '@/types';
+import type { DocumentUploadResult, UploadedFile, UploadMode } from '@/types';
 
 /** Uppy 文件上保存的通用上传会话元数据。 */
 export interface UploadFileMeta extends Record<string, unknown> {
   /** 当前浏览器选择生成的上传尝试标识；新选择和终态重传必须不同。 */
   uploadAttemptId?: string;
-  /** 初始化会话时绑定的目标文档；空值表示创建新文档。 */
+  /** 首次初始化时冻结的业务目标，仅由文档绑定接口使用。 */
   documentId?: string | null;
   /** 服务端上传会话标识。 */
   sessionId?: string;
@@ -24,6 +24,8 @@ export interface UploadFileMeta extends Record<string, unknown> {
   restartRequired?: boolean;
   /** 是否由浏览器持久化数据恢复。 */
   restored?: boolean;
+  /** 文件验证成功后的句柄；绑定失败仍保留，重试时不重新上传。 */
+  uploadedFile?: UploadedFile;
   /** 对象已完成验证并绑定文档后保存的业务结果。 */
   storedFile?: DocumentUploadResult;
 }
@@ -35,6 +37,7 @@ export type UploadQueueStage =
   | 'uploading'
   | 'paused'
   | 'confirming'
+  | 'binding'
   | 'complete'
   | 'failed';
 

@@ -43,7 +43,7 @@ export async function* convertText(
 ): AsyncGenerator<ConvertedDocumentPage> {
   const content = await readSourceBuffer(
     source,
-    documentsConfig.upload.maxTextPreviewBytes,
+    documentsConfig.preview.maxTextPreviewBytes,
   );
   const raw = content.toString('utf8').replaceAll(NUL, '');
   const safeText =

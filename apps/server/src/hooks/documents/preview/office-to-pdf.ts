@@ -25,7 +25,7 @@ import type { DocumentPageSource } from './shared.js';
 /** soffice 可执行名；本地唯一选项，生产装 libreoffice 使其在 PATH 即可。 */
 const SOFFICE_BINARY = 'soffice';
 /** 源文件字节数上限，与上传限制一致，防止异常大文件撑爆临时盘与内存。 */
-const MAX_SOURCE_BYTES = documentsConfig.upload.maxFileSizeBytes;
+const MAX_SOURCE_BYTES = documentsConfig.preview.maxSourceBytes;
 /** PDF 文件头魔数，用于校验 soffice 输出。 */
 const PDF_MAGIC = Buffer.from('%PDF-');
 

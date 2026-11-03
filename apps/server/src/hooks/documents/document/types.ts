@@ -1,11 +1,11 @@
 import type { ApiLogCallMeta } from '@/hooks/api-log/static.js';
 import type { DocumentParsedBlock } from '@repo/types';
-import type { ReadableDocumentSource } from '../file/index.js';
+import type { ReadableFileSource } from '@/hooks/upload/index.js';
 
 /** 文档解析器输入。 */
 export interface DocumentParserInput {
   /** 已验证通用文件及可重复读取流工厂。 */
-  file: ReadableDocumentSource;
+  file: ReadableFileSource;
   /** 当前解析阶段上一次持久化的轻量恢复信息。 */
   checkpoint: unknown;
   /**
