@@ -61,8 +61,6 @@ export const document_versions = pgTable(
     preview_page_count: integer('preview_page_count').notNull().default(0),
     /** 最近一次预览失败的安全错误摘要。 */
     preview_error: text('preview_error'),
-    /** 当前页面集合使用的转换器组合版本。 */
-    preview_converter_version: varchar255('preview_converter_version'),
     ...baseCols(),
   },
   (table) => [

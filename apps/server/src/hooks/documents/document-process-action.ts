@@ -104,9 +104,7 @@ export async function enqueueDocumentProcess(
     const previewReady =
       operations.length === 1 &&
       operations[0] === 'preview' &&
-      resolved.version.preview_status === 'ready' &&
-      resolved.version.preview_converter_version ===
-        documentPreview.configVersion;
+      resolved.version.preview_status === 'ready';
     if (previewReady && !forceNewTask) return null;
     if (forceNewTask && operations.includes('rag')) {
       await documentRag.prepareRelationsForReprocessing(

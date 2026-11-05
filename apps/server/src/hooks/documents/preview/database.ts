@@ -50,7 +50,6 @@ export async function preparePreview(
       preview_status: 'pending',
       preview_page_count: 0,
       preview_error: null,
-      preview_converter_version: null,
       last_update_user_id: input.userId,
       last_update_timestamp: new Date(),
     })
@@ -108,7 +107,6 @@ export async function markPreviewProcessing(
  * @param input 文档版本和审计信息。
  * @param pages 已完整上传、页码连续的单层页面集合。
  * @param variant 本次发布快速或清晰集合。
- * @param converterVersion 生成此集合的转换规则版本。
  * @param assertActive 锁内再次校验当前执行权。
  * @returns 已脱离数据库引用、可以在事务外清理的旧对象。
  */
@@ -116,7 +114,6 @@ export async function publishPreviewPages(
   input: PreviewVersionInput,
   pages: UploadedPreviewPage[],
   variant: DocumentPreviewPageVariant,
-  converterVersion: string,
   assertActive: () => Promise<void>,
 ) {
   const table = previewPageTable(variant);
@@ -152,7 +149,6 @@ export async function publishPreviewPages(
     };
     if (variant === 'clear') {
       state.preview_status = 'ready';
-      state.preview_converter_version = converterVersion;
     }
     const [updated] = await transaction
       .update(schemas.document_versions)

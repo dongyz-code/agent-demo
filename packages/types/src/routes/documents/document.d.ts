@@ -45,8 +45,6 @@ export interface DocumentVersionInfo {
   previewPageCount: number;
   /** 最近一次预览失败的安全错误摘要。 */
   previewError: string | null;
-  /** 当前页面集合使用的转换器组合版本。 */
-  previewConverterVersion: string | null;
   /** 版本创建时间。 */
   createdAt: Date;
 }

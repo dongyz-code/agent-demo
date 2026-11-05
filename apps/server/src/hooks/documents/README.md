@@ -10,7 +10,7 @@ Document 是公共业务主体，DocumentVersion 表示不可变内容，File �
 - `document-process-action.ts`：文档处理任务的入队、活动任务去重、取消、删除前批量撤销、详情和人工重试。
 - `access.ts`：普通用户与系统管理员的数据范围、文档存在性校验和共同事务锁。
 - `document/index.ts`：把可信源文件统一解析、清洗并切分为 Segment，同时暴露文档物理清理流程；parser 和切分算法是目录内部实现。
-- `preview/index.ts`：统一暴露预览支持检测、配置版本以及页面生成和原子发布流程；`converter.ts` 只负责格式转换。
+- `preview/index.ts`：统一暴露预览支持检测以及页面生成和原子发布流程；`converter.ts` 只负责格式转换。
 - `preview/database.ts`：预览状态与双层页面集合的持久化，格式转换不访问数据库。
 - `rag/index.ts`：统一暴露知识库关系变更以及解析结果的持久化、向量写入和关系发布流程；索引和关系文件是目录内部实现。
 - `tasks/process.ts`：`document.process` 脚本、预览与 RAG 编排，以及执行异常和主动取消共用的失败处理；具体状态写入仍交给各领域能力。

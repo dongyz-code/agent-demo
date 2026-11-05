@@ -1,9 +1,6 @@
 import { logger, ROOT_ERROR } from '@/configs/index.js';
 import { upload } from '@/hooks/upload/index.js';
-import {
-  DOCUMENT_PREVIEW_CONVERTER_VERSION,
-  documentPageConverter,
-} from './converter.js';
+import { documentPageConverter } from './converter.js';
 
 import {
   failPreview,
@@ -36,8 +33,6 @@ export interface DocumentPreviewProcessInput {
 export interface DocumentPreviewProcessResult {
   /** 实际发布的页面数量。 */
   pageCount: number;
-  /** 本次页面集合使用的转换器版本。 */
-  converterVersion: string;
 }
 
 /** 单次预览执行中两个层级的上传与发布边界。 */
@@ -50,11 +45,8 @@ interface PreviewGenerationState {
   quickPublished: boolean;
 }
 
-/** 文档预览支持检测、版本识别和页面发布的统一能力实现。 */
+/** 文档预览支持检测和页面发布的统一能力实现。 */
 class DocumentPreview {
-  /** 当前页面转换规则与底层渲染器组成的稳定版本。 */
-  readonly configVersion = DOCUMENT_PREVIEW_CONVERTER_VERSION;
-
   /**
    * 判断可信 MIME 是否具备统一页面转换能力。
    *
@@ -78,7 +70,7 @@ class DocumentPreview {
    * 先发布完整快速集合，再原子发布指定文档版本的清晰集合。
    *
    * @param input 文档版本、源文件、执行标识和通用存活检查。
-   * @returns 已发布页面数量和转换器版本。
+   * @returns 已发布页面数量。
    */
   async process(
     input: DocumentPreviewProcessInput,
@@ -96,13 +88,11 @@ class DocumentPreview {
         input,
         state.clearPages,
         'clear',
-        this.configVersion,
         input.assertActive,
       );
       clearPublished = true;
       const result = {
         pageCount: state.clearPages.length,
-        converterVersion: this.configVersion,
       };
       deleteOldPagesInBackground(oldPages);
       return result;
@@ -117,7 +107,7 @@ class DocumentPreview {
   }
 }
 
-/** 文档预览支持检测、配置版本与处理流程的统一入口。 */
+/** 文档预览支持检测与处理流程的统一入口。 */
 export const documentPreview = new DocumentPreview();
 
 /**
@@ -173,7 +163,6 @@ async function generateAndUploadPages(
         input,
         state.quickPages,
         'quick',
-        DOCUMENT_PREVIEW_CONVERTER_VERSION,
         input.assertActive,
       );
       state.quickPublished = true;

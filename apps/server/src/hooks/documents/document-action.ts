@@ -512,7 +512,6 @@ class DocumentAction {
       previewStatus: row.version.preview_status,
       previewPageCount: row.version.preview_page_count,
       previewError: row.version.preview_error,
-      previewConverterVersion: row.version.preview_converter_version,
       createdAt: row.version.create_timestamp,
     };
   }
@@ -624,7 +623,6 @@ class DocumentAction {
         preview_status: 'pending',
         preview_page_count: 0,
         preview_error: null,
-        preview_converter_version: null,
         create_user_id: userId,
         create_timestamp: now,
         last_update_user_id: userId,
@@ -655,7 +653,6 @@ class DocumentAction {
       preview_status: 'pending',
       preview_page_count: 0,
       preview_error: null,
-      preview_converter_version: null,
       create_user_id: userId,
       create_timestamp: now,
       last_update_user_id: userId,

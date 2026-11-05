@@ -11,12 +11,10 @@
  * shared，互不依赖，本文件依赖 shared 与各 convert-* 模块，无循环。
  */
 
-import sharp from 'sharp';
-
 import { ROOT_ERROR } from '@/configs/index.js';
 import { collectMimes } from '@/utils/index.js';
 import { convertImage } from './convert-image.js';
-import { convertPdf, PDFJS_VERSION } from './convert-pdf.js';
+import { convertPdf } from './convert-pdf.js';
 import { convertText } from './convert-text.js';
 import { convertOfficeToPdf } from './office-to-pdf.js';
 import {
@@ -34,21 +32,11 @@ const OFFICE_TYPES: ReadonlySet<string> = new Set(
 );
 const TEXT_TYPES: ReadonlySet<string> = new Set(collectMimes('text'));
 
-/** 当前页面转换器组合版本，规则或底层渲染器变化时必须递增。 */
-export const DOCUMENT_PREVIEW_CONVERTER_VERSION = [
-  'document-pages-v3-progressive',
-  `pdfjs-${PDFJS_VERSION}`,
-  `sharp-${sharp.versions.sharp}`,
-  'office-pdf-v1',
-].join(':');
-
 /** 对外保留 shared 中的类型，避免外部直接引用 shared 造成路径耦合。 */
 export type { ConvertedDocumentPage, DocumentPageSource };
 
 /** 单一文档页面转换器接口。 */
 export interface DocumentPageConverter {
-  /** 转换器组合版本，用于区分页面集合。 */
-  version: string;
   /** 判断是否支持服务端可信 MIME。 */
   supports: (contentType: string) => boolean;
   /** 按页码顺序流式生成完整 WebP 页面。 */
@@ -69,7 +57,6 @@ function supportsDocumentPagePreview(contentType: string): boolean {
 
 /** PDF、Office、文本和图片共用的唯一页面转换器。 */
 export const documentPageConverter: DocumentPageConverter = {
-  version: DOCUMENT_PREVIEW_CONVERTER_VERSION,
   supports: supportsDocumentPagePreview,
   async *convert(source) {
     if (!supportsDocumentPagePreview(source.contentType)) {

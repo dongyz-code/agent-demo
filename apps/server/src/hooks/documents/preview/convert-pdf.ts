@@ -2,7 +2,7 @@
  * PDF 类型预览页面转换。
  *
  * pdfjs 依赖的 DOMMatrix/ImageData/Path2D 全局垫片与动态导入集中在本模块，
- * 避免污染其它转换路径；主分发仅通过版本号感知底层渲染器。
+ * 避免污染其它转换路径。
  */
 
 import { createCanvas, DOMMatrix, ImageData, Path2D } from '@napi-rs/canvas';
@@ -23,9 +23,6 @@ import type { ConvertedDocumentPage } from './shared.js';
 Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
 
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-/** 当前 PDF 渲染器版本，供主分发组合页面转换器版本号。 */
-export const PDFJS_VERSION = pdfjs.version;
 
 /** 单页渲染像素硬上限，防止超大页面撑爆内存。 */
 const MAX_PAGE_PIXELS = 24_000_000;
