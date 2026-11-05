@@ -52,4 +52,4 @@ key 不是访问凭证。`getInfo`、`getUrl`、`getUrls`、`open`、`getReadabl
 
 服务端与管理端必须同步发布。管理端升级 IndexedDB 命名空间，旧上传队列不按新语义恢复。
 
-验证：`pnpm --filter @repo/server lint`、`pnpm --filter @repo/admin lint`、`pnpm --filter @repo/types lint`、OpenSpec strict 校验与 `git diff --check`。真实 S3、PostgreSQL 与浏览器上传仍需部署环境联调。
+验证：`pnpm --filter @repo/server lint`、`pnpm --filter @repo/admin lint`、`pnpm --filter @repo/types lint` 与 `git diff --check`。真实 S3、PostgreSQL 与浏览器上传仍需部署环境联调。

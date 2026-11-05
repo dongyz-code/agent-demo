@@ -47,7 +47,3 @@ pnpm --filter @repo/client test -- -t "name"    # 按用例名过滤
 - 认证结果写入 `request.auth`（兼容期内 `routerHandler` 仍派生 `__token`/`operator`）。
 - 权限用 `adminPermissionKey('pages.sys.sys.app')` / `'actions.table.view'` 这类点路径，键定义在 `@repo/shared/permission`。管理端权限校验由 `router/permission.ts` 的 `installRouteAdminPermission` 安装。
 - AI 能力走 Vercel AI SDK（`ai` + `@ai-sdk/google` + `@ai-sdk/openai-compatible`）。
-
-## OpenSpec
-
-需求/变更走 OpenSpec（`openspec/`，spec-driven schema）。所有产出物必须用简体中文撰写；PR 应关联对应 OpenSpec change。

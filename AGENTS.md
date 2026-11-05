@@ -40,7 +40,7 @@ ROOT.SYS_ADMIN_USER_ID 拥有全部权限，可查看和操作全部业务数据
 
 ## 提交与 Pull Request 规范
 
-Git 历史使用 Conventional Commit 风格，例如 `feat: init`。提交信息保持简短、祈使语气，并在有帮助时加 scope，例如 `fix(client): handle api errors`。Pull Request 应描述变更、列出验证命令、关联 issue 或 OpenSpec change，UI 变更需要附截图。涉及迁移、生成路由或依赖变更时要明确说明。
+Git 历史使用 Conventional Commit 风格，例如 `feat: init`。提交信息保持简短、祈使语气，并在有帮助时加 scope，例如 `fix(client): handle api errors`。Pull Request 应描述变更、列出验证命令、关联 issue，UI 变更需要附截图。涉及迁移、生成路由或依赖变更时要明确说明。
 
 ## Agent 专用说明
 

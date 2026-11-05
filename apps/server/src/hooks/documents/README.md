@@ -94,4 +94,4 @@ await enqueueDocumentCleanup(documentId, userId);
 
 ## 验证
 
-服务端类型检查使用 `pnpm --filter @repo/server lint`，OpenSpec 使用 strict 校验，交付前同时运行 `git diff --check`。不要为任务模块新增测试文件或独立检验脚本。
+服务端类型检查使用 `pnpm --filter @repo/server lint`，交付前同时运行 `git diff --check`。不要为任务模块新增测试文件或独立检验脚本。
