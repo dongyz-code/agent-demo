@@ -14,362 +14,244 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import type { ROOT } from '@/configs/index.js';
+import { ROOT } from '@/configs/index.js';
+import { uploadConfig } from './config.js';
+
 import type { Readable } from 'node:stream';
 import type { UploadedPartInfo } from '@repo/types';
 
-/** 对象在存储中的稳定位置。 */
-interface ObjectReference {
-  /** 对象所在 Bucket。 */
+type ObjectReference = {
   bucket: string;
-  /** Bucket 内的对象路径。 */
   objectKey: string;
-}
+};
 
-/** 带 MIME 声明的对象位置。 */
-interface ContentObjectReference extends ObjectReference {
-  /** 对象写入或响应时使用的 MIME。 */
+type ContentObjectReference = ObjectReference & {
   contentType: string;
-}
+};
 
-/** Multipart 上传对象位置。 */
-interface MultipartObjectReference extends ObjectReference {
-  /** S3 创建 Multipart Upload 后返回的标识。 */
+type MultipartObjectReference = ObjectReference & {
   uploadId: string;
+};
+
+const s3 = ROOT.storage.s3;
+const clientConfig = {
+  region: s3.region?.trim() || 'us-east-1',
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: s3.accessKey,
+    secretAccessKey: s3.secretKey,
+  },
+};
+
+/** 新对象写入的 Bucket。 */
+export const bucket = s3.bucket;
+
+const internalClient = new S3Client({
+  ...clientConfig,
+  endpoint: s3.internalEndpoint.trim().replace(/\/+$/, ''),
+});
+
+const signingClient = new S3Client({
+  ...clientConfig,
+  endpoint: s3.publicEndpoint.trim().replace(/\/+$/, ''),
+});
+
+/** 检查默认 Bucket 是否可访问。 */
+export async function checkBucket() {
+  await internalClient.send(new HeadBucketCommand({ Bucket: bucket }));
 }
 
-/** 指定 Multipart 分片的位置。 */
-interface MultipartPartReference extends MultipartObjectReference {
-  /** 从 1 开始的分片编号。 */
-  partNumber: number;
+/** 创建 Multipart Upload，返回 uploadId。 */
+export async function createMultipart(input: ContentObjectReference) {
+  const result = await internalClient.send(
+    new CreateMultipartUploadCommand({
+      Bucket: input.bucket,
+      Key: input.objectKey,
+      ContentType: input.contentType,
+    }),
+  );
+  if (!result.UploadId) {
+    throw new Error('对象存储未返回 Multipart uploadId');
+  }
+  return result.UploadId;
 }
 
-/** 完成 Multipart 合并所需的信息。 */
-interface CompleteMultipartInput extends MultipartObjectReference {
-  /** 按分片编号排序的已上传分片。 */
-  parts: Pick<UploadedPartInfo, 'partNumber' | 'etag'>[];
+/** 分页读取已上传分片，并按编号排序。 */
+export async function listParts(input: MultipartObjectReference) {
+  const parts: UploadedPartInfo[] = [];
+  let marker: string | undefined;
+  do {
+    const result = await internalClient.send(
+      new ListPartsCommand({
+        Bucket: input.bucket,
+        Key: input.objectKey,
+        UploadId: input.uploadId,
+        PartNumberMarker: marker,
+      }),
+    );
+    for (const part of result.Parts ?? []) {
+      if (!part.PartNumber || !part.ETag || part.Size === undefined) continue;
+      parts.push({
+        partNumber: part.PartNumber,
+        etag: part.ETag,
+        size: part.Size,
+      });
+    }
+    marker = undefined;
+    if (result.IsTruncated) {
+      const nextMarker = String(result.NextPartNumberMarker ?? '');
+      if (nextMarker) marker = nextMarker;
+    }
+  } while (marker);
+  return parts.sort((left, right) => left.partNumber - right.partNumber);
 }
 
-/** 服务端写入对象所需的信息。 */
-interface PutObjectInput extends ContentObjectReference {
-  /** 已在受控大小内收集的完整内容。 */
-  content: Buffer | Uint8Array;
-}
-
-/** 签发对象读取地址所需的信息。 */
-interface PresignGetInput extends ContentObjectReference {
-  /** Content-Disposition 使用的下载文件名。 */
-  filename: string;
-  /** 浏览器以内联或附件方式处理响应。 */
-  disposition: 'inline' | 'attachment';
-  /** 可选签名有效秒数；外部异步任务可覆盖默认浏览器下载时长。 */
-  expiresInSeconds?: number;
-}
-
-/**
- * upload 内部使用的 S3 对象存储适配器，物理位置不进入公开接口。
- *
- * 该类只封装 S3 客户端状态、对象命令和预签名，不负责文件名清洗、
- * 对象路径生成、分片方案计算或上传会话状态迁移。
- */
-export class S3ObjectStorage {
-  /** 新对象默认写入的 Bucket。 */
-  readonly bucket: string;
-
-  /** 服务端执行对象命令使用的内部客户端。 */
-  private readonly internalClient: S3Client;
-
-  /** 使用浏览器可达 Endpoint 生成签名的客户端。 */
-  private readonly signingClient: S3Client;
-
-  /** 预签名地址有效秒数。 */
-  private readonly presignExpiresSeconds: number;
-
-  /**
-   * 创建固定配置的对象存储适配器。
-   *
-   * @param config S3 连接、凭证和默认 Bucket 配置。
-   * @param presignExpiresSeconds 预签名地址有效秒数。
-   */
-  constructor(config: typeof ROOT.storage.s3, presignExpiresSeconds: number) {
-    const clientConfig = {
-      region: config.region?.trim() || 'us-east-1',
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: config.accessKey,
-        secretAccessKey: config.secretKey,
+/** 合并已核对的分片。 */
+export async function completeMultipart(
+  input: MultipartObjectReference & {
+    parts: Pick<UploadedPartInfo, 'partNumber' | 'etag'>[];
+  },
+) {
+  await internalClient.send(
+    new CompleteMultipartUploadCommand({
+      Bucket: input.bucket,
+      Key: input.objectKey,
+      UploadId: input.uploadId,
+      MultipartUpload: {
+        Parts: input.parts.map((part) => ({
+          PartNumber: part.partNumber,
+          ETag: part.etag,
+        })),
       },
-    };
-    this.bucket = config.bucket;
-    this.presignExpiresSeconds = presignExpiresSeconds;
-    this.internalClient = new S3Client({
-      ...clientConfig,
-      endpoint: config.internalEndpoint.trim().replace(/\/+$/, ''),
-    });
-    this.signingClient = new S3Client({
-      ...clientConfig,
-      endpoint: config.publicEndpoint.trim().replace(/\/+$/, ''),
-    });
-  }
+    }),
+  );
+}
 
-  /**
-   * 检查默认 Bucket 是否可访问。
-   *
-   * @returns Bucket 可访问时完成。
-   */
-  async checkBucket(): Promise<void> {
-    await this.internalClient.send(
-      new HeadBucketCommand({ Bucket: this.bucket }),
-    );
-  }
-
-  /**
-   * 创建 Multipart Upload。
-   *
-   * @param input 对象位置和上传 MIME。
-   * @returns S3 返回的 Multipart uploadId。
-   */
-  async createMultipart(input: ContentObjectReference): Promise<string> {
-    const result = await this.internalClient.send(
-      new CreateMultipartUploadCommand({
-        Bucket: input.bucket,
-        Key: input.objectKey,
-        ContentType: input.contentType,
-      }),
-    );
-    if (!result.UploadId) {
-      throw new Error('对象存储未返回 Multipart uploadId');
-    }
-    return result.UploadId;
-  }
-
-  /**
-   * 分页读取 Multipart 已上传分片。
-   *
-   * @param input 对象位置和 Multipart uploadId。
-   * @returns 按分片编号升序排列的有效分片。
-   */
-  async listParts(
-    input: MultipartObjectReference,
-  ): Promise<UploadedPartInfo[]> {
-    const parts: UploadedPartInfo[] = [];
-    let marker: string | undefined;
-
-    do {
-      const result = await this.internalClient.send(
-        new ListPartsCommand({
-          Bucket: input.bucket,
-          Key: input.objectKey,
-          UploadId: input.uploadId,
-          PartNumberMarker: marker,
-        }),
-      );
-      for (const part of result.Parts ?? []) {
-        if (!part.PartNumber || !part.ETag || part.Size === undefined) {
-          continue;
-        }
-        parts.push({
-          partNumber: part.PartNumber,
-          etag: part.ETag,
-          size: part.Size,
-        });
-      }
-      marker = undefined;
-      if (result.IsTruncated) {
-        const nextMarker = String(result.NextPartNumberMarker ?? '');
-        if (nextMarker) marker = nextMarker;
-      }
-    } while (marker);
-
-    return parts.sort((left, right) => left.partNumber - right.partNumber);
-  }
-
-  /**
-   * 完成 Multipart 合并。
-   *
-   * @param input 对象位置、uploadId 和已验证分片。
-   * @returns 合并完成时无返回值。
-   */
-  async completeMultipart(input: CompleteMultipartInput): Promise<void> {
-    await this.internalClient.send(
-      new CompleteMultipartUploadCommand({
+/** 终止 Multipart。上传已不存在时视为已经终止。 */
+export async function abortMultipart(input: MultipartObjectReference) {
+  try {
+    await internalClient.send(
+      new AbortMultipartUploadCommand({
         Bucket: input.bucket,
         Key: input.objectKey,
         UploadId: input.uploadId,
-        MultipartUpload: {
-          Parts: input.parts.map((part) => ({
-            PartNumber: part.partNumber,
-            ETag: part.etag,
-          })),
-        },
       }),
     );
+  } catch (error) {
+    if (error instanceof Error && error.name === 'NoSuchUpload') return;
+    throw error;
   }
+}
 
-  /**
-   * 终止尚未完成的 Multipart Upload。
-   *
-   * @param input 对象位置和 Multipart uploadId。
-   * @returns 终止完成时无返回值。
-   */
-  async abortMultipart(input: MultipartObjectReference): Promise<void> {
-    try {
-      await this.internalClient.send(
-        new AbortMultipartUploadCommand({
-          Bucket: input.bucket,
-          Key: input.objectKey,
-          UploadId: input.uploadId,
-        }),
-      );
-    } catch (error) {
-      if (error instanceof Error && error.name === 'NoSuchUpload') return;
-      throw error;
-    }
-  }
+/** 读取对象元数据。 */
+export async function head(input: ObjectReference) {
+  return await internalClient.send(
+    new HeadObjectCommand({ Bucket: input.bucket, Key: input.objectKey }),
+  );
+}
 
-  /**
-   * 获取对象元数据。
-   *
-   * @param input 对象位置。
-   * @returns S3 对象元数据。
-   */
-  async head(input: ObjectReference) {
-    return await this.internalClient.send(
-      new HeadObjectCommand({ Bucket: input.bucket, Key: input.objectKey }),
-    );
+/** 打开新的对象读取流。 */
+export async function open(input: ObjectReference) {
+  const result = await internalClient.send(
+    new GetObjectCommand({ Bucket: input.bucket, Key: input.objectKey }),
+  );
+  if (!result.Body || !('pipe' in result.Body)) {
+    throw new Error('对象存储返回了不支持的响应流');
   }
+  return result.Body as Readable;
+}
 
-  /**
-   * 打开新的对象可读流。
-   *
-   * @param input 对象位置。
-   * @returns Node.js 可读流。
-   */
-  async open(input: ObjectReference): Promise<Readable> {
-    const result = await this.internalClient.send(
-      new GetObjectCommand({ Bucket: input.bucket, Key: input.objectKey }),
-    );
-    if (!result.Body || !('pipe' in result.Body)) {
-      throw new Error('对象存储返回了不支持的响应流');
-    }
-    return result.Body as Readable;
-  }
+/** 写入服务端已经收齐的内容。 */
+export async function put(
+  input: ContentObjectReference & { content: Buffer | Uint8Array },
+) {
+  await internalClient.send(
+    new PutObjectCommand({
+      Bucket: input.bucket,
+      Key: input.objectKey,
+      ContentType: input.contentType,
+      Body: input.content,
+    }),
+  );
+}
 
-  /**
-   * 写入服务端生成的对象。
-   *
-   * @param input 对象位置、MIME 和完整内容。
-   * @returns 写入完成时无返回值。
-   */
-  async put(input: PutObjectInput): Promise<void> {
-    await this.internalClient.send(
-      new PutObjectCommand({
-        Bucket: input.bucket,
-        Key: input.objectKey,
-        ContentType: input.contentType,
-        Body: input.content,
-      }),
-    );
-  }
+/** 把临时对象复制到最终位置，避免旧的上传地址覆盖已发布文件。 */
+export async function copy(source: ObjectReference, target: ObjectReference) {
+  const copySource = [source.bucket, ...source.objectKey.split('/')]
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  await internalClient.send(
+    new CopyObjectCommand({
+      Bucket: target.bucket,
+      Key: target.objectKey,
+      CopySource: copySource,
+    }),
+  );
+}
 
-  /**
-   * 将临时对象固化到独立位置，避免旧上传签名覆盖已发布文件。
-   *
-   * @param source 临时对象所在位置。
-   * @param target 只由服务端生成的最终位置。
-   * @returns 复制完成时结束，随后必须验证最终对象。
-   */
-  async copy(source: ObjectReference, target: ObjectReference): Promise<void> {
-    const copySource = [source.bucket, ...source.objectKey.split('/')]
-      .map((segment) => encodeURIComponent(segment))
-      .join('/');
-    await this.internalClient.send(
-      new CopyObjectCommand({
-        Bucket: target.bucket,
-        Key: target.objectKey,
-        CopySource: copySource,
-      }),
-    );
-  }
+/** 删除对象。对象不存在时 S3 也返回成功。 */
+export async function remove(input: ObjectReference) {
+  await internalClient.send(
+    new DeleteObjectCommand({
+      Bucket: input.bucket,
+      Key: input.objectKey,
+    }),
+  );
+}
 
-  /**
-   * 删除对象；对象不存在时由 S3 幂等返回成功。
-   *
-   * @param input 对象位置。
-   * @returns 删除完成时无返回值。
-   */
-  async remove(input: ObjectReference): Promise<void> {
-    await this.internalClient.send(
-      new DeleteObjectCommand({
-        Bucket: input.bucket,
-        Key: input.objectKey,
-      }),
-    );
-  }
+/** 签发单对象上传地址。 */
+export async function presignPut(input: ContentObjectReference) {
+  return await getSignedUrl(
+    signingClient,
+    new PutObjectCommand({
+      Bucket: input.bucket,
+      Key: input.objectKey,
+      ContentType: input.contentType,
+    }),
+    { expiresIn: uploadConfig.presignExpiresSeconds },
+  );
+}
 
-  /**
-   * 签发普通单对象上传地址。
-   *
-   * @param input 对象位置和浏览器上传时必须使用的 MIME。
-   * @returns 短期上传地址。
-   */
-  async presignPut(input: ContentObjectReference): Promise<string> {
-    return await getSignedUrl(
-      this.signingClient,
-      new PutObjectCommand({
-        Bucket: input.bucket,
-        Key: input.objectKey,
-        ContentType: input.contentType,
-      }),
-      { expiresIn: this.presignExpiresSeconds },
-    );
-  }
+/** 签发一个分片的上传地址。 */
+export async function presignPart(
+  input: MultipartObjectReference & { partNumber: number },
+) {
+  return await getSignedUrl(
+    signingClient,
+    new UploadPartCommand({
+      Bucket: input.bucket,
+      Key: input.objectKey,
+      UploadId: input.uploadId,
+      PartNumber: input.partNumber,
+    }),
+    { expiresIn: uploadConfig.presignExpiresSeconds },
+  );
+}
 
-  /**
-   * 签发指定 Multipart 分片上传地址。
-   *
-   * @param input 对象位置、uploadId 和分片编号。
-   * @returns 短期分片上传地址。
-   */
-  async presignPart(input: MultipartPartReference): Promise<string> {
-    return await getSignedUrl(
-      this.signingClient,
-      new UploadPartCommand({
-        Bucket: input.bucket,
-        Key: input.objectKey,
-        UploadId: input.uploadId,
-        PartNumber: input.partNumber,
-      }),
-      { expiresIn: this.presignExpiresSeconds },
-    );
-  }
-
-  /**
-   * 签发短期对象读取地址。
-   *
-   * @param input 对象位置、响应 MIME、文件名和下载方式。
-   * @returns 短期读取地址及其失效时间。
-   */
-  async presignGet(
-    input: PresignGetInput,
-  ): Promise<{ url: string; expiresAt: Date }> {
-    const fallbackName = encodeURIComponent(input.filename);
-    const contentDisposition = `${input.disposition}; filename*=UTF-8''${fallbackName}`;
-    const expiresInSeconds =
-      input.expiresInSeconds ?? this.presignExpiresSeconds;
-    const url = await getSignedUrl(
-      this.signingClient,
-      new GetObjectCommand({
-        Bucket: input.bucket,
-        Key: input.objectKey,
-        ResponseContentType: input.contentType,
-        ResponseContentDisposition: contentDisposition,
-      }),
-      { expiresIn: expiresInSeconds },
-    );
-    return {
-      url,
-      expiresAt: new Date(Date.now() + expiresInSeconds * 1000),
-    };
-  }
+/** 签发短期读取地址。 */
+export async function presignGet(
+  input: ContentObjectReference & {
+    filename: string;
+    disposition: 'inline' | 'attachment';
+    expiresInSeconds?: number;
+  },
+) {
+  const fallbackName = encodeURIComponent(input.filename);
+  const contentDisposition = `${input.disposition}; filename*=UTF-8''${fallbackName}`;
+  const expiresInSeconds =
+    input.expiresInSeconds ?? uploadConfig.presignExpiresSeconds;
+  const url = await getSignedUrl(
+    signingClient,
+    new GetObjectCommand({
+      Bucket: input.bucket,
+      Key: input.objectKey,
+      ResponseContentType: input.contentType,
+      ResponseContentDisposition: contentDisposition,
+    }),
+    { expiresIn: expiresInSeconds },
+  );
+  return {
+    url,
+    expiresAt: new Date(Date.now() + expiresInSeconds * 1000),
+  };
 }

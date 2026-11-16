@@ -1,3 +1,4 @@
+import { uploadConfig } from '@/hooks/upload/config.js';
 import { upload } from '@/hooks/upload/index.js';
 import { routerHandler } from '@/router/utils.js';
 
@@ -20,7 +21,7 @@ const { api } = routerHandler({
         contentType: { type: 'string', minLength: 1, maxLength: 255 },
         size: { type: 'integer', minimum: 1 },
         idempotencyKey: { type: 'string', minLength: 1, maxLength: 255 },
-        purpose: { type: 'string', enum: ['attachment', 'document', 'avatar'] },
+        purpose: { type: 'string', enum: [...uploadConfig.clientPurposes] },
       },
     },
   },
