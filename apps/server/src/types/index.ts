@@ -19,18 +19,18 @@ export interface AiProviderSecret {
  */
 export type AiProvider = 'bailian' | 'volcengine' | 'awsBedrock' | 'google';
 
-/** TextIn 文档解析服务连接配置。 */
-export interface TextInSecret {
-  /** 调用 TextIn 代理时使用的 Bearer Token。 */
-  apiKey: string;
-  /** TextIn 代理的 xParse API 基础地址，不包含具体接口路径。 */
+/** MinerU 文档解析服务连接配置。 */
+export interface MinerUSecret {
+  /** MinerU API 管理页创建的 token，请求时写入 Authorization。 */
+  token: string;
+  /** MinerU API 根地址，不包含具体接口路径。 */
   baseUrl: string;
 }
 
 /** 根配置文件中 `AI` 节点支持的模型供应商与文档解析服务配置。 */
 export type AiConf = { [P in AiProvider]?: AiProviderSecret } & {
-  /** TextIn 文档解析独立连接配置，不参与语言模型供应商派发。 */
-  textIn?: TextInSecret;
+  /** MinerU 文档解析独立连接配置，不参与语言模型供应商派发。 */
+  minerU?: MinerUSecret;
 };
 
 /** S3 兼容对象存储连接配置，当前用于 MinIO 私有文件存储。 */

@@ -4,7 +4,7 @@ import type {
   InternalAxiosRequestConfig,
 } from 'axios';
 
-const API_LOG_LABELS = ['textin'] as const;
+const API_LOG_LABELS = ['mineru'] as const;
 
 /** 标记 */
 export type Label = (typeof API_LOG_LABELS)[number];

@@ -1,15 +1,10 @@
 /**
  * documents 域运行期配置。
  *
- * 域内调参使用直接常量；TextIn 等外部服务地址从根配置读取，避免部署地址进入源码。
+ * 域内调参使用直接常量；MinerU 等外部服务地址从根配置读取，避免部署地址进入源码。
  */
 
 import { ROOT } from '@/configs/env.js';
-
-/** 去尾斜杠归一化 endpoint：外部解析/预览请求依赖 Host/Path 一致。 */
-function normalizeEndpoint(value: string): string {
-  return value.trim().replace(/\/+$/, '');
-}
 
 /** 文件处理总开关。 */
 const FILE_PROCESSING_ENABLED = true;
@@ -22,22 +17,20 @@ export const documentsConfig = {
     maxTextPreviewBytes: 1024 * 1024,
   },
   document: {
-    /** TextIn xParse API 根地址，不包含具体接口路径。 */
-    textInBaseUrl: ROOT.AI?.textIn?.baseUrl
-      ? normalizeEndpoint(ROOT.AI.textIn.baseUrl)
-      : undefined,
-    /** TextIn 查询或结果下载单次 HTTP 请求超时。 */
-    textInRequestTimeoutMs: 60 * 1000,
-    /** TextIn 提交上传的单次 HTTP 请求超时，大文件需要更长，覆盖通用超时。 */
-    textInSubmitTimeoutMs: 10 * 60 * 1000,
-    /** TextIn 瞬时网络故障的单次调用最大尝试次数。 */
-    textInRequestMaxAttempts: 3,
-    /** TextIn 瞬时网络故障首次重试前的等待时间。 */
-    textInRequestRetryDelayMs: 1000,
-    /** TextIn 异步任务状态轮询间隔。 */
-    textInPollIntervalMs: 5 * 1000,
-    /** 单次后台任务等待 TextIn 完成的最长时间。 */
-    textInMaxWaitMs: 60 * 60 * 1000,
+    /** MinerU API 根地址，不包含具体接口路径。 */
+    minerUBaseUrl: ROOT.AI?.minerU?.baseUrl,
+    /** MinerU 查询或结果下载单次 HTTP 请求超时。 */
+    minerURequestTimeoutMs: 60 * 1000,
+    /** MinerU 提交上传的单次 HTTP 请求超时，大文件需要更长，覆盖通用超时。 */
+    minerUSubmitTimeoutMs: 10 * 60 * 1000,
+    /** MinerU 瞬时网络故障的单次调用最大尝试次数。 */
+    minerURequestMaxAttempts: 3,
+    /** MinerU 瞬时网络故障首次重试前的等待时间。 */
+    minerURequestRetryDelayMs: 1000,
+    /** MinerU 异步任务状态轮询间隔。 */
+    minerUPollIntervalMs: 5 * 1000,
+    /** 单次后台任务等待 MinerU 完成的最长时间。 */
+    minerUMaxWaitMs: 60 * 60 * 1000,
     /** 本地 soffice 把 Office 文件转 PDF 的单次转换超时。 */
     officePreviewTimeoutMs: 2 * 60 * 1000,
     segmentSizeTokens: 600,

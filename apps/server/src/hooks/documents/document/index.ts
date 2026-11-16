@@ -7,14 +7,14 @@ import { lockDocument } from '../access.js';
 import { documentsConfig } from '../config.js';
 import { upload } from '@/hooks/upload/index.js';
 import { textParser } from './parser-text.js';
-import { textInParser } from './parser-textin.js';
+import { minerUParser } from './parser-mineru.js';
 import { createDocumentSegments } from './segment.js';
 
 import type { DocumentSegment } from '@repo/types';
 import type { DocumentParser } from './types.js';
 
 /** 解析器按可信 MIME 匹配，新增实现时只在入口注册一次。 */
-const documentParsers: DocumentParser[] = [textParser, textInParser];
+const documentParsers: DocumentParser[] = [textParser, minerUParser];
 
 /** 文档物理清理所需的业务输入。 */
 export interface DocumentCleanupInput {

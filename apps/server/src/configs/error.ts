@@ -184,43 +184,43 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       code: 'DOCUMENT_TEXT_TOO_LARGE',
     },
     {
-      key: 'AI.textIn.baseUrl 未配置',
+      key: 'AI.minerU.baseUrl 未配置',
       code: 'DOCUMENT_PARSER_ENDPOINT_MISSING',
     },
     {
-      key: 'AI.textIn.apiKey 未配置',
+      key: 'AI.minerU.token 未配置',
       code: 'DOCUMENT_PARSER_AUTH_MISSING',
     },
     {
-      key: 'TextIn 异步任务恢复信息无效',
-      code: 'DOCUMENT_PARSER_CHECKPOINT_INVALID',
-    },
-    {
-      key: 'TextIn 未返回有效 job_id',
+      key: 'MinerU 未返回有效 batch_id',
       code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
     },
     {
-      key: 'TextIn 异步解析等待超时',
+      key: 'MinerU 未返回上传地址',
+      code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
+    },
+    {
+      key: 'MinerU 异步解析等待超时',
       code: 'DOCUMENT_PARSER_ASYNC_TIMEOUT',
     },
     {
-      key: 'TextIn 状态响应 job_id 不匹配',
+      key: 'MinerU 状态响应 batch_id 不匹配',
       code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
     },
     {
-      key: 'TextIn 异步解析任务失败',
+      key: 'MinerU 异步解析任务失败',
       code: 'DOCUMENT_PARSER_UPSTREAM_FAILED',
     },
     {
-      key: 'TextIn 完成任务未返回 result_url',
+      key: 'MinerU 完成任务未返回结果地址',
       code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
     },
     {
-      key: 'TextIn 返回了未知任务状态',
+      key: 'MinerU 返回了未知任务状态',
       code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
     },
     {
-      key: 'TextIn 未返回 Markdown 内容',
+      key: 'MinerU 未返回 Markdown 内容',
       code: 'DOCUMENT_PARSER_INVALID_RESPONSE',
     },
     {
