@@ -133,7 +133,7 @@ class DocumentProcessor {
       .map((block, position) => ({ ...block, position }));
     const config = documentsConfig.document;
     const profile = {
-      version: `structure-v1-${config.segmentSizeTokens}-${config.segmentOverlapTokens}`,
+      version: `structure-v2-${config.segmentSizeTokens}-${config.segmentOverlapTokens}`,
       segmentSizeTokens: config.segmentSizeTokens,
       overlapTokens: config.segmentOverlapTokens,
     };

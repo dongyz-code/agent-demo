@@ -2,7 +2,7 @@
  * Office 文件转 PDF 的独立转换模块。
  *
  * 与 preview/converter.ts 的 PDF→图片 流程分离：本模块只负责把 Office 源文件
- * 转为 PDF 字节，主流程拿到 PDF 后交给 convertPdf 继续渲染页面。
+ * 转为 PDF 字节，主流程拿到 PDF 后交给 convertPdf，由 mutool 画成页面。
  *
  * 当前实现为本地 soffice 子进程；对外函数契约 `source → PDF Buffer` 稳定，
  * 将来替换转换引擎只需改本模块内部，不影响主流程与 convertPdf。

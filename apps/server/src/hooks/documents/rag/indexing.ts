@@ -12,6 +12,8 @@ import {
   type QdrantPoint,
 } from '@repo/utils-qdrant';
 
+import { estimateTokens } from '../document/segment.js';
+
 import type { DocumentSegment } from '@repo/types';
 
 /**
@@ -104,8 +106,7 @@ function shardSegmentsByTokenBudget(
   let currentTokens = 0;
   for (const segment of segments) {
     const segTokens =
-      segment.tokenCount ??
-      Math.max(1, Math.ceil(segment.embeddingContent.length / 4));
+      segment.tokenCount ?? estimateTokens(segment.embeddingContent);
     const overItems = current.length >= EMBED_BATCH_MAX_ITEMS;
     const overTokens =
       currentTokens + segTokens > EMBED_BATCH_TOKEN_BUDGET &&

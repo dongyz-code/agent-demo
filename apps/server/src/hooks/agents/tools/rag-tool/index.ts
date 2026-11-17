@@ -12,8 +12,11 @@ import { searchPoints } from '@repo/utils-qdrant';
 
 /** 单次检索返回片段上限默认值。 */
 const DEFAULT_TOP_K = 5;
-/** tool-result 中每条 content 的最大字符数，避免超大片段撑爆模型上下文。 */
-const MAX_CONTENT_CHARS = 800;
+/**
+ * tool-result 中每条 content 的最大字符数。
+ * 一段最多约 600 token：中文约一字一 token，英文约四字一 token，3000 字能装下整段。
+ */
+const MAX_CONTENT_CHARS = 3000;
 
 /** searchKnowledgeBase 命中的文档片段。 */
 type KnowledgeChunk = {

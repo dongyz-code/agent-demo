@@ -236,6 +236,10 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       code: 'DOCUMENT_PREVIEW_PAGE_LIMIT',
     },
     {
+      key: 'PDF 页面渲染失败',
+      code: 'DOCUMENT_PREVIEW_RENDER_FAILED',
+    },
+    {
       key: '文本预览页数超过上限',
       code: 'DOCUMENT_PREVIEW_PAGE_LIMIT',
     },

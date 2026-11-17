@@ -1,14 +1,19 @@
 /**
  * PDF 类型预览页面转换。
  *
- * pdfjs 依赖的 DOMMatrix/ImageData/Path2D 全局垫片与动态导入集中在本模块，
- * 避免污染其它转换路径。
+ * 用 mutool 按页画成 PNG，再交给 sharp 编成预览图。
+ * Office 文件先由 soffice 转成 PDF，再进入这里。
  */
 
-import { createCanvas, DOMMatrix, ImageData, Path2D } from '@napi-rs/canvas';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import sharp from 'sharp';
 
 import { ROOT_ERROR } from '@/configs/index.js';
+import { spawnAsync } from '@repo/utils-node';
+import { documentsConfig } from '../config.js';
 
 import {
   encodePreviewPage,
@@ -17,15 +22,23 @@ import {
   PREVIEW_VARIANT_CONFIGS,
 } from './shared.js';
 
-import type { ConvertedDocumentPage } from './shared.js';
+import type { ConvertedDocumentPage, PreviewVariantConfig } from './shared.js';
+import type { DocumentPreviewPageVariant } from '@repo/types';
 
-// pdfjs 在 Node 环境需要 DOMMatrix/ImageData/Path2D，补到 globalThis 一次即可。
-Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
-
-const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
+/** mutool 可执行名。生产环境安装 mupdf-tools 即可。 */
+const MUTOOL_BINARY = 'mutool';
 /** 单页渲染像素硬上限，防止超大页面撑爆内存。 */
 const MAX_PAGE_PIXELS = 24_000_000;
+
+/** PDF 页面在用户空间里的宽高，单位是 point。 */
+interface PdfPageBox {
+  /** 从 1 开始的页码。 */
+  pageNumber: number;
+  /** 页面宽度。 */
+  width: number;
+  /** 页面高度。 */
+  height: number;
+}
 
 /**
  * 将 PDF 按 quick、clear 顺序逐页渲染并规范化为 WebP。
@@ -36,69 +49,189 @@ const MAX_PAGE_PIXELS = 24_000_000;
 export async function* convertPdf(
   content: Buffer,
 ): AsyncGenerator<ConvertedDocumentPage> {
-  const loadingTask = pdfjs.getDocument({
-    data: new Uint8Array(content),
-    useSystemFonts: true,
-  });
-  const document = await loadingTask.promise;
+  const workdir = await mkdtemp(join(tmpdir(), 'pdf-preview-'));
   try {
-    if (document.numPages < 1 || document.numPages > MAX_PAGE_COUNT) {
+    const pdfPath = join(workdir, 'input.pdf');
+    await writeFile(pdfPath, content);
+    const listed = parseMutoolPages(await runMutool(['pages', pdfPath]));
+    if (!listed.length) {
+      throw new ROOT_ERROR('PDF 页面渲染失败', { reason: '没有可读页面' });
+    }
+    if (listed.length > MAX_PAGE_COUNT) {
       throw new ROOT_ERROR('PDF 页数超过上限', { limit: MAX_PAGE_COUNT });
     }
+    const output = join(workdir, 'page.png');
     for (const variant of PREVIEW_PAGE_VARIANTS) {
       const config = PREVIEW_VARIANT_CONFIGS[variant];
-      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
-        const page = await document.getPage(pageNumber);
-        try {
-          const defaultViewport = page.getViewport({ scale: 1 });
-          let renderScale = config.pdfRenderScale;
-          if (config.pdfMaxWidth) {
-            renderScale = Math.min(
-              renderScale,
-              config.pdfMaxWidth / defaultViewport.width,
-            );
-          }
-          const baseViewport = page.getViewport({ scale: renderScale });
-          const pixelScale = Math.min(
-            1,
-            Math.sqrt(
-              MAX_PAGE_PIXELS / (baseViewport.width * baseViewport.height),
-            ),
-          );
-          const viewport = page.getViewport({
-            scale: renderScale * pixelScale,
-          });
-          const width = Math.max(1, Math.ceil(viewport.width));
-          const height = Math.max(1, Math.ceil(viewport.height));
-          const canvas = createCanvas(width, height);
-          const context = canvas.getContext('2d');
-          context.fillStyle = '#ffffff';
-          context.fillRect(0, 0, width, height);
-          await page.render({
-            canvas: canvas as never,
-            canvasContext: context as never,
-            viewport,
-          }).promise;
-          const { content: pageContent, contentType } = await encodePreviewPage(
-            sharp(await canvas.encode('png')),
-            width,
-            height,
-            config.webpQuality,
-          );
-          yield {
-            pageNumber,
-            variant,
-            width,
-            height,
-            contentType,
-            content: pageContent,
-          };
-        } finally {
-          page.cleanup();
-        }
+      for (let index = 0; index < listed.length; index += 1) {
+        const page = listed[index]!;
+        const pixels = pagePixels(page, config);
+        await runMutool([
+          'draw',
+          '-q',
+          '-r',
+          String(Math.max(1, Math.round(pixels.dpi))),
+          '-w',
+          String(pixels.width),
+          '-h',
+          String(pixels.height),
+          '-o',
+          output,
+          pdfPath,
+          String(page.pageNumber),
+        ]);
+        yield await encodeRenderedPage(
+          await readFile(output),
+          index + 1,
+          variant,
+          config.webpQuality,
+        );
       }
     }
   } finally {
-    await document.destroy();
+    await rm(workdir, { recursive: true, force: true });
   }
+}
+
+/**
+ * 运行一次 mutool，失败时带上截断后的错误输出。
+ *
+ * @param args mutool 子命令和参数，不含可执行名。
+ * @returns 标准输出拼成的文本。
+ */
+async function runMutool(args: string[]) {
+  const { promise, stats } = await spawnAsync({
+    cmd: MUTOOL_BINARY,
+    args,
+    timeout: documentsConfig.document.officePreviewTimeoutMs,
+    log: false,
+  });
+  await promise;
+  if (stats.status !== 'success') {
+    throw new ROOT_ERROR('PDF 页面渲染失败', {
+      status: stats.status,
+      code: stats.code,
+      signal: stats.signal,
+      stderr: stats.stderr.join('\n').slice(0, 2000),
+    });
+  }
+  return stats.stdout.join('\n');
+}
+
+/**
+ * 从 mutool pages 的输出读取每一页的宽高。
+ *
+ * 优先用 CropBox。有 90 度或 270 度旋转时交换宽高。
+ *
+ * @param xml mutool pages 的输出。
+ * @returns 按页码排序的页面尺寸。
+ */
+function parseMutoolPages(xml: string) {
+  const pages: PdfPageBox[] = [];
+  const pattern = /<page pagenum="(\d+)">([\s\S]*?)<\/page>/g;
+  for (const match of xml.matchAll(pattern)) {
+    const body = match[2] ?? '';
+    const box = readBox(body, 'CropBox') ?? readBox(body, 'MediaBox');
+    if (!box) continue;
+    let width = Math.abs(box.r - box.l);
+    let height = Math.abs(box.t - box.b);
+    const rotate = /<Rotate v="(\d+)"/.exec(body);
+    const angle = rotate ? Number(rotate[1]) % 360 : 0;
+    if (angle === 90 || angle === 270) {
+      const swapped = width;
+      width = height;
+      height = swapped;
+    }
+    if (width <= 0 || height <= 0) continue;
+    pages.push({
+      pageNumber: Number(match[1]),
+      width,
+      height,
+    });
+  }
+  pages.sort((left, right) => left.pageNumber - right.pageNumber);
+  return pages;
+}
+
+/**
+ * 读取一个页面盒子的四条边。
+ *
+ * @param body 单页 XML。
+ * @param name CropBox 或 MediaBox。
+ * @returns 四条边的数值；没有该盒子时为 null。
+ */
+function readBox(body: string, name: string) {
+  const match = new RegExp(
+    `<${name} l="([^"]+)" b="([^"]+)" r="([^"]+)" t="([^"]+)"`,
+  ).exec(body);
+  if (!match) return null;
+  return {
+    l: Number(match[1]),
+    b: Number(match[2]),
+    r: Number(match[3]),
+    t: Number(match[4]),
+  };
+}
+
+/**
+ * 按预览层级把 PDF 点尺寸换成像素和分辨率。
+ *
+ * @param page 页面点尺寸。
+ * @param config 当前层级的渲染参数。
+ * @returns mutool 使用的像素上限和 dpi。
+ */
+function pagePixels(page: PdfPageBox, config: PreviewVariantConfig) {
+  let scale = config.pdfRenderScale;
+  if (config.pdfMaxWidth) {
+    scale = Math.min(scale, config.pdfMaxWidth / page.width);
+  }
+  let width = page.width * scale;
+  let height = page.height * scale;
+  const pixels = width * height;
+  if (pixels > MAX_PAGE_PIXELS) {
+    const pixelScale = Math.sqrt(MAX_PAGE_PIXELS / pixels);
+    width *= pixelScale;
+    height *= pixelScale;
+    scale *= pixelScale;
+  }
+  return {
+    width: Math.max(1, Math.ceil(width)),
+    height: Math.max(1, Math.ceil(height)),
+    dpi: 72 * scale,
+  };
+}
+
+/**
+ * 把 mutool 画出的 PNG 铺白底并编成预览图。
+ *
+ * @param png 单页 PNG。
+ * @param pageNumber 从 1 开始的连续页码。
+ * @param variant 快速或清晰层级。
+ * @param quality 编码质量。
+ * @returns 可上传的预览页。
+ */
+async function encodeRenderedPage(
+  png: Buffer,
+  pageNumber: number,
+  variant: DocumentPreviewPageVariant,
+  quality: number,
+): Promise<ConvertedDocumentPage> {
+  const metadata = await sharp(png).metadata();
+  if (!metadata.width || !metadata.height) {
+    throw new ROOT_ERROR('无法读取转换后页面尺寸');
+  }
+  const { content, contentType } = await encodePreviewPage(
+    sharp(png).flatten({ background: '#ffffff' }),
+    metadata.width,
+    metadata.height,
+    quality,
+  );
+  return {
+    pageNumber,
+    variant,
+    width: metadata.width,
+    height: metadata.height,
+    contentType,
+    content,
+  };
 }

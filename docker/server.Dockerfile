@@ -27,6 +27,8 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://mirrors.aliyun.com/docker-ce/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list && \
   apt-get update && \
   apt-get install -y docker-ce-cli docker-compose-plugin && \
+  # LibreOffice 把 Word/Excel 转成 PDF，mutool 把 PDF 画成预览页，字体供中文版式使用
+  apt-get install -y --no-install-recommends libreoffice mupdf-tools fonts-noto-cjk && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN npm config set registry https://registry.npmmirror.com && \
