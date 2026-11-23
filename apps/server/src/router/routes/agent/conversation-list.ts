@@ -42,6 +42,7 @@ const { api } = routerHandler({
             schemas.agent_conversations.last_message_timestamp,
           last_update_timestamp:
             schemas.agent_conversations.last_update_timestamp,
+          library_id: schemas.agent_conversations.library_id,
         })
         .from(schemas.agent_conversations)
         .where(where)

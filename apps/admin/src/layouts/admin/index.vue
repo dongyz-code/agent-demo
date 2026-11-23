@@ -1,50 +1,40 @@
 <template>
-  <div>
-    <v-header>
-      <v-menu :items="menuItems"></v-menu>
-    </v-header>
-    <v-body></v-body>
+  <div
+    class="flex h-svh overflow-hidden bg-background"
+    style="--menu-width: 220px; --header-height: 56px"
+  >
+    <aside
+      class="flex h-full w-[var(--menu-width)] shrink-0 flex-col border-r border-gray-200 bg-white"
+    >
+      <div
+        class="flex h-14 shrink-0 items-center gap-2 border-b border-gray-100 px-4"
+      >
+        <img :src="logo" alt="Admin Console" class="h-8 w-auto rounded-lg" />
+        <span class="truncate text-base font-semibold text-tcolor-dark">
+          Admin Console
+        </span>
+      </div>
+      <v-menu class="min-h-0 flex-1" :items="menuItems"></v-menu>
+    </aside>
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+      <v-header></v-header>
+      <v-body></v-body>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useStore } from '@/models';
-import { helperRouterName } from '@/router';
 import { computed } from 'vue';
 
 import VMenu from '@/layouts/admin/components/AdminMenu.vue';
 import VHeader from '@/layouts/admin/components/AdminHeader.vue';
 import VBody from './AdminBody.vue';
+import { adminMenu } from './menu';
 
-import MajesticonsApplications from '~icons/majesticons/applications';
-import LucideFolderOpen from '~icons/lucide/folder-open';
+import logo from '@/assets/logo-small.png';
 
 import type { MenuItem } from '@/layouts/admin/types';
-import type { RouteName } from '@/router';
-
-const _menuItems: MenuItem<RouteName>[] = [
-  {
-    label: '系统管理',
-    icon: MajesticonsApplications,
-    children: [
-      helperRouterName('system.user'),
-      helperRouterName('system.role'),
-      helperRouterName('system.app'),
-      helperRouterName('system.app-log'),
-      helperRouterName('system.user-log'),
-      helperRouterName('system.task'),
-      helperRouterName('system.table'),
-    ],
-  },
-  {
-    label: '文档中心',
-    icon: LucideFolderOpen,
-    children: [
-      helperRouterName('documents.management'),
-      helperRouterName('documents.dataset'),
-    ],
-  },
-];
 
 const store = useStore();
 
@@ -69,6 +59,6 @@ function filter(items: MenuItem[], limit: Set<string>): MenuItem[] {
 }
 
 const menuItems = computed(() => {
-  return filter(_menuItems, store.userPage);
+  return filter(adminMenu, store.userPage);
 });
 </script>

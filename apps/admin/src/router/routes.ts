@@ -12,6 +12,30 @@ export const routes: RouteItem<RouteName, Meta>[] = [
       withAuth: true,
     },
     children: [
+      /** ============ 文档中心相关 ============ */
+      {
+        path: 'documents',
+        name: 'documents',
+        component: () => import('@/pages/system/index.vue'),
+        children: [
+          {
+            path: 'list',
+            name: 'documents.list',
+            component: () => import('@/pages/document/list/index.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.documents.library')],
+            },
+          },
+          {
+            path: 'library',
+            name: 'documents.library',
+            component: () => import('@/pages/document/library/index.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.documents.library')],
+            },
+          },
+        ],
+      },
       /** ============ 系统管理相关 ============ */
       {
         path: 'system',
@@ -25,7 +49,6 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             meta: {
               permissions: [adminPermissionKey('pages.sys.sys.user')],
             },
-            root: true,
           },
           {
             path: 'role',
@@ -33,6 +56,14 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             component: () => import('@/pages/system/role/index.vue'),
             meta: {
               permissions: [adminPermissionKey('pages.sys.sys.role')],
+            },
+          },
+          {
+            path: 'group',
+            name: 'system.group',
+            component: () => import('@/pages/system/group/index.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.sys.sys.group')],
             },
           },
           {
@@ -77,40 +108,7 @@ export const routes: RouteItem<RouteName, Meta>[] = [
           },
         ],
       },
-      {
-        path: 'documents',
-        name: 'documents',
-        component: () => import('@/pages/system/index.vue'),
-        children: [
-          {
-            path: 'management',
-            name: 'documents.management',
-            component: () => import('@/pages/document/management/index.vue'),
-            meta: {
-              permissions: [adminPermissionKey('pages.documents.management')],
-            },
-            root: true,
-          },
-          {
-            path: 'management/:documentId',
-            name: 'documents.management.detail',
-            component: () => import('@/pages/document/management/detail.vue'),
-            meta: {
-              permissions: [adminPermissionKey('pages.documents.management')],
-            },
-          },
-          {
-            path: 'dataset',
-            name: 'documents.dataset',
-            component: () => import('@/pages/rag/dataset/index.vue'),
-            meta: {
-              permissions: [adminPermissionKey('pages.documents.dataset')],
-            },
-          },
-        ],
-      },
     ],
-    root: true,
   },
   {
     path: '/login',

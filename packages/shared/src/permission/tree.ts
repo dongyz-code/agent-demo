@@ -96,6 +96,39 @@ export const adminPermissionTree = [
             ],
           },
           {
+            key: 'pages.sys.sys.group',
+            label: '用户组',
+            type: 'page',
+            icon: 'users',
+            route: 'system.group',
+            children: [
+              {
+                key: 'actions.group.create',
+                label: '新建用户组',
+                type: 'button',
+                icon: 'plus',
+              },
+              {
+                key: 'actions.group.update',
+                label: '编辑用户组',
+                type: 'button',
+                icon: 'edit',
+              },
+              {
+                key: 'actions.group.member',
+                label: '维护组成员',
+                type: 'button',
+                icon: 'users',
+              },
+              {
+                key: 'actions.group.delete',
+                label: '删除用户组',
+                type: 'button',
+                icon: 'trash',
+              },
+            ],
+          },
+          {
             key: 'pages.sys.sys.app',
             label: '接口管理',
             type: 'page',
@@ -253,23 +286,41 @@ export const adminPermissionTree = [
         icon: 'folder',
         children: [
           {
-            key: 'pages.documents.management',
-            label: '文档管理',
+            key: 'pages.documents.library',
+            label: '资料库',
             type: 'page',
-            icon: 'files',
-            route: 'documents.management',
+            icon: 'book-open',
+            route: 'documents.library',
             children: [
+              {
+                key: 'actions.documents.library-create',
+                label: '新建资料库',
+                type: 'button',
+                icon: 'plus',
+              },
+              {
+                key: 'actions.documents.library-update',
+                label: '编辑资料库',
+                type: 'button',
+                icon: 'edit',
+              },
+              {
+                key: 'actions.documents.library-archive',
+                label: '归档资料库',
+                type: 'button',
+                icon: 'archive',
+              },
+              {
+                key: 'actions.documents.library-grant',
+                label: '管理授权',
+                type: 'button',
+                icon: 'key',
+              },
               {
                 key: 'actions.documents.upload',
                 label: '上传文档',
                 type: 'button',
                 icon: 'upload',
-              },
-              {
-                key: 'actions.documents.view',
-                label: '查看文档',
-                type: 'button',
-                icon: 'eye',
               },
               {
                 key: 'actions.documents.delete',
@@ -282,33 +333,6 @@ export const adminPermissionTree = [
                 label: '处理文件',
                 type: 'button',
                 icon: 'refresh-cw',
-              },
-            ],
-          },
-          {
-            key: 'pages.documents.dataset',
-            label: '知识库管理',
-            type: 'page',
-            icon: 'book-open',
-            route: 'documents.dataset',
-            children: [
-              {
-                key: 'actions.documents.dataset-create',
-                label: '新建知识库',
-                type: 'button',
-                icon: 'plus',
-              },
-              {
-                key: 'actions.documents.dataset-update',
-                label: '编辑知识库',
-                type: 'button',
-                icon: 'edit',
-              },
-              {
-                key: 'actions.documents.dataset-document-manage',
-                label: '管理知识库文档',
-                type: 'button',
-                icon: 'link',
               },
             ],
           },

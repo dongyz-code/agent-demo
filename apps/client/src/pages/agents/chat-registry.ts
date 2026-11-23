@@ -216,6 +216,14 @@ export class AgentChatRegistry {
         if (conversationId && !binding.conversationId) {
           this.promoteDraft(conversationId);
         }
+        window.dispatchEvent(
+          new CustomEvent('agent-library-scope', {
+            detail: {
+              libraryId: response.headers.get('x-library-id') || null,
+              cleared: response.headers.get('x-library-scope-cleared') === '1',
+            },
+          }),
+        );
         return response;
       },
     });

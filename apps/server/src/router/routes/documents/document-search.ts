@@ -5,7 +5,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/documents/document-search',
   method: 'POST',
-  permission: adminPermissionKey('pages.documents.management'),
+  permission: adminPermissionKey('pages.documents.library'),
   handler: async ({ body, __token }) =>
     await documentAction.search(body, __token.user_id),
 });

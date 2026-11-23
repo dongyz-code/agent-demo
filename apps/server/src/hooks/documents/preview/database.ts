@@ -78,7 +78,13 @@ export async function markPreviewProcessing(
   await db.transaction(async (transaction) => {
     await lockDocument(transaction, input.documentId);
     await assertActive();
-    await requireDocument(input.documentId, input.userId, transaction);
+    await requireDocument(
+      input.documentId,
+      input.userId,
+      transaction,
+      false,
+      'exists',
+    );
     const [updated] = await transaction
       .update(schemas.document_versions)
       .set({
@@ -120,7 +126,13 @@ export async function publishPreviewPages(
   return await db.transaction(async (transaction) => {
     await lockDocument(transaction, input.documentId);
     await assertActive();
-    await requireDocument(input.documentId, input.userId, transaction);
+    await requireDocument(
+      input.documentId,
+      input.userId,
+      transaction,
+      false,
+      'exists',
+    );
     const where = eq(table.document_version_id, input.documentVersionId);
     const oldPages = await transaction
       .select({

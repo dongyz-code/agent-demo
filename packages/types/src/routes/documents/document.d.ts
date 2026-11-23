@@ -1,11 +1,11 @@
 import type { ApiMultAction } from '../../common/index.js';
-import type {
-  RagDatasetDocumentStatus,
-  RagDatasetDocumentSummary,
-} from './dataset.js';
+import type { LibraryRole } from './library.js';
 
 /** 文档生命周期状态；预览与 RAG 使用各自独立状态。 */
 export type DocumentStatus = 'active' | 'deleted';
+
+/** 文档版本索引状态。表示处理进度，不表示阅读权限。 */
+export type DocumentRagStatus = 'pending' | 'processing' | 'ready' | 'failed';
 
 /** 文档版本页面预览状态。 */
 export type DocumentPreviewStatus =
@@ -45,6 +45,10 @@ export interface DocumentVersionInfo {
   previewPageCount: number;
   /** 最近一次预览失败的安全错误摘要。 */
   previewError: string | null;
+  /** 该版本的索引状态。 */
+  ragStatus: DocumentRagStatus;
+  /** 最近一次索引失败的安全错误摘要。 */
+  ragError: string | null;
   /** 版本创建时间。 */
   createdAt: Date;
 }
@@ -79,16 +83,20 @@ export interface DocumentInfo {
   name: string;
   /** 文档生命周期状态。 */
   status: DocumentStatus;
-  /** 后续版本默认是否进入已关联知识库。 */
-  ragEnabled: boolean;
+  /** 所属资料库。 */
+  libraryId: string;
+  /** 所属资料库名称。 */
+  libraryName: string;
+  /** 当前用户在该库的身份。 */
+  myRole: LibraryRole;
+  /** 当前可检索版本。尚未成功索引时为空。 */
+  indexedVersionId: string | null;
   /** 当前展示版本。 */
   activeVersion: DocumentVersionInfo;
   /** 文档包含的版本数量。 */
   versionCount: number;
   /** 当前版本第一页封面；预览未就绪时为空。 */
   cover: DocumentPreviewPageInfo | null;
-  /** 文档关联知识库及其生效版本摘要。 */
-  datasets: RagDatasetDocumentSummary[];
   /** 文档创建时间。 */
   createdAt: Date;
 }
@@ -174,6 +182,8 @@ export type DocumentAction = ApiMultAction<{
       key: string;
       /** 已有文档标识；为空时创建文档。 */
       documentId?: string;
+      /** 新建文档所属资料库。创建文档时必填。 */
+      libraryId?: string;
     };
     resp: DocumentUploadResult;
   };
@@ -185,8 +195,8 @@ export type DocumentAction = ApiMultAction<{
       status?: DocumentStatus[];
       /** 当前版本预览状态筛选。 */
       previewStatus?: DocumentPreviewStatus[];
-      /** 可选知识库筛选，知识库文档列表复用该条件。 */
-      datasetId?: string;
+      /** 只看某个资料库。不传则返回当前用户能阅读的全部文档。 */
+      libraryId?: string;
       /** 文档创建时间范围。 */
       createdAt?: (Date | null)[];
       /** 左闭右开的分页范围。 */
@@ -216,8 +226,8 @@ export type DocumentAction = ApiMultAction<{
     body: { documentId: string };
     resp: 'ok';
   };
-  'rag-default/update': {
-    body: { documentId: string; ragEnabled: boolean };
+  move: {
+    body: { documentId: string; libraryId: string };
     resp: DocumentDetail;
   };
   'preview/pages': {
@@ -237,5 +247,3 @@ export type DocumentAction = ApiMultAction<{
   };
 }>;
 
-/** 知识库文档关系状态的兼容导出。 */
-export type DocumentRagStatus = RagDatasetDocumentStatus;

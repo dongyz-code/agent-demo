@@ -1,6 +1,6 @@
 import type { ApiMultAction } from '../../common/index.js';
 import type { DocumentAction } from './document.js';
-import type { Rag } from './dataset.js';
+import type { LibraryAction } from './library.js';
 import type { FileProcessingAction } from './processing.js';
 
 /**
@@ -20,8 +20,8 @@ export type DocumentsAction = ApiMultAction<{
   'document-download': DocumentAction['download'];
   /** 删除整个文档。 */
   'document-remove': DocumentAction['remove'];
-  /** 更新文档默认 RAG 开关。 */
-  'document-rag-default-update': DocumentAction['rag-default/update'];
+  /** 把文档移动到另一个资料库。 */
+  'document-move': DocumentAction['move'];
   /** 查询当前或指定版本的页面窗口。 */
   'document-preview-pages': DocumentAction['preview/pages'];
   /** 重试当前或指定版本的预览。 */
@@ -34,29 +34,32 @@ export type DocumentsAction = ApiMultAction<{
   'processing-cancel': FileProcessingAction['cancel'];
   /** 重新执行文件处理任务。 */
   'processing-retry': FileProcessingAction['retry'];
-  /** 新建知识库。 */
-  'dataset-create': Rag['dataset/create'];
-  /** 知识库列表。 */
-  'dataset-list': Rag['dataset/list'];
-  /** 知识库详情。 */
-  'dataset-detail': Rag['dataset/detail'];
-  /** 编辑知识库。 */
-  'dataset-update': Rag['dataset/update'];
-  /** 停用知识库。 */
-  'dataset-disable': Rag['dataset/disable'];
-  /** 加入文档到知识库。 */
-  'dataset-document-add': Rag['dataset-document/add'];
-  /** 知识库文档列表。 */
-  'dataset-document-list': Rag['dataset-document/list'];
-  /** 从知识库移除文档。 */
-  'dataset-document-remove': Rag['dataset-document/remove'];
-  /** 替换文档关联的完整知识库集合。 */
-  'dataset-document-update': Rag['dataset-document/update'];
+  /** 资料库列表。 */
+  'library-list': LibraryAction['library-list'];
+  /** 资料库详情。 */
+  'library-detail': LibraryAction['library-detail'];
+  /** 新建资料库。 */
+  'library-create': LibraryAction['library-create'];
+  /** 编辑资料库。 */
+  'library-update': LibraryAction['library-update'];
+  /** 归档资料库。 */
+  'library-archive': LibraryAction['library-archive'];
+  /** 恢复资料库。 */
+  'library-restore': LibraryAction['library-restore'];
+  /** 资料库授权列表。 */
+  'library-grant-list': LibraryAction['library-grant-list'];
+  /** 替换资料库授权。 */
+  'library-grant-save': LibraryAction['library-grant-save'];
+  /** 搜索可加入授权的用户或用户组。 */
+  'library-subject-search': LibraryAction['library-subject-search'];
+  /** 当前用户可检索的资料库。 */
+  'library-usable-list': LibraryAction['library-usable-list'];
 }>;
 
 /** 文档实体与内容类型；旧 `DocumentAction` 路由已下线。 */
 export type {
   DocumentStatus,
+  DocumentRagStatus,
   DocumentPreviewStatus,
   DocumentPreviewPageVariant,
   DocumentBlockType,
@@ -71,7 +74,7 @@ export type {
   DocumentUploadResult,
 } from './document.js';
 
-/** 知识库实体与接口类型。 */
-export type * from './dataset.js';
+/** 资料库实体与接口类型。 */
+export type * from './library.js';
 /** 文件处理任务实体与接口类型。 */
 export type * from './processing.js';

@@ -3,7 +3,10 @@ import { desc, eq, inArray } from 'drizzle-orm';
 import { ROOT_ERROR } from '@/configs/index.js';
 import { ROOT } from '@/configs/index.js';
 import { buildWhere, db, schemas } from '@/database/index.js';
+import { filterReadableDocumentIds } from '@/hooks/documents/library-access.js';
+import { redactSearchResults } from '@/hooks/agents/agents/redact-sources.js';
 import { routerHandler } from '@/router/utils.js';
+import type { AgentMessagePart } from '@repo/types';
 
 const { api } = routerHandler({
   url: '/agent/message-list',
@@ -55,7 +58,34 @@ const { api } = routerHandler({
         : Promise.resolve(0),
     ]);
 
-    const list = [...latestList].reverse();
+    const documentIds = latestList.flatMap((message) =>
+      message.content.flatMap((part) => {
+        if (part.type !== 'tool-result') return [];
+        const output = part.output;
+        if (!output || typeof output !== 'object' || !('chunks' in output)) {
+          return [];
+        }
+        const chunks = output.chunks;
+        if (!Array.isArray(chunks)) return [];
+        return chunks.flatMap((chunk) => {
+          if (!chunk || typeof chunk !== 'object' || !('document_id' in chunk)) {
+            return [];
+          }
+          return typeof chunk.document_id === 'string' ? [chunk.document_id] : [];
+        });
+      }),
+    );
+    const readable = await filterReadableDocumentIds(
+      __token.user_id,
+      documentIds,
+    );
+    const list = [...latestList].reverse().map((message) => ({
+      ...message,
+      content: redactSearchResults(
+        message.content as AgentMessagePart[],
+        readable,
+      ),
+    }));
     return { list, count };
   },
 });

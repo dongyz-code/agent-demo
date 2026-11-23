@@ -22,6 +22,8 @@ import { cn } from '@/utils';
 type MessageComposerProps = {
   /** 是否有请求已提交或正在流式返回。 */
   isStreaming: boolean;
+  /** 没有可检索资料库时禁止发送。 */
+  disabled?: boolean;
   /** 发送当前用户消息；reasoning 表示本次请求是否开启思考模式。 */
   onSend: (text: string, reasoning: boolean) => void;
   /** 终止当前流式回复。 */
@@ -36,6 +38,7 @@ type MessageComposerProps = {
  */
 export function MessageComposer({
   isStreaming,
+  disabled = false,
   onSend,
   onStop,
 }: MessageComposerProps) {
@@ -43,7 +46,7 @@ export function MessageComposer({
   const [reasoningEnabled, setReasoningEnabled] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const sendDisabled = isStreaming || value.trim().length === 0;
+  const sendDisabled = disabled || isStreaming || value.trim().length === 0;
 
   /** 提交输入文本；流创建失败时保留原文，避免用户重新输入。 */
   function send() {

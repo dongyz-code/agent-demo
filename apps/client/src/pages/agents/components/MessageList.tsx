@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CopyIcon, RefreshCwIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui';
 import { message as showMessage } from '@/utils';
 
+import { DocumentSourceDialog, type DocumentSource } from './DocumentSourceDialog';
 import { MarkdownContent } from './MarkdownContent';
 import { AgentEmptyState } from './AgentEmptyState';
 import { MessageProcess } from './MessageProcess';
@@ -56,6 +57,7 @@ export function MessageList({
   onPrompt,
   onRegenerate,
 }: MessageListProps) {
+  const [source, setSource] = useState<DocumentSource | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const shouldFollowBottomRef = useRef(true);
@@ -154,6 +156,20 @@ export function MessageList({
                     {isStreaming ? '正在生成…' : '（非文本消息）'}
                   </span>
                 )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {messageSources(message).map((item) => (
+                    <Button
+                      key={`${item.documentId}-${item.content.slice(0, 12)}`}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSource(item);
+                      }}
+                    >
+                      查看来源
+                    </Button>
+                  ))}
+                </div>
                 {text ? (
                   <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100">
                     <Button
@@ -184,6 +200,30 @@ export function MessageList({
         })}
         <div ref={endRef} />
       </div>
+      <DocumentSourceDialog source={source} onClose={() => setSource(null)} />
     </div>
   );
+}
+
+/** 从检索工具结果里取出可打开的文档片段。 */
+function messageSources(message: AgentChatMessage): DocumentSource[] {
+  return extractMessageToolParts(message).flatMap((part) => {
+    if (!part.output || typeof part.output !== 'object') return [];
+    const chunks = (part.output as { chunks?: unknown }).chunks;
+    if (!Array.isArray(chunks)) return [];
+    return chunks.flatMap((chunk) => {
+      if (!chunk || typeof chunk !== 'object') return [];
+      const documentId = (chunk as { document_id?: unknown }).document_id;
+      const content = (chunk as { content?: unknown }).content;
+      const headingPath = (chunk as { heading_path?: unknown }).heading_path;
+      if (typeof documentId !== 'string' || typeof content !== 'string') return [];
+      return [
+        {
+          documentId,
+          content,
+          headingPath: typeof headingPath === 'string' ? headingPath : undefined,
+        },
+      ];
+    });
+  });
 }

@@ -14,6 +14,7 @@ const { api } = routerHandler({
       properties: {
         key: { type: 'string', minLength: 1, maxLength: 255 },
         documentId: { type: 'string', minLength: 1, maxLength: 255 },
+        libraryId: { type: 'string', minLength: 1, maxLength: 255 },
       },
     },
   },

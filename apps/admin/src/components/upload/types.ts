@@ -1,11 +1,21 @@
 import type { DocumentUploadResult, UploadedFile, UploadMode } from '@/types';
 
+/** 打开文档上传流程的业务上下文；新版本不允许变更资料库。 */
+export interface DocumentUploadTarget {
+  /** 已有文档标识，传入时只接收一份新版本文件。 */
+  documentId?: string;
+  /** 新建文档时的预选资料库，弹窗会重新核对管理资格。 */
+  libraryId?: string;
+}
+
 /** Uppy 文件上保存的通用上传会话元数据。 */
 export interface UploadFileMeta extends Record<string, unknown> {
   /** 当前浏览器选择生成的上传尝试标识；新选择和终态重传必须不同。 */
   uploadAttemptId?: string;
   /** 首次初始化时冻结的业务目标，仅由文档绑定接口使用。 */
   documentId?: string | null;
+  /** 新建文档所属资料库。 */
+  libraryId?: string | null;
   /** 服务端上传会话标识。 */
   sessionId?: string;
   /** 服务端选择的传输模式。 */
@@ -53,6 +63,8 @@ export interface UploadResponseBody extends Record<string, unknown> {
 export interface UploadQueueItem {
   /** Uppy 文件标识。 */
   id: string;
+  /** 文件加入队列时冻结的资料库，避免恢复上传时误显示为另一个库。 */
+  libraryId?: string | null;
   /** 文件显示名称。 */
   name: string;
   /** 文件字节数。 */
@@ -79,6 +91,8 @@ export interface UploaderOptions {
   maxNumberOfFiles?: number;
   /** 每次初始化上传会话时读取最新的目标文档；空值表示新建文档。 */
   getDocumentId?: () => string | undefined;
+  /** 新建文档时读取所属资料库。 */
+  getLibraryId?: () => string | undefined;
   /** 文档版本创建后的业务回调；Promise 完成前队列项不会标记成功。 */
   onUploaded?: (result: DocumentUploadResult) => void | Promise<void>;
 }

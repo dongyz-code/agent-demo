@@ -10,7 +10,6 @@ import {
   lte,
   max,
   or,
-  sql,
 } from 'drizzle-orm';
 
 import { ROOT_ERROR } from '@/configs/index.js';
@@ -29,7 +28,7 @@ import { documentPreview } from './preview/index.js';
 import { documentsConfig } from './config.js';
 import { resolveDocumentVersion } from './document/resolve-version.js';
 import { upload } from '@/hooks/upload/index.js';
-import { documentRag } from './rag/index.js';
+import { requireLibraryAccess, resolveLibraryAccess } from './library-access.js';
 import { enqueueDocumentCleanup } from './tasks/cleanup.js';
 import { enqueueDocumentProcess } from './document-process-action.js';
 import type {
@@ -43,9 +42,8 @@ import type {
   DocumentPreviewWindow,
   DocumentVersionInfo,
   FileProcessingTriggerSource,
-  RagDatasetDocumentSummary,
+  LibraryRole,
 } from '@repo/types';
-import type { DocumentDatasetRelationMode } from './rag/index.js';
 import type { DbTransaction } from '@/database/index.js';
 
 /** 文档复杂搜索的服务端输入。 */
@@ -56,8 +54,8 @@ interface SearchDocumentsInput {
   status?: DocumentInfo['status'][];
   /** 当前版本预览状态筛选。 */
   previewStatus?: DocumentVersionInfo['previewStatus'][];
-  /** 可选知识库筛选。 */
-  datasetId?: string;
+  /** 只看某个资料库。不传则返回当前用户能阅读的全部文档。 */
+  libraryId?: string;
   /** 文档创建时间范围。 */
   createdAt?: (Date | null)[];
   /** 左闭右开的分页范围。 */
@@ -71,6 +69,7 @@ type CurrentDocumentRow = {
   document: typeof schemas.documents.$inferSelect;
   version: typeof schemas.document_versions.$inferSelect;
   file: typeof schemas.files.$inferSelect;
+  library: typeof schemas.libraries.$inferSelect | null;
 };
 
 /** 当前页文档使用的固定批量聚合结果。 */
@@ -79,8 +78,8 @@ interface DocumentAggregates {
   coverAccessByFile: Map<string, FileAccess>;
   /** 每个文档的版本数量。 */
   versionCountByDocument: Map<string, number>;
-  /** 每个文档的知识库关系摘要。 */
-  datasetsByDocument: Map<string, RagDatasetDocumentSummary[]>;
+  /** 每个资料库上当前用户的有效身份。 */
+  roleByLibrary: Map<string, LibraryRole>;
   /** 每个当前版本的第一页内部行。 */
   coverByVersion: Map<
     string,
@@ -98,8 +97,8 @@ interface CreateDocumentVersionFromFileInput {
   documentId?: string;
   /** 新文档显示名称；为空时使用源文件名。 */
   name?: string;
-  /** 新文档后续版本默认是否进入 RAG。 */
-  ragEnabled?: boolean;
+  /** 新建文档所属资料库。 */
+  libraryId?: string;
 }
 
 /** 文件绑定完成后的稳定结果。 */
@@ -134,24 +133,8 @@ interface GetDocumentPreviewPagesInput {
   pageSize?: number;
 }
 
-/** 文档知识库关系变更与 RAG 任务触发输入。 */
-interface ApplyDocumentDatasetAssignmentInput {
-  /** 文档稳定标识。 */
-  documentId: string;
-  /** 本次关系应处理的不可变文档版本。 */
-  documentVersionId: string;
-  /** 需要加入、移出或作为完整结果的知识库标识。 */
-  datasetIds: string[];
-  /** 关系集合变更方式。 */
-  mode: DocumentDatasetRelationMode;
-  /** 当前操作用户。 */
-  userId: string;
-  /** 上传自动触发或用户手动操作。 */
-  triggerSource?: FileProcessingTriggerSource;
-}
-
 /**
- * 文档查询、版本、预览、知识库和处理任务业务动作。
+ * 文档查询、版本、预览和处理任务业务动作。
  *
  * Worker、parser、对象存储和向量写入作为独立执行边界保留。
  */
@@ -172,7 +155,7 @@ class DocumentAction {
         {
           fileId: input.key,
           documentId: input.documentId,
-          ragEnabled: false,
+          libraryId: input.libraryId,
         },
         userId,
         transaction,
@@ -182,7 +165,7 @@ class DocumentAction {
           {
             documentId: result.document.documentId,
             documentVersionId: result.documentVersionId,
-            operations: ['preview'],
+            operations: ['preview', 'rag'],
             triggerSource: 'upload',
           },
           userId,
@@ -209,6 +192,9 @@ class DocumentAction {
     input: SearchDocumentsInput,
     userId: string,
   ): Promise<{ list: DocumentInfo[]; count: number }> {
+    if (input.libraryId) {
+      await requireLibraryAccess(input.libraryId, userId, 'user', 'admin');
+    }
     const [start = 0, end = 20] = input.limit ?? [];
     const [createdStart, createdEnd] = input.createdAt ?? [];
     const where = buildWhere((filter) => {
@@ -239,13 +225,8 @@ class DocumentAction {
       if (createdEnd) {
         filter.push(lte(schemas.documents.create_timestamp, createdEnd));
       }
-      if (input.datasetId) {
-        filter.push(sql`exists (
-          select 1
-          from rag_dataset_documents rdd
-          where rdd.document_id = ${schemas.documents.document_id}
-            and rdd.dataset_id = ${input.datasetId}
-        )`);
+      if (input.libraryId) {
+        filter.push(eq(schemas.documents.library_id, input.libraryId));
       }
     });
     const baseQuery = this.selectCurrentDocumentRows(where);
@@ -263,7 +244,10 @@ class DocumentAction {
     if (!rows.length) {
       return { list: [], count: countResult[0]?.value ?? 0 };
     }
-    const aggregates = await this.loadDocumentAggregates(rows);
+    const aggregates = await this.loadDocumentAggregates(
+      rows,
+      await this.libraryRoles(rows, userId),
+    );
     return {
       list: await Promise.all(
         rows.map(async (row) => await this.toDocumentInfo(row, aggregates)),
@@ -294,7 +278,10 @@ class DocumentAction {
       )
       .where(eq(schemas.document_versions.document_id, documentId))
       .orderBy(desc(schemas.document_versions.version));
-    const aggregates = await this.loadDocumentAggregates([current]);
+    const aggregates = await this.loadDocumentAggregates(
+      [current],
+      await this.libraryRoles([current], userId),
+    );
     return {
       ...(await this.toDocumentInfo(current, aggregates)),
       versions: versionRows.map((row) => this.toDocumentVersionInfo(row)),
@@ -329,6 +316,29 @@ class DocumentAction {
     };
   }
 
+  /**
+   * 读取当前页每个资料库上的有效身份。
+   *
+   * @param rows 已经过数据权限过滤的文档行。
+   * @param userId 当前用户。
+   * @returns 资料库标识到身份的映射。
+   */
+  private async libraryRoles(rows: CurrentDocumentRow[], userId: string) {
+    const roles = new Map<string, LibraryRole>();
+    const libraryIds = [
+      ...new Set(
+        rows.flatMap((row) =>
+          row.library ? [row.library.library_id] : [],
+        ),
+      ),
+    ];
+    for (const libraryId of libraryIds) {
+      const access = await resolveLibraryAccess(libraryId, userId, 'admin');
+      if (access) roles.set(libraryId, access.role);
+    }
+    return roles;
+  }
+
   /** 构造文档、当前版本与源文件的联合查询。 */
   private selectCurrentDocumentRows(where: ReturnType<typeof and>) {
     return db
@@ -336,8 +346,13 @@ class DocumentAction {
         document: schemas.documents,
         version: schemas.document_versions,
         file: schemas.files,
+        library: schemas.libraries,
       })
       .from(schemas.documents)
+      .leftJoin(
+        schemas.libraries,
+        eq(schemas.libraries.library_id, schemas.documents.library_id),
+      )
       .innerJoin(
         schemas.document_versions,
         eq(
@@ -360,6 +375,7 @@ class DocumentAction {
    */
   private async loadDocumentAggregates(
     rows: CurrentDocumentRow[],
+    roleByLibrary: Map<string, LibraryRole>,
   ): Promise<DocumentAggregates> {
     const documentIds = rows.map((row) => row.document.document_id);
     const versionIds = rows.map((row) => row.version.document_version_id);
@@ -369,8 +385,7 @@ class DocumentAction {
         eq(schemas.document_preview_pages.page_number, 1),
       );
     });
-    const [versionCounts, datasetRows, coverRows, quickCoverRows] =
-      await Promise.all([
+    const [versionCounts, coverRows, quickCoverRows] = await Promise.all([
         db
           .select({
             documentId: schemas.document_versions.document_id,
@@ -379,23 +394,6 @@ class DocumentAction {
           .from(schemas.document_versions)
           .where(inArray(schemas.document_versions.document_id, documentIds))
           .groupBy(schemas.document_versions.document_id),
-        db
-          .select({
-            documentId: schemas.rag_dataset_documents.document_id,
-            relation: schemas.rag_dataset_documents,
-            dataset: schemas.rag_datasets,
-          })
-          .from(schemas.rag_dataset_documents)
-          .innerJoin(
-            schemas.rag_datasets,
-            eq(
-              schemas.rag_datasets.dataset_id,
-              schemas.rag_dataset_documents.dataset_id,
-            ),
-          )
-          .where(
-            inArray(schemas.rag_dataset_documents.document_id, documentIds),
-          ),
         db.select().from(schemas.document_preview_pages).where(coverWhere),
         db
           .select()
@@ -410,19 +408,6 @@ class DocumentAction {
             ),
           ),
       ]);
-    const datasetsByDocument = new Map<string, RagDatasetDocumentSummary[]>();
-    for (const row of datasetRows) {
-      const list = datasetsByDocument.get(row.documentId) ?? [];
-      list.push({
-        datasetId: row.dataset.dataset_id,
-        name: row.dataset.name,
-        activeVersionId: row.relation.active_version_id,
-        pendingVersionId: row.relation.pending_version_id,
-        status: row.relation.rag_status,
-        error: row.relation.rag_error,
-      });
-      datasetsByDocument.set(row.documentId, list);
-    }
     const clearCoverByVersion = new Map(
       coverRows.map((row) => [row.document_version_id, row]),
     );
@@ -438,12 +423,12 @@ class DocumentAction {
       const versionId = row.version.document_version_id;
       const clearCover = clearCoverByVersion.get(versionId);
       const quickCover = quickCoverByVersion.get(versionId);
-      if (row.version.preview_status === 'ready' && clearCover) {
+      if (row.version.preview_status === 'ready' && clearCover?.file_id) {
         coverByVersion.set(versionId, clearCover);
         coverVariantByVersion.set(versionId, 'clear');
         continue;
       }
-      if (row.version.preview_status === 'processing' && quickCover) {
+      if (row.version.preview_status === 'processing' && quickCover?.file_id) {
         coverByVersion.set(versionId, quickCover);
         coverVariantByVersion.set(versionId, 'quick');
       }
@@ -457,7 +442,7 @@ class DocumentAction {
       versionCountByDocument: new Map(
         versionCounts.map((row) => [row.documentId, row.value]),
       ),
-      datasetsByDocument,
+      roleByLibrary,
       coverByVersion,
       coverVariantByVersion,
     };
@@ -475,7 +460,12 @@ class DocumentAction {
       documentId: row.document.document_id,
       name: row.document.name,
       status: row.document.status,
-      ragEnabled: row.document.rag_enabled,
+      libraryId: row.library?.library_id ?? '',
+      libraryName: row.library?.name ?? '',
+      myRole:
+        aggregates.roleByLibrary.get(row.library?.library_id ?? '') ??
+        (row.library ? 'user' : 'manager'),
+      indexedVersionId: row.document.indexed_version_id,
       activeVersion: this.toDocumentVersionInfo({
         version: row.version,
         file: row.file,
@@ -491,8 +481,6 @@ class DocumentAction {
             ) ?? 'clear',
           )
         : null,
-      datasets:
-        aggregates.datasetsByDocument.get(row.document.document_id) ?? [],
       createdAt: row.document.create_timestamp,
     };
   }
@@ -512,6 +500,8 @@ class DocumentAction {
       previewStatus: row.version.preview_status,
       previewPageCount: row.version.preview_page_count,
       previewError: row.version.preview_error,
+      ragStatus: row.version.rag_status,
+      ragError: row.version.rag_error,
       createdAt: row.version.create_timestamp,
     };
   }
@@ -584,7 +574,7 @@ class DocumentAction {
       .limit(1);
     if (existing) {
       await lockDocument(tx, existing.documentId);
-      await requireDocument(existing.documentId, userId, tx);
+      await requireDocument(existing.documentId, userId, tx, false, 'read');
       if (input.documentId && existing.documentId !== input.documentId) {
         throw new ROOT_ERROR('数据异常');
       }
@@ -601,6 +591,8 @@ class DocumentAction {
 
     const now = new Date();
     if (!input.documentId) {
+      if (!input.libraryId) throw new ROOT_ERROR('非法参数');
+      await requireLibraryAccess(input.libraryId, userId, 'manager', 'admin', tx);
       const documentId = randomUUID();
       const documentVersionId = randomUUID();
       const name = input.name?.trim() || file.filename;
@@ -608,7 +600,8 @@ class DocumentAction {
         document_id: documentId,
         name,
         active_version_id: documentVersionId,
-        rag_enabled: input.ragEnabled ?? false,
+        library_id: input.libraryId,
+        indexed_version_id: null,
         status: 'active',
         create_user_id: userId,
         create_timestamp: now,
@@ -623,6 +616,8 @@ class DocumentAction {
         preview_status: 'pending',
         preview_page_count: 0,
         preview_error: null,
+        rag_status: 'pending',
+        rag_error: null,
         create_user_id: userId,
         create_timestamp: now,
         last_update_user_id: userId,
@@ -638,7 +633,16 @@ class DocumentAction {
 
     const targetDocumentId = input.documentId;
     await lockDocument(tx, targetDocumentId);
-    const document = await requireDocument(targetDocumentId, userId, tx);
+    const document = await requireDocument(
+      targetDocumentId,
+      userId,
+      tx,
+      false,
+      'manage',
+    );
+    if (input.libraryId && input.libraryId !== document.library_id) {
+      throw new ROOT_ERROR('非法参数');
+    }
     const [latest] = await tx
       .select({ version: max(schemas.document_versions.version) })
       .from(schemas.document_versions)
@@ -653,6 +657,8 @@ class DocumentAction {
       preview_status: 'pending',
       preview_page_count: 0,
       preview_error: null,
+      rag_status: 'pending',
+      rag_error: null,
       create_user_id: userId,
       create_timestamp: now,
       last_update_user_id: userId,
@@ -692,6 +698,7 @@ class DocumentAction {
   ) {
     await db.transaction(async (tx) => {
       await lockDocument(tx, documentId);
+      await requireDocument(documentId, userId, tx, false, 'manage');
       await resolveDocumentVersion(documentId, documentVersionId, userId, tx);
       await tx
         .update(schemas.documents)
@@ -700,25 +707,7 @@ class DocumentAction {
           last_update_user_id: userId,
           last_update_timestamp: new Date(),
         })
-        .where(documentAccessWhere(userId, documentId));
-      const relations = await documentRag.setPendingVersion(tx, {
-        documentId,
-        documentVersionId,
-        userId,
-      });
-      if (documentsConfig.fileProcessing.enabled && relations) {
-        await enqueueDocumentProcess(
-          {
-            documentId,
-            documentVersionId,
-            operations: ['rag'],
-            triggerSource: 'manual',
-            reuseActive: false,
-          },
-          userId,
-          tx,
-        );
-      }
+        .where(documentAccessWhere(userId, documentId, false, 'manage'));
     });
     return await this.getDetail(documentId, userId);
   }
@@ -833,7 +822,7 @@ class DocumentAction {
       {
         documentId: input.documentId,
         documentVersionId: resolved.version.document_version_id,
-        operations: ['preview'],
+        operations: ['preview', 'rag'],
         triggerSource,
       },
       userId,
@@ -842,59 +831,35 @@ class DocumentAction {
   }
 
   /**
-   * 在同一事务内修改知识库关系并创建 RAG 任务，拒绝覆盖正在处理的同版本。
+   * 把文档移到另一个当前用户同样管理的资料库。
    *
-   * @param input 文档版本、知识库集合、变更方式、处理配置和审计用户。
-   * @returns 关系更新及 RAG 任务触发完成后结束。
-   */
-  private async applyDocumentDatasetAssignment(
-    input: ApplyDocumentDatasetAssignmentInput,
-  ): Promise<void> {
-    await db.transaction(async (transaction) => {
-      await documentRag.updateRelations(input, transaction);
-      if (
-        documentsConfig.fileProcessing.enabled &&
-        input.mode !== 'remove' &&
-        input.datasetIds.length
-      ) {
-        await enqueueDocumentProcess(
-          {
-            documentId: input.documentId,
-            documentVersionId: input.documentVersionId,
-            operations: ['rag'],
-            triggerSource: input.triggerSource ?? 'manual',
-            reuseActive: false,
-          },
-          input.userId,
-          transaction,
-        );
-      }
-    });
-  }
-
-  /**
-   * 修改文档知识库集合并返回刷新后的文档详情。
+   * 只改所属库，不重做向量，也不改变可检索版本。
    *
    * @param documentId 文档稳定标识。
-   * @param datasetIds 需要加入、移出或作为完整结果的知识库标识。
-   * @param mode 关系集合的加入、移出或替换方式。
-   * @param userId 当前操作用户，用于文档范围和审计。
-   * @returns 更新后的文档详情与各知识库版本状态。
+   * @param libraryId 目标资料库。
+   * @param userId 当前操作用户。
+   * @returns 移动后的文档详情。
    */
-  async changeDatasets(
-    documentId: string,
-    datasetIds: string[],
-    mode: DocumentDatasetRelationMode,
-    userId: string,
-  ) {
-    const document = await this.getDetail(documentId, userId);
-    await this.applyDocumentDatasetAssignment({
-      documentId,
-      documentVersionId: document.activeVersion.documentVersionId,
-      datasetIds,
-      mode,
-      userId,
-      triggerSource: 'manual',
+  async move(documentId: string, libraryId: string, userId: string) {
+    await db.transaction(async (tx) => {
+      await lockDocument(tx, documentId);
+      const document = await requireDocument(
+        documentId,
+        userId,
+        tx,
+        false,
+        'manage',
+      );
+      if (document.library_id === libraryId) return;
+      await requireLibraryAccess(libraryId, userId, 'manager', 'admin', tx);
+      await tx
+        .update(schemas.documents)
+        .set({
+          library_id: libraryId,
+          last_update_user_id: userId,
+          last_update_timestamp: new Date(),
+        })
+        .where(eq(schemas.documents.document_id, documentId));
     });
     return await this.getDetail(documentId, userId);
   }

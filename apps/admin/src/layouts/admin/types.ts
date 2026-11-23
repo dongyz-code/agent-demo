@@ -8,8 +8,8 @@ export type MenuItem<K extends string = string, T = {}> = T & {
   icon?: IconType;
 } & (
     | {
-        /** 存在的时候，该项为 el-menu-item */
-        value: string;
+        /** 叶子菜单使用受泛型约束的路由名，便于安全推导默认入口。 */
+        value: K;
       }
     | {
         /** 存在的时候，该项为子菜单 el-sub-menu */

@@ -250,5 +250,6 @@ export function toConversation(
     status: record.status,
     createdAt: new Date(record.create_timestamp).getTime(),
     updatedAt: new Date(record.last_update_timestamp).getTime(),
+    libraryId: record.library_id,
   };
 }

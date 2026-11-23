@@ -2,20 +2,7 @@
   <div
     class="h-header flex items-center justify-between gap-4 bg-white px-2 shadow-sm"
   >
-    <div
-      class="flex h-full shrink-0 cursor-pointer items-center gap-2 py-2"
-      @click="logoClickHandler"
-    >
-      <img
-        :src="logo"
-        alt="Admin Console"
-        class="h-full w-auto rounded-lg"
-      />
-      <span class="whitespace-nowrap text-base font-semibold text-tcolor-dark">
-        Admin Console
-      </span>
-    </div>
-    <slot></slot>
+    <div class="min-w-0 flex-1"></div>
     <div class="flex shrink-0 items-center gap-4">
       <div class="flex items-center gap-2">
         {{ store.$state.user?.nickname }}
@@ -37,8 +24,6 @@ import { routerGoLogin } from '@/router';
 import { api } from '@/utils';
 import { logoutHandle } from '@/pages/login/login';
 import { ref } from 'vue';
-
-import logo from '@/assets/logo-small.png';
 
 import MaterialSymbolsLogout from '~icons/material-symbols/logout';
 
@@ -66,11 +51,5 @@ async function logout() {
     await routerGoLogin();
     loggingOut.value = false;
   }
-}
-
-function logoClickHandler() {
-  // store.stateSet({
-  //   NAV_MODE: store.NAV_MODE === 'horizontal' ? 'vertical' : 'horizontal',
-  // });
 }
 </script>

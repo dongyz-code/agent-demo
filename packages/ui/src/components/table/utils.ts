@@ -74,6 +74,7 @@ export function handleRows(
       type,
       tips = '',
       align = 'left',
+      selectable,
     }) => {
       return {
         label: label || value,
@@ -90,6 +91,7 @@ export function handleRows(
         type: type!,
         tips,
         align,
+        selectable: selectable ?? (() => true),
       };
     },
   );

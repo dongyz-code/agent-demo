@@ -47,6 +47,7 @@ export async function enqueueDocumentCleanup(
       actorUserId,
       transaction,
       true,
+      'manage',
     );
     canceledIds = await cancelDocumentProcessesForRemoval(
       transaction,
@@ -64,9 +65,6 @@ export async function enqueueDocumentCleanup(
         })
         .where(eq(schemas.documents.document_id, documentId));
     }
-    await transaction
-      .delete(schemas.rag_dataset_documents)
-      .where(eq(schemas.rag_dataset_documents.document_id, documentId));
     const data: DocumentCleanupTaskData = { documentId, userId: actorUserId };
     await documentCleanupTask.enqueue(data, {
       actorUserId,

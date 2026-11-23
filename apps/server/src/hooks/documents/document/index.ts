@@ -292,9 +292,6 @@ async function deleteDocumentDatabaseRows(
           ...quickPages.map((page) => page.key),
         );
       }
-      await tx
-        .delete(schemas.rag_dataset_documents)
-        .where(eq(schemas.rag_dataset_documents.document_id, input.documentId));
       if (versionIds.length) {
         await tx
           .delete(schemas.document_segments)

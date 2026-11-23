@@ -256,6 +256,64 @@ export type ApiLogAction = ApiMultAction<{
   };
 }>;
 
+/** 用户组及其成员。 */
+export interface UserGroupInfo {
+  /** 用户组标识。 */
+  userGroupId: string;
+  /** 组名。 */
+  name: string;
+  /** 说明。 */
+  description: string | null;
+  /** 成员数量。 */
+  memberCount: number;
+  /** 仍引用该组的资料库数量。 */
+  libraryCount: number;
+}
+
+/** 用户组成员摘要。 */
+export interface UserGroupMemberInfo {
+  /** 用户标识。 */
+  userId: string;
+  /** 用户昵称。 */
+  nickname: string;
+}
+
+/** 用户组管理接口。 */
+export type GroupAction = ApiMultAction<{
+  list: {
+    req: {
+      search?: string;
+      limit?: number[];
+      withCount?: boolean;
+    };
+    resp: { list: UserGroupInfo[]; count: number };
+  };
+  detail: {
+    req: { userGroupId: string };
+    resp: UserGroupInfo & { members: UserGroupMemberInfo[] };
+  };
+  create: {
+    req: { name: string; description?: string };
+    resp: UserGroupInfo;
+  };
+  update: {
+    req: { userGroupId: string; name?: string; description?: string | null };
+    resp: UserGroupInfo;
+  };
+  remove: {
+    req: { userGroupId: string };
+    resp: 'ok';
+  };
+  'member-save': {
+    req: { userGroupId: string; userIds: string[] };
+    resp: UserGroupInfo & { members: UserGroupMemberInfo[] };
+  };
+  'user-search': {
+    req: { search?: string };
+    resp: { list: UserGroupMemberInfo[] };
+  };
+}>;
+
 export type Sys = {
   // 系统设置
   [key in keyof SettingAction as `setting/${key}`]: SettingAction[key];
@@ -265,6 +323,9 @@ export type Sys = {
 } & {
   // 角色管理
   [key in keyof RoleAction as `role/${key}`]: RoleAction[key];
+} & {
+  // 用户组
+  [key in keyof GroupAction as `group/${key}`]: GroupAction[key];
 } & {
   // 接口管理
   [key in keyof AppAction as `app/${key}`]: AppAction[key];

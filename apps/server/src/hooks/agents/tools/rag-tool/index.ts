@@ -1,21 +1,17 @@
-import { eq, isNotNull } from 'drizzle-orm';
 import { embed, tool } from 'ai';
 import { z } from 'zod/v4';
 
-import { buildWhere, db, schemas } from '@/database/index.js';
 import { getEmbeddingModel } from '@/hooks/agents/providers/providers.js';
 import {
   DOCUMENT_SEGMENTS_COLLECTION,
   qdrantClient,
 } from '@/database/vector/client.js';
+import { filterReadableDocumentIds } from '@/hooks/documents/library-access.js';
 import { searchPoints } from '@repo/utils-qdrant';
 
 /** 单次检索返回片段上限默认值。 */
 const DEFAULT_TOP_K = 5;
-/**
- * tool-result 中每条 content 的最大字符数。
- * 一段最多约 600 token：中文约一字一 token，英文约四字一 token，3000 字能装下整段。
- */
+/** tool-result 中每条 content 的最大字符数。 */
 const MAX_CONTENT_CHARS = 3000;
 
 /** searchKnowledgeBase 命中的文档片段。 */
@@ -28,17 +24,18 @@ type KnowledgeChunk = {
 };
 
 /**
- * 构造知识库检索 tool：闭包捕获 datasetId，模型只决定 query（+可选 top_k）。
+ * 构造文档检索 tool。版本范围在调用前算好，模型只决定 query。
  *
- * execute：embed(query) → PG 查该知识库 ready 的 active 版本 → Qdrant 按版本过滤近邻搜 → 返回 chunks。
- * datasetId 不暴露给模型（模型无从得知具体 id），避免瞎传；会话级绑定由 chatAgent 注入。
- *
- * @param input.datasetId 本会话绑定的知识库，tool 只在该库内检索。
+ * @param input.userId 当前用户，返回前再确认文档仍可读。
+ * @param input.versionIds 当前可检索的文档版本。
  */
-export function createSearchKnowledgeBaseTool(input: { datasetId: string }) {
+export function createSearchKnowledgeBaseTool(input: {
+  userId: string;
+  versionIds: string[];
+}) {
   return tool({
     description:
-      '在当前知识库中按语义检索文档片段。当用户提问涉及知识库内文档内容时调用，返回最相关的若干片段。',
+      '在当前用户可阅读的资料库中按语义检索文档片段。回答依据文档内容时调用，返回最相关的若干片段。',
     inputSchema: z.object({
       query: z.string().describe('检索查询文本'),
       top_k: z
@@ -50,40 +47,17 @@ export function createSearchKnowledgeBaseTool(input: { datasetId: string }) {
         .describe('返回片段数，默认 5'),
     }),
     execute: async ({ query, top_k }) => {
-      const limit = top_k ?? DEFAULT_TOP_K;
-
-      // 1) 该知识库当前 ready 且有 active 版本的 document_version_id
-      const where = buildWhere((filter) => {
-        filter.push(
-          eq(schemas.rag_dataset_documents.dataset_id, input.datasetId),
-          eq(schemas.rag_dataset_documents.rag_status, 'ready'),
-          isNotNull(schemas.rag_dataset_documents.active_version_id),
-        );
-      });
-      const versionRows = await db
-        .select({
-          active_version_id: schemas.rag_dataset_documents.active_version_id,
-        })
-        .from(schemas.rag_dataset_documents)
-        .where(where);
-      const versionIds = versionRows
-        .map((row) => row.active_version_id)
-        .filter((v): v is string => v !== null);
-      if (versionIds.length === 0) {
+      if (!input.versionIds.length) {
         return {
           chunks: [] as KnowledgeChunk[],
-          note: '知识库暂无可检索的已就绪文档',
+          note: '当前没有可检索的文档',
         };
       }
-
-      // 2) embed query
       const model = getEmbeddingModel({
         provider: 'bailian',
         model: 'qwen3.7-text-embedding',
       });
       const { embedding } = await embed({ model, value: query });
-
-      // 3) Qdrant 按 document_version_id 过滤近邻搜
       const hits = await searchPoints<{
         segment_id: string;
         document_version_id: string;
@@ -95,20 +69,33 @@ export function createSearchKnowledgeBaseTool(input: { datasetId: string }) {
         collection: DOCUMENT_SEGMENTS_COLLECTION,
         vector: embedding,
         filter: {
-          must: [{ key: 'document_version_id', match: { any: versionIds } }],
+          must: [
+            {
+              key: 'document_version_id',
+              match: { any: input.versionIds },
+            },
+          ],
         },
-        limit,
+        limit: top_k ?? DEFAULT_TOP_K,
       });
-
-      return {
-        chunks: hits.map<KnowledgeChunk>((h) => ({
-          segment_id: h.payload?.segment_id,
-          document_id: h.payload?.document_id,
-          score: +h.score.toFixed(4),
-          content: (h.payload?.content ?? '').slice(0, MAX_CONTENT_CHARS),
-          heading_path: h.payload?.heading_path,
-        })),
-      };
+      const readable = await filterReadableDocumentIds(
+        input.userId,
+        hits.map((hit) => hit.payload?.document_id ?? ''),
+      );
+      const chunks = hits.flatMap<KnowledgeChunk>((hit) => {
+        const documentId = hit.payload?.document_id;
+        if (!documentId || !readable.has(documentId)) return [];
+        return [
+          {
+            segment_id: hit.payload?.segment_id,
+            document_id: documentId,
+            score: +hit.score.toFixed(4),
+            content: (hit.payload?.content ?? '').slice(0, MAX_CONTENT_CHARS),
+            heading_path: hit.payload?.heading_path,
+          },
+        ];
+      });
+      return { chunks };
     },
   });
 }

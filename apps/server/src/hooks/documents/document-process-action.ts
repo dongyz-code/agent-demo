@@ -1,7 +1,7 @@
 import { ROOT_ERROR } from '@/configs/index.js';
 import { db } from '@/database/index.js';
 import { task } from '@/hooks/tasks/task.js';
-import { lockDocument } from './access.js';
+import { lockDocument, requireDocument } from './access.js';
 import { documentsConfig } from './config.js';
 import { resolveDocumentVersion } from './document/resolve-version.js';
 import { documentPreview } from './preview/index.js';
@@ -63,6 +63,13 @@ export async function enqueueDocumentProcess(
     transaction: DbTransaction,
   ): Promise<string | null> => {
     await lockDocument(transaction, input.documentId);
+    await requireDocument(
+      input.documentId,
+      actorUserId,
+      transaction,
+      false,
+      'manage',
+    );
     const resolved = await resolveDocumentVersion(
       input.documentId,
       input.documentVersionId,
@@ -107,7 +114,7 @@ export async function enqueueDocumentProcess(
       resolved.version.preview_status === 'ready';
     if (previewReady && !forceNewTask) return null;
     if (forceNewTask && operations.includes('rag')) {
-      await documentRag.prepareRelationsForReprocessing(
+      await documentRag.prepareForReprocessing(
         {
           documentId: input.documentId,
           documentVersionId,

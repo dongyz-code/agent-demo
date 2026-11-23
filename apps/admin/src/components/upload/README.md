@@ -1,6 +1,8 @@
 # 文档上传组件
 
-业务页面使用 `UploadDialog` 并传入稳定的 `instanceKey`，新建文档与不同目标版本分别隔离恢复空间。组件内部以 Uppy 调度普通直传和 Multipart，通过 GoldenRetriever 恢复浏览器队列。
+业务页面统一使用 `DocumentUploader`，调用 `open({ libraryId })` 新建文档，调用 `open({ documentId, libraryId })` 上传新版本。组件按需创建一个 `UploadDialog` 实例，新建文档和每份文档的新版本使用独立、稳定的持久化空间；新版本最多选择一个文件。
+
+新建文档先选资料库再加文件，文件加入队列后冻结目标库。恢复队列时优先显示原资料库；不一致的未完成项必须先移除，不能在界面上改成另一个库后继续原队列。组件内部以 Uppy 调度普通直传和 Multipart，通过 GoldenRetriever 恢复浏览器队列。
 
 文件传输使用通用 `/upload/*` 接口，以 `purpose=document` 初始化；完成返回的 `UploadedFile` 保存在 `meta.uploadedFile`。随后调用 `/documents/document-version-create` 绑定文档，结果保存在 `meta.storedFile`，只有文档绑定成功才触发 uploaded 事件。文件已上传但绑定失败时，重试复用 key，不重新上传字节；页面刷新通知失败不改变已入库结果。
 

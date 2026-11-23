@@ -27,6 +27,8 @@ export const agent_conversations = pgTable(
     user_id: varchar255('user_id').notNull(),
     /** 会话场景标识，区分用途（如 sql / chat），键值见 AgentScenario */
     scenario: varchar255('scenario').$type<AgentScenario>().notNull(),
+    /** 检索范围资料库。为空时检索当前用户全部可使用库。 */
+    library_id: varchar255('library_id'),
     /** 会话标题，首条消息后自动生成，供侧边栏展示 */
     title: varchar255('title'),
     /** 会话状态：active 进行中 / archived 归档 / deleted 软删 */

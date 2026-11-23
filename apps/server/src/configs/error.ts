@@ -158,6 +158,22 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       code: ROOT_ERROR_CODE_NOT_FOUND,
     },
     {
+      key: '资料库不存在',
+      code: ROOT_ERROR_CODE_NOT_FOUND,
+    },
+    {
+      key: '用户组不存在',
+      code: ROOT_ERROR_CODE_NOT_FOUND,
+    },
+    {
+      key: '资料库名称已存在',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
+      key: '用户组名称已存在',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
       key: 'Agent: 会话不存在',
       code: ROOT_ERROR_CODE_NOT_FOUND,
     },

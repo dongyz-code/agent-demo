@@ -23,6 +23,8 @@ export interface AgentConversationRecord {
   last_message_timestamp: Date | null;
   /** 会话最近更新时间。 */
   last_update_timestamp: Date;
+  /** 会话检索范围。为空表示全部可检索资料库。 */
+  library_id: string | null;
 }
 
 /** Agent 消息历史记录。 */
@@ -52,8 +54,8 @@ export type AgentAction = {
       message: string;
       /** 已有会话 ID；不传则新建会话。 */
       conversation_id?: string;
-      /** 绑定的知识库 ID；传则 agent 可检索知识库片段。 */
-      dataset_id?: string;
+      /** 新建会话的检索范围。已有会话以服务端保存的范围为限。 */
+      library_id?: string;
       /** 系统提示词；不传用默认。 */
       system?: string;
       /** 是否开启模型思考输出；仅部分支持思考模式的模型生效。 */

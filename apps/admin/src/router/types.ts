@@ -13,6 +13,7 @@ export const routeNameMap = {
   system: '系统管理',
   'system.user': '用户管理',
   'system.role': '角色管理',
+  'system.group': '用户组',
   'system.app': '接口管理',
   'system.app-log': '接口日志',
   'system.user-log': '操作日志',
@@ -22,9 +23,8 @@ export const routeNameMap = {
   /** ============ 文档中心相关 ============ */
 
   documents: '文档中心',
-  'documents.management': '文档管理',
-  'documents.management.detail': '文档详情',
-  'documents.dataset': '知识库管理',
+  'documents.list': '文档',
+  'documents.library': '资料库',
 };
 
 export type RouteName = keyof typeof routeNameMap;

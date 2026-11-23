@@ -185,6 +185,9 @@ export class MinerUClient {
             data: source,
             headers: {
               Authorization: null,
+              // 预签名按空 Content-Type 计算。axios 会给 PUT 补上
+              // application/x-www-form-urlencoded，OSS 会回 403。
+              'Content-Type': '',
               'Content-Length': String(input.file.size),
             },
             maxBodyLength: Infinity,

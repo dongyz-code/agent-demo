@@ -167,7 +167,11 @@ export function createUploadUppy(options: UploaderOptions) {
     try {
       const uploadAttemptId = file.meta.uploadAttemptId ?? crypto.randomUUID();
       const currentDocumentId = options.getDocumentId?.();
+      const currentLibraryId = options.getLibraryId?.();
       let documentId = file.meta.documentId ?? currentDocumentId;
+      let libraryId = currentDocumentId
+        ? (file.meta.libraryId ?? currentLibraryId)
+        : (currentLibraryId ?? file.meta.libraryId);
       if (file.meta.documentId === null) documentId = undefined;
       let contentType = file.type || binaryContentType;
       if (file.data instanceof File) {
@@ -176,6 +180,7 @@ export function createUploadUppy(options: UploaderOptions) {
       uppy.setFileMeta(file.id, {
         ...file.meta,
         documentId: documentId ?? null,
+        libraryId: libraryId ?? null,
         uploadAttemptId,
         retryable: false,
         restartRequired: false,
@@ -240,6 +245,7 @@ export function createUploadUppy(options: UploaderOptions) {
       (await api('/documents/document-version-create', {
         key: uploadedFile.key,
         documentId: current.meta.documentId ?? undefined,
+        libraryId: current.meta.libraryId ?? undefined,
       }));
     storeDocumentResult(file.id, storedFile);
     await notifyUploaded(storedFile);

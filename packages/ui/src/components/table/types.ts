@@ -16,6 +16,8 @@ export interface TableRow<T extends string = string> {
   fixed?: boolean | 'right' | 'left';
   slot?: T;
   type?: 'expand' | 'selection' | 'index';
+  /** 选择列中某一行是否允许勾选。 */
+  selectable?: (row: Record<string, unknown>, index: number) => boolean;
   /** 头部提示 */
   tips?: string;
   align?: 'left' | 'center' | 'right';

@@ -9,6 +9,7 @@
       :popper-offset="4"
       class="h-full! w-full"
       router
+      :default-openeds="openedIndexes"
       :collapse-transition="false"
     >
       <menu-item
@@ -25,7 +26,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { defineComponent, computed, h } from 'vue';
 import { VIcon } from '@repo/ui';
 import { useStore } from '@/models';
-import { RouterLink } from 'vue-router';
 
 import type { Props, MenuItem } from '../types';
 import type { PropType, VNode } from 'vue';
@@ -44,6 +44,7 @@ type Item = MenuItem<
     indexs: string[];
     /** 存在的时候，点击会跳转默认路由(sub-menu) */
     firstChildValue?: string;
+    opened?: boolean;
   }
 >;
 
@@ -96,6 +97,11 @@ function getItems(
 }
 
 const items = computed(() => getItems(props.items).items);
+const openedIndexes = computed(() =>
+  items.value.flatMap((item) =>
+    'opened' in item && item.opened ? [item.index] : [],
+  ),
+);
 
 const MenuItem = defineComponent({
   props: {
@@ -136,14 +142,6 @@ const MenuItem = defineComponent({
       );
 
       if ('children' in item) {
-        const titleRender = item.firstChildValue
-          ? h(
-              RouterLink,
-              { to: { name: item.firstChildValue } },
-              () => labelRender,
-            )
-          : labelRender;
-
         return h(
           ElSubMenu,
           { index: item.index },
@@ -152,8 +150,7 @@ const MenuItem = defineComponent({
               item.children.map((item) =>
                 h(MenuItem, { item, depth: props.depth + 1 }),
               ),
-            /** 默认 router 模式，submenu 自动继承 第一个子路由 */
-            title: () => titleRender,
+            title: () => labelRender,
           },
         );
       }
@@ -164,12 +161,9 @@ const MenuItem = defineComponent({
 });
 
 const style = computed(() => {
-  const { NAV_MODE, NAV_COLLAPSE } = store.$state;
+  const { NAV_MODE } = store.$state;
   if (NAV_MODE === 'vertical') {
-    if (NAV_COLLAPSE) {
-      return '!w-[var(--header-height)] flex-shrink-0 border-r bg-white shadow-sm';
-    }
-    return '!w-[var(--menu-width)] flex-shrink-0 border-r bg-white shadow-sm';
+    return 'h-full min-h-0 w-full overflow-y-auto bg-white';
   }
   return '';
 });

@@ -5,13 +5,11 @@ import { lockDocument, requireDocument } from '../access.js';
 import { documentProcessor } from '../document/index.js';
 import { embedAndIndexSegments } from './indexing.js';
 import {
-  setDocumentRagPendingVersion,
-  failDocumentRagRelations,
-  markDocumentRagRelationsProcessing,
-  prepareDocumentRagRelationsForReprocessing,
-  publishDocumentRagRelations,
-  updateDocumentDatasetRelations,
-} from './relations.js';
+  failDocumentVersionIndex,
+  markDocumentVersionProcessing,
+  prepareDocumentVersionForReprocessing,
+  publishIndexedDocumentVersion,
+} from './version-status.js';
 
 import type { DocumentSegment } from '@repo/types';
 
@@ -37,8 +35,8 @@ export interface DocumentRagProcessInput {
 export interface DocumentRagProcessResult {
   /** 实际生成并索引的 Segment 数量。 */
   segmentCount: number;
-  /** 成功发布到知识库关系的数量。 */
-  publishedRelationCount: number;
+  /** 成功切换为可检索版本时为 1。 */
+  publishedVersionCount: number;
   /** 本次使用的切分策略版本。 */
   segmentProfileVersion: string;
 }
@@ -46,17 +44,16 @@ export interface DocumentRagProcessResult {
 /**
  * 解析、切分、索引并发布指定文档版本的 RAG 内容。
  *
- * 同一调用只生成一套版本级 Segment；完成后批量发布仍以该版本为 pending
- * 的知识库关系。关系已删除或改指新版本时不会被迟到处理恢复。
+ * 同一调用只生成一套版本级 Segment。成功后才把文档的可检索版本切到本次版本。
  *
  * @param input 文档版本、源文件、恢复信息和通用存活检查。
- * @returns Segment 数量、关系发布数量和切分策略版本。
+ * @returns Segment 数量、版本发布结果和切分策略版本。
  */
 async function processDocumentRag(
   input: DocumentRagProcessInput,
 ): Promise<DocumentRagProcessResult> {
   await input.assertActive();
-  await markDocumentRagRelationsProcessing({
+  await markDocumentVersionProcessing({
     documentId: input.documentId,
     documentVersionId: input.documentVersionId,
     userId: input.userId,
@@ -82,7 +79,7 @@ async function processDocumentRag(
     segments: content.segments,
   });
   await input.assertActive();
-  const publishedRelationCount = await publishDocumentRagRelations({
+  const publishedVersionCount = await publishIndexedDocumentVersion({
     documentId: input.documentId,
     documentVersionId: input.documentVersionId,
     userId: input.userId,
@@ -90,26 +87,20 @@ async function processDocumentRag(
   });
   return {
     segmentCount: content.segments.length,
-    publishedRelationCount,
+    publishedVersionCount,
     segmentProfileVersion: content.segmentProfileVersion,
   };
 }
 
-/** 文档 RAG 关系管理、内容处理、索引和发布的统一入口。 */
+/** 文档内容处理、索引和可检索版本发布的统一入口。 */
 export const documentRag = {
   /** 解析并发布指定文档版本的 RAG 内容。 */
   process: processDocumentRag,
-  /** 在版本切换事务中对齐所有知识库关系。 */
-  setPendingVersion: setDocumentRagPendingVersion,
-  /** 在调用方事务中收敛当前版本关系失败状态。 */
-  fail: failDocumentRagRelations,
-  /** 按 add、remove 或 replace 修改文档知识库关系。 */
-  updateRelations: updateDocumentDatasetRelations,
-  /** 为新一轮处理准备 pending 知识库关系。 */
-  prepareRelationsForReprocessing: prepareDocumentRagRelationsForReprocessing,
+  /** 在调用方事务中记录当前版本索引失败。 */
+  fail: failDocumentVersionIndex,
+  /** 为新一轮处理把版本放回等待。 */
+  prepareForReprocessing: prepareDocumentVersionForReprocessing,
 };
-
-export type { DocumentDatasetRelationMode } from './relations.js';
 
 /**
  * 幂等替换当前版本唯一一套 Segment。
@@ -130,7 +121,7 @@ async function persistDocumentSegments(
   await db.transaction(async (tx) => {
     await lockDocument(tx, input.documentId);
     await input.assertActive();
-    await requireDocument(input.documentId, input.userId, tx);
+    await requireDocument(input.documentId, input.userId, tx, false, 'exists');
     await tx
       .delete(schemas.document_segments)
       .where(

@@ -15,7 +15,7 @@ const defaultData: StoreData = {
   permission: [],
   SYS_CONF: {},
   user: null,
-  NAV_MODE: 'horizontal',
+  NAV_MODE: 'vertical',
   NAV_COLLAPSE: false,
 };
 

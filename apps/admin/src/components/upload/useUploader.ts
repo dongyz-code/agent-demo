@@ -24,6 +24,7 @@ export function useUploader(options: UploaderOptions) {
   const syncItems = () => {
     items.value = uppy.getFiles().map((file) => ({
       id: file.id,
+      libraryId: file.meta.libraryId,
       name: file.name,
       size: file.size ?? 0,
       progress: Math.round(file.progress.percentage ?? 0),
@@ -45,6 +46,7 @@ export function useUploader(options: UploaderOptions) {
   function addFiles(files: FileList | File[]): string[] {
     const errors: string[] = [];
     const documentId = options.getDocumentId?.();
+    const libraryId = options.getLibraryId?.();
     for (const file of Array.from(files)) {
       if (
         options.maxNumberOfFiles &&
@@ -67,6 +69,7 @@ export function useUploader(options: UploaderOptions) {
           meta: {
             uploadAttemptId: crypto.randomUUID(),
             documentId: documentId ?? null,
+            libraryId: libraryId ?? null,
             stage: 'waiting',
             retryable: false,
             restored: false,

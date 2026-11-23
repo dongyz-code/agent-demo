@@ -5,7 +5,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 const { api } = routerHandler({
   url: '/documents/document-preview-retry',
   method: 'POST',
-  permission: adminPermissionKey('actions.documents.upload'),
+  permission: adminPermissionKey('actions.documents.process'),
   handler: async ({ body, __token }) =>
     await documentAction.retryPreview(body, __token.user_id),
 });

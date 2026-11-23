@@ -58,14 +58,18 @@ export function useAgentChat({ conversationId }: UseAgentChatOptions) {
    * @param text 用户输入文本。
    * @param reasoning 是否开启思考模式。
    */
-  function sendMessage(text: string, reasoning: boolean) {
+  function sendMessage(
+    text: string,
+    reasoning: boolean,
+    libraryId?: string | null,
+  ) {
     if (!conversationId && chat.status === 'error') {
       agentChatRegistry.resetDraft();
     }
 
     return chat.sendMessage(
       { text, metadata: { reasoning } },
-      { body: { reasoning } },
+      { body: { reasoning, library_id: libraryId || undefined } },
     );
   }
 

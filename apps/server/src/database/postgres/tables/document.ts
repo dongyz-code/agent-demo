@@ -1,6 +1,5 @@
 import {
   bigint,
-  boolean,
   index,
   integer,
   primaryKey,
@@ -12,7 +11,11 @@ import { baseCols, varchar255 } from '../declaration/common-columns.js';
 import { pgTable } from '../declaration/declaration.js';
 import { timestampsTrigger } from '../declaration/presets.js';
 
-import type { DocumentPreviewStatus, DocumentStatus } from '@repo/types';
+import type {
+  DocumentPreviewStatus,
+  DocumentRagStatus,
+  DocumentStatus,
+} from '@repo/types';
 
 export const documents = pgTable(
   'documents',
@@ -21,10 +24,12 @@ export const documents = pgTable(
     document_id: varchar255('document_id').primaryKey(),
     /** 文档显示名称。 */
     name: text('name').notNull(),
-    /** 当前生效文档版本。 */
+    /** 当前展示版本，不表示检索用的版本。 */
     active_version_id: varchar255('active_version_id').notNull(),
-    /** 后续版本默认是否进入已关联知识库。 */
-    rag_enabled: boolean('rag_enabled').notNull().default(false),
+    /** 文档所属资料库。一份文档只属于一个库。 */
+    library_id: varchar255('library_id').notNull(),
+    /** 当前可检索版本。新版本处理完成前继续指向旧版本。 */
+    indexed_version_id: varchar255('indexed_version_id'),
     /** 文档生命周期状态，不表达预览或 RAG 结果。 */
     status: varchar255('status')
       .$type<DocumentStatus>()
@@ -34,6 +39,8 @@ export const documents = pgTable(
   },
   (table) => [
     index('documents_status_idx').on(table.status),
+    index('documents_library_idx').on(table.library_id),
+    index('documents_indexed_version_idx').on(table.indexed_version_id),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
       updateColumn: 'last_update_timestamp',
@@ -61,6 +68,13 @@ export const document_versions = pgTable(
     preview_page_count: integer('preview_page_count').notNull().default(0),
     /** 最近一次预览失败的安全错误摘要。 */
     preview_error: text('preview_error'),
+    /** 该版本的索引任务状态，不表示谁能阅读。 */
+    rag_status: varchar255('rag_status')
+      .$type<DocumentRagStatus>()
+      .notNull()
+      .default('pending'),
+    /** 最近一次索引失败的安全错误摘要。 */
+    rag_error: text('rag_error'),
     ...baseCols(),
   },
   (table) => [
@@ -72,6 +86,7 @@ export const document_versions = pgTable(
       table.source_file_id,
     ),
     index('document_versions_preview_status_idx').on(table.preview_status),
+    index('document_versions_rag_status_idx').on(table.rag_status),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
       updateColumn: 'last_update_timestamp',

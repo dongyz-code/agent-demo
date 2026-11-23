@@ -18,7 +18,14 @@
 
     <template v-for="e in tableRows" :key="e.value">
       <el-table-column
-        v-if="e.slot"
+        v-if="e.type === 'selection'"
+        type="selection"
+        :width="e.width || 48"
+        :fixed="e.fixed"
+        :selectable="e.selectable"
+      />
+      <el-table-column
+        v-else-if="e.slot"
         :fixed="e.fixed"
         :label="e.label"
         :width="e.width"

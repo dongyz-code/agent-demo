@@ -6,6 +6,12 @@ import { uuidv7 } from '@/utils/index.js';
 import { getMessages } from './context.js';
 import { getModel } from '../providers/providers.js';
 import { createSearchKnowledgeBaseTool } from '../tools/rag-tool/index.js';
+import {
+  filterReadableDocumentIds,
+  listIndexedVersionIds,
+  listUsableLibraries,
+} from '@/hooks/documents/library-access.js';
+import { redactSearchResults } from './redact-sources.js';
 
 import type {
   AgentAssistantMeta,
@@ -25,8 +31,8 @@ export const chatAgent = async (input: {
   /** 是否重新生成上一条回复；true 时不重复写入用户消息。 */
   regenerate?: boolean;
   now: Date;
-  /** 绑定的知识库 ID；提供则注册检索 tool，agent 可在回答前检索知识库片段。 */
-  dataset_id?: string;
+  /** 新建会话的检索范围。已有会话使用库里保存的范围。 */
+  library_id?: string;
 }) => {
   if (input.regenerate && !input.conversation_id) {
     throw new Error('重新生成回复必须提供已有会话 ID');
@@ -35,19 +41,44 @@ export const chatAgent = async (input: {
   const isNewConversation = !input.conversation_id;
   const conversation_id = input.conversation_id || uuidv7();
   const message_id = uuidv7();
-
+  const usableLibraries = await listUsableLibraries(input.userId);
+  const usableIds = new Set(usableLibraries.map((library) => library.libraryId));
+  let libraryId: string | null = null;
+  let scopeCleared = false;
   if (isNewConversation) {
+    if (input.library_id && usableIds.has(input.library_id)) {
+      libraryId = input.library_id;
+    } else if (input.library_id) {
+      scopeCleared = true;
+    }
     await db.insert(schemas.agent_conversations).values({
       conversation_id,
       scenario: 'chat',
       user_id: input.userId,
       status: 'active',
       title: input.message.slice(0, 100),
+      library_id: libraryId,
       create_timestamp: input.now,
       last_update_timestamp: input.now,
       last_message_timestamp: input.now,
     });
+  } else {
+    const [conversation] = await db
+      .select({ libraryId: schemas.agent_conversations.library_id })
+      .from(schemas.agent_conversations)
+      .where(eq(schemas.agent_conversations.conversation_id, conversation_id))
+      .limit(1);
+    libraryId = conversation?.libraryId ?? null;
+    if (libraryId && !usableIds.has(libraryId)) {
+      libraryId = null;
+      scopeCleared = true;
+      await db
+        .update(schemas.agent_conversations)
+        .set({ library_id: null })
+        .where(eq(schemas.agent_conversations.conversation_id, conversation_id));
+    }
   }
+  const indexed = await listIndexedVersionIds(input.userId, libraryId);
 
   const { model, providerOptions } = getModel({
     provider: 'bailian',
@@ -58,7 +89,10 @@ export const chatAgent = async (input: {
   });
 
   // 先取历史（不含本次 user 消息），再落 user 消息，最后把 user 消息拼进上下文——避免重复入上下文。
-  let messages = await getMessages({ conversation_id });
+  let messages = await redactModelMessages(
+    await getMessages({ conversation_id }),
+    input.userId,
+  );
 
   if (input.regenerate) {
     const lastUserMessage = await db.query.agent_messages.findFirst({
@@ -81,10 +115,13 @@ export const chatAgent = async (input: {
           gt(schemas.agent_messages.message_id, lastUserMessage.message_id),
         ),
       );
-    messages = await getMessages({
-      conversation_id,
-      before_message_id: lastUserMessage.message_id,
-    });
+    messages = await redactModelMessages(
+      await getMessages({
+        conversation_id,
+        before_message_id: lastUserMessage.message_id,
+      }),
+      input.userId,
+    );
   } else {
     await db.insert(schemas.agent_messages).values({
       conversation_id,
@@ -96,14 +133,12 @@ export const chatAgent = async (input: {
     });
   }
 
-  // 绑定知识库时注册检索 tool；闭包捕获 datasetId，模型只决定 query。
-  const tools = input.dataset_id
-    ? {
-        searchKnowledgeBase: createSearchKnowledgeBaseTool({
-          datasetId: input.dataset_id,
-        }),
-      }
-    : undefined;
+  const tools = {
+    searchKnowledgeBase: createSearchKnowledgeBaseTool({
+      userId: input.userId,
+      versionIds: indexed.versionIds,
+    }),
+  };
 
   const modelMessages = input.regenerate
     ? messages
@@ -222,6 +257,52 @@ export const chatAgent = async (input: {
 
   return {
     conversation_id,
+    library_id: libraryId,
+    scope_cleared: scopeCleared,
     stream,
   };
 };
+
+/**
+ * 把历史检索结果里已经失权的片段去掉，再送给模型。
+ *
+ * @param messages 会话历史。
+ * @param userId 当前用户。
+ * @returns 过滤引用后的历史。
+ */
+async function redactModelMessages(
+  messages: Awaited<ReturnType<typeof getMessages>>,
+  userId: string,
+) {
+  const documentIds = messages.flatMap((message) =>
+    Array.isArray(message.content)
+      ? message.content.flatMap((part) => {
+          if (!part || typeof part !== 'object' || !('type' in part)) return [];
+          if (part.type !== 'tool-result') return [];
+          const output = 'output' in part ? part.output : undefined;
+          if (!output || typeof output !== 'object' || !('chunks' in output)) {
+            return [];
+          }
+          const chunks = output.chunks;
+          if (!Array.isArray(chunks)) return [];
+          return chunks.flatMap((chunk) => {
+            if (!chunk || typeof chunk !== 'object' || !('document_id' in chunk)) {
+              return [];
+            }
+            return typeof chunk.document_id === 'string' ? [chunk.document_id] : [];
+          });
+        })
+      : [],
+  );
+  const readable = await filterReadableDocumentIds(userId, documentIds);
+  return messages.map((message) => {
+    if (!Array.isArray(message.content)) return message;
+    return {
+      ...message,
+      content: redactSearchResults(
+        message.content as AgentMessagePart[],
+        readable,
+      ),
+    };
+  }) as typeof messages;
+}

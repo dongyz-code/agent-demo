@@ -16,6 +16,8 @@ export type Conversation = {
   createdAt: number;
   /** 会话最近更新时间，仅表示业务更新，不用于会话排序。 */
   updatedAt: number;
+  /** 会话检索范围。为空表示全部可检索资料库。 */
+  libraryId: string | null;
 };
 
 type ConversationState = {
@@ -61,6 +63,7 @@ export const useConversationModel = create<ConversationState>()((set, get) => ({
       status: 'active',
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      libraryId: null,
     };
     locallyCreatedConversationIds.add(conversationId);
     set((state) => ({

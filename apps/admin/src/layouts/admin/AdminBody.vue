@@ -1,6 +1,6 @@
 <template>
   <div
-    class="admin-container h-body w-full overflow-auto"
+    class="admin-container min-h-0 w-full flex-1 overflow-auto"
     :class="[meta.box === false ? '' : 'p-2']"
   >
     <div :class="[meta.box === false ? '' : 'min-h-full rounded']">

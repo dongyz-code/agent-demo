@@ -5,6 +5,7 @@ import { routes } from './routes';
 import { routeNameMap } from './types';
 import { BASE_URL } from '@/constants';
 import { loginHandle } from '@/pages/login/login';
+import { firstAllowedRoute, isShellRoute } from '@/layouts/admin/menu';
 
 import type { RouteName } from './types';
 
@@ -33,6 +34,15 @@ export const { router, routerInstance } = helperRouter({
     }
   },
   routes,
+});
+
+routerInstance.beforeEach((to) => {
+  if (typeof to.name !== 'string' || !isShellRoute(to.name)) return;
+  const { user, userPage } = useStore();
+  if (!user) return;
+  const target = firstAllowedRoute(userPage, to.name);
+  if (!target) return;
+  return { name: target };
 });
 
 // setTimeout(() => {

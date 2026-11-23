@@ -12,7 +12,6 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
 
 import { db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
 import { uuidv7 } from '@/utils/index.js';
@@ -88,9 +87,6 @@ const TASK_ATTEMPT_PUBLIC_FIELDS = {
   start_timestamp: schemas.task_attempts.start_timestamp,
   end_timestamp: schemas.task_attempts.end_timestamp,
 } as const;
-
-/** 候选查询中用于统计同分组运行任务数量的任务表别名。 */
-const RUNNING_TASK = alias(schemas.tasks, 'running_task');
 
 /**
  * 聚合通用任务的查询、事务、执行权与状态迁移。
@@ -474,11 +470,12 @@ export class TaskDatabase {
         lte(schemas.tasks.next_run_at, now),
       ),
     );
+    // 原始 sql 片段里的别名表只会输出别名，子查询必须带上真实表名。
     const hasGroupCapacity = sql<boolean>`(
       select count(*)
-      from ${RUNNING_TASK}
-      where ${RUNNING_TASK.group_name} = ${schemas.tasks.group_name}
-        and ${RUNNING_TASK.status} = 'running'
+      from ${schemas.tasks} as running_task
+      where running_task.group_name = ${schemas.tasks.group_name}
+        and running_task.status = 'running'
     ) < ${schemas.tasks.concurrency}`;
     return await this.connection
       .select({

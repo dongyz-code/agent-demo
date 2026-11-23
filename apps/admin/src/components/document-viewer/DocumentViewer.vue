@@ -6,23 +6,25 @@
       :title="getPendingTitle(preview.status)"
       :sub-title="
         preview.status === 'failed'
-          ? '页面生成失败，RAG 状态不受影响'
+          ? '预览生成失败，文档下载和问答索引不受影响'
           : undefined
       "
     >
       <template #extra>
         <el-button
-          v-if="preview.status === 'failed'"
+          v-if="preview.status === 'failed' && canRetry"
           type="primary"
           @click="retry"
         >
           重新生成
         </el-button>
-        <el-button v-else @click="load(true)">刷新状态</el-button>
+        <el-button v-else-if="preview.status !== 'failed'" @click="load(true)">
+          刷新状态
+        </el-button>
       </template>
     </el-result>
     <template v-else-if="preview">
-      <div class="h-full space-y-4 overflow-auto rounded bg-gray-100 p-3">
+      <div class="space-y-4 rounded bg-gray-100 p-3">
         <el-alert
           v-if="preview.status === 'processing'"
           :closable="false"
@@ -83,6 +85,8 @@ const props = defineProps<{
   documentId: string;
   /** 可选历史版本；为空时跟随当前版本。 */
   documentVersionId?: string;
+  /** 当前用户是否具备重新生成预览的业务身份和操作权限。 */
+  canRetry?: boolean;
 }>();
 
 const preview = shallowRef<DocumentPreviewWindow>();
