@@ -12,7 +12,7 @@
         <el-option
           v-for="user in users"
           :key="user.userId"
-          :label="user.nickname"
+          :label="memberLabel(user)"
           :value="user.userId"
         />
       </el-select>
@@ -58,9 +58,16 @@ async function open(id: string) {
   const detail = await api('/sys/group/detail', { userGroupId: id });
   members.value = detail.members;
   visible.value = true;
+  void searchUsers('');
 }
 
-/** 搜索可加入的用户。 */
+/** 候选项同时展示昵称和登录名。 */
+function memberLabel(user: UserGroupMemberInfo) {
+  if (user.username) return `${user.nickname}（${user.username}）`;
+  return user.nickname;
+}
+
+/** 搜索可加入的用户，匹配昵称或登录名。 */
 async function searchUsers(search: string) {
   const result = await api('/sys/group/user-search', { search });
   users.value = result.list;

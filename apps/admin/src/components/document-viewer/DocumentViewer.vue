@@ -24,7 +24,7 @@
       </template>
     </el-result>
     <template v-else-if="preview">
-      <div class="space-y-4 rounded bg-gray-100 p-3">
+      <div class="space-y-8">
         <el-alert
           v-if="preview.status === 'processing'"
           :closable="false"
@@ -35,10 +35,10 @@
         <figure
           v-for="page in preview.pages"
           :key="`${page.documentVersionId}-${page.variant}-${page.pageNumber}`"
-          class="mx-auto w-fit max-w-full overflow-hidden rounded bg-white shadow"
+          class="mx-auto w-full max-w-[760px] overflow-hidden rounded-lg bg-white shadow-[0_6px_16px_rgba(0,0,0,0.08)]"
         >
           <el-image
-            class="block h-auto max-w-full cursor-zoom-in"
+            class="block w-full cursor-zoom-in [&_img]:h-auto [&_img]:w-full"
             :src="page.url"
             :alt="`第 ${page.pageNumber} 页`"
             :preview-src-list="previewUrls"
@@ -54,7 +54,7 @@
           />
           <figcaption
             v-if="preview.pageCount > 1"
-            class="border-t px-3 py-1 text-center text-xs text-gray-500"
+            class="pt-2 text-center text-xs leading-5 text-black/45"
           >
             第 {{ page.pageNumber }} / {{ preview.pageCount }} 页
           </figcaption>

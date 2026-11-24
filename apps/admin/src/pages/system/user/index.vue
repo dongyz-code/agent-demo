@@ -1,6 +1,6 @@
 <template>
-  <div>
-    <div class="rounded-b bg-white p-4 shadow">
+  <section class="flex min-h-full flex-col gap-3">
+    <div class="rounded bg-white p-4 shadow">
       <v-schema-form
         v-model="form"
         mode="search"
@@ -19,8 +19,8 @@
       @form="getForm"
     />
 
-    <div class="my-2 overflow-hidden rounded bg-white px-3 pt-3 shadow">
-      <div class="mb-3 text-right">
+    <div class="flex min-h-0 flex-1 flex-col rounded bg-white p-4 shadow">
+      <div class="mb-3 flex flex-wrap justify-end gap-2">
         <el-button
           plain
           @click="item.method"
@@ -30,7 +30,12 @@
           {{ item.label }}
         </el-button>
       </div>
-      <v-table :data="cUsers" :rows="rows" @selection-change="select">
+      <v-table
+        class="min-h-0 flex-1"
+        :data="cUsers"
+        :rows="rows"
+        @selection-change="select"
+      >
         <template #edit="scope">
           <div class="flex items-center gap-2">
             <v-icon
@@ -83,7 +88,7 @@
         @update:model-value="getUserList"
       ></component>
     </div>
-  </div>
+  </section>
 </template>
 
 <style lang="postcss" scoped></style>

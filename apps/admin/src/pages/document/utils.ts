@@ -114,25 +114,25 @@ export function getDocumentColumns(
     label: '文档名称',
     value: 'name',
     slot: 'name',
-    minWidth: 250,
+    minWidth: inLibrary ? 36 : 24,
   });
   if (!inLibrary)
     columns.push({
       label: '资料库',
       value: 'library',
       slot: 'library',
-      minWidth: 140,
+      minWidth: 12,
     });
   columns.push(
-    { label: '当前版本', value: 'version', slot: 'version', width: 110 },
-    { label: '预览', value: 'preview', slot: 'preview', width: 115 },
-    { label: '问答检索', value: 'retrieval', slot: 'retrieval', width: 125 },
-    { label: '创建时间', value: 'createdAt', slot: 'createdAt', width: 175 },
+    { label: '当前版本', value: 'version', slot: 'version', minWidth: 10 },
+    { label: '预览', value: 'preview', slot: 'preview', minWidth: 10 },
+    { label: '问答检索', value: 'retrieval', slot: 'retrieval', minWidth: 12 },
+    { label: '创建时间', value: 'createdAt', slot: 'createdAt', minWidth: 14 },
     {
       label: '操作',
       value: 'actions',
       slot: 'actions',
-      width: 480,
+      minWidth: 22,
       fixed: 'right',
     },
   );

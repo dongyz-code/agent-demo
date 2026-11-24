@@ -1,9 +1,9 @@
 <template>
   <div
-    class="admin-container min-h-0 w-full flex-1 overflow-auto"
+    class="admin-container min-h-0 w-full flex-1 overflow-hidden"
     :class="[meta.box === false ? '' : 'p-2']"
   >
-    <div :class="[meta.box === false ? '' : 'min-h-full rounded']">
+    <div class="h-full overflow-auto">
       <router-view v-slot="{ Component }">
         <transition name="fade">
           <component :is="Component" />

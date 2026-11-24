@@ -59,3 +59,17 @@
   --el-color-warning-light-8: var(--color-warning-1);
   --el-color-warning-light-9: var(--color-warning-white);
 }
+
+/** 查询表单标签保持一行，日期范围跟列走，不单独撑宽。 */
+.v-schema-form--search .el-form-item__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v-schema-form--search .el-date-editor {
+  --el-date-editor-width: 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}

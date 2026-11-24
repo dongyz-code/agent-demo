@@ -165,16 +165,16 @@ const columns = computed<TableRow[]>(() => {
       selectable: canSelectGrant,
     });
   result.push(
-    { label: '成员', value: 'subjectName', slot: 'subjectName', minWidth: 220 },
-    { label: '类型', value: 'subjectType', slot: 'subjectType', width: 120 },
-    { label: '库内身份', value: 'role', slot: 'role', width: 180 },
+    { label: '成员', value: 'subjectName', slot: 'subjectName', minWidth: 34 },
+    { label: '类型', value: 'subjectType', slot: 'subjectType', minWidth: 16 },
+    { label: '库内身份', value: 'role', slot: 'role', minWidth: 28 },
   );
   if (canManage.value)
     result.push({
       label: '操作',
       value: 'actions',
       slot: 'actions',
-      width: 120,
+      minWidth: 22,
     });
   return result;
 });

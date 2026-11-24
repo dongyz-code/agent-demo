@@ -1,3 +1,5 @@
+import { isProxy, toRaw } from 'vue';
+
 import type { SchemaFormDataIndex, SchemaFormModel } from './type';
 
 /** 将 dataIndex 转成可遍历路径；点路径用于兼容 schema 写法，数组路径用于兼容 Element Plus prop。 */
@@ -67,12 +69,39 @@ export function setFormValue<T extends SchemaFormModel>(
   return root as T;
 }
 
-/** 深拷贝表单值，优先使用 structuredClone，失败时退回 JSON 拷贝以满足重置快照需求。 */
-export function cloneFormValue<T>(value: T): T {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(value);
+/**
+ * 去掉 Vue 响应式代理。structuredClone 不能克隆代理数组。
+ * @param value 表单值或其嵌套字段。
+ * @returns 普通对象、数组或原始值。
+ */
+function unwrapFormValue(value: unknown): unknown {
+  if (isProxy(value)) {
+    return unwrapFormValue(toRaw(value));
   }
-  return JSON.parse(JSON.stringify(value)) as T;
+  if (Array.isArray(value)) {
+    return value.map((item) => unwrapFormValue(item));
+  }
+  if (value && typeof value === 'object') {
+    const next: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      next[key] = unwrapFormValue(item);
+    }
+    return next;
+  }
+  return value;
+}
+
+/** 深拷贝表单值。先去掉响应式代理，structuredClone 失败时退回 JSON 拷贝。 */
+export function cloneFormValue<T>(value: T): T {
+  const plain = unwrapFormValue(value);
+  try {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(plain) as T;
+    }
+  } catch {
+    // 含函数等不可克隆字段时走 JSON。
+  }
+  return JSON.parse(JSON.stringify(plain)) as T;
 }
 
 /** 根据字段 transform 生成查询参数；未配置 transform 时使用字段路径 key 输出原值。 */

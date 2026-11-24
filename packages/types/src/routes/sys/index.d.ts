@@ -276,6 +276,8 @@ export interface UserGroupMemberInfo {
   userId: string;
   /** 用户昵称。 */
   nickname: string;
+  /** 登录名。搜索候选项会带上，便于和昵称区分。 */
+  username?: string;
 }
 
 /** 用户组管理接口。 */

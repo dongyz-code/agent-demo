@@ -1,6 +1,6 @@
 <template>
-  <section class="flex min-h-full flex-col">
-    <div class="rounded-b bg-white p-4 shadow">
+  <section class="flex min-h-full flex-col gap-3">
+    <div class="rounded bg-white p-4 shadow">
       <v-schema-form
         v-model="searchForm"
         mode="search"
@@ -11,7 +11,7 @@
       />
     </div>
 
-    <div class="mt-2 flex min-h-0 flex-1 flex-col rounded bg-white p-4 shadow">
+    <div class="flex min-h-0 flex-1 flex-col rounded bg-white p-4 shadow">
       <div class="min-h-0 flex-1">
         <v-table
           class="h-full"

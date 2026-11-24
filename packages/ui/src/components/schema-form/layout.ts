@@ -19,6 +19,11 @@ const DEFAULT_SEARCH_COLUMNS: Required<Extract<SchemaFormColumns, object>> = {
   xl: 4,
 };
 
+/** 查询字段含标签时仍能放下日期范围的目标宽度。列数按它随容器增减，列本身铺满整行。 */
+const SEARCH_COLUMN_TARGET_WIDTH = 360;
+/** 与查询表单默认横向间距一致，用来估算一行能排几列。 */
+const SEARCH_COLUMN_GAP = 16;
+
 /** 默认普通表单列数。 */
 const DEFAULT_FORM_COLUMNS = 1;
 
@@ -90,6 +95,10 @@ export function resolveColumnCount({
     return Math.max(1, Math.floor(columns));
   }
 
+  if (mode === 'search' && !columns) {
+    return resolveSearchColumnCount(width);
+  }
+
   const key = resolveBreakpoint(width);
   const nextColumns =
     columns ??
@@ -109,7 +118,8 @@ export function resolveSearchLabelPosition({
   width?: number;
 }): NonNullable<SchemaFormElProps['labelPosition']> {
   const key = resolveBreakpoint(width);
-  return key === 'xs' || key === 'sm' ? 'top' : 'right';
+  if (key === 'xs') return 'top';
+  return 'right';
 }
 
 /** 将 gap 配置转成 CSS 值；数字按 px 处理，查询模式默认更紧凑。 */
@@ -128,7 +138,21 @@ export function resolveGap({
   return typeof gap === 'number' ? `${gap}px` : gap;
 }
 
-/** 生成 grid 容器样式。 */
+/**
+ * 按容器宽度决定查询表单列数，让每列接近目标宽度并铺满整行。
+ * @param width 查询表单容器宽度。未知时按三列，避免首屏过窄。
+ * @returns 1 到 6 之间的列数。
+ */
+function resolveSearchColumnCount(width?: number) {
+  if (!width || width <= 0) return 3;
+  const count = Math.floor(
+    (width + SEARCH_COLUMN_GAP) /
+      (SEARCH_COLUMN_TARGET_WIDTH + SEARCH_COLUMN_GAP),
+  );
+  return Math.min(6, Math.max(1, count));
+}
+
+/** 生成 grid 容器样式。列宽均分容器，查询列数由容器宽度决定。 */
 export function buildGridStyle({
   columns,
   gap,

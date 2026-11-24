@@ -51,18 +51,18 @@ export const librarySearchColumns: SchemaFormColumn<LibrarySearchForm>[] = [
 
 /** 说明并入名称列，避免为少量文本占用整列。 */
 export const libraryColumns: TableRow[] = [
-  { label: '资料库名称', value: 'name', slot: 'name', minWidth: 260 },
-  { label: '访问范围', value: 'visibility', slot: 'visibility', width: 130 },
-  { label: '我的身份', value: 'myRole', slot: 'myRole', width: 110 },
-  { label: '文档数', value: 'documentCount', width: 90 },
-  { label: '授权数', value: 'grantCount', width: 90 },
-  { label: '状态', value: 'status', slot: 'status', width: 100 },
-  { label: '创建时间', value: 'createdAt', slot: 'createdAt', width: 175 },
+  { label: '资料库名称', value: 'name', slot: 'name', minWidth: 24 },
+  { label: '访问范围', value: 'visibility', slot: 'visibility', minWidth: 12 },
+  { label: '我的身份', value: 'myRole', slot: 'myRole', minWidth: 10 },
+  { label: '文档数', value: 'documentCount', minWidth: 8 },
+  { label: '授权数', value: 'grantCount', minWidth: 8 },
+  { label: '状态', value: 'status', slot: 'status', minWidth: 8 },
+  { label: '创建时间', value: 'createdAt', slot: 'createdAt', minWidth: 14 },
   {
     label: '操作',
     value: 'actions',
     slot: 'actions',
-    width: 248,
+    minWidth: 22,
     fixed: 'right',
   },
 ];

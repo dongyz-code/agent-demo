@@ -2,13 +2,13 @@
 
 文档与资料库共用一套文档实体和访问规则。一份文档只属于一个资料库，移动文档后按目标库的权限开放，历史版本和处理结果保留。
 
-列表页使用搜索表单和表格。查看、编辑、授权和版本维护都在弹窗中完成，不再进入单独详情页。
+列表页使用搜索表单和表格。预览进入单独页面，只展示内容和版本切换。设为主版本、移动和重新处理留在列表。
 
 ## 目录职责
 
 - `list/index.vue`：全部可访问文档入口。
 - `components/DocumentListPanel.vue`：全局列表和库内弹窗共用的筛选、分页和行操作。
-- `components/DocumentDetailDialog.vue`：预览、切换查看版本、上传新版本、设为当前、移动和重新生成预览。
+- `detail.vue`：文档预览页。顶部是返回、名称和紧凑的版本选择，其余是预览。
 - `components/DocumentMoveDialog.vue`：目标库选择、提交与批量失败重试。
 - `library/index.vue`：资料库列表。行内进入文档、授权、编辑和归档。
 - `library/components/LibraryDialog.vue`：新建和编辑资料库。

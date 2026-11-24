@@ -27,6 +27,14 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             },
           },
           {
+            path: 'detail/:documentId',
+            name: 'documents.detail',
+            component: () => import('@/pages/document/detail.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.documents.library')],
+            },
+          },
+          {
             path: 'library',
             name: 'documents.library',
             component: () => import('@/pages/document/library/index.vue'),

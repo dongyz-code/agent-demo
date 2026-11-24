@@ -1,6 +1,6 @@
 <template>
-  <section>
-    <div class="rounded-b bg-white p-4 shadow">
+  <section class="flex min-h-full flex-col gap-3">
+    <div class="rounded bg-white p-4 shadow">
       <v-schema-form
         v-model="searchForm"
         mode="search"
@@ -11,9 +11,9 @@
       />
     </div>
 
-    <div class="mt-4 grid grid-cols-6 gap-4">
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
       <div
-        class="relative flex aspect-square cursor-pointer flex-col overflow-hidden rounded bg-white shadow"
+        class="relative flex min-h-52 cursor-pointer flex-col overflow-hidden rounded bg-white shadow"
         v-for="{ id, self, status } in cData"
         :key="id"
       >

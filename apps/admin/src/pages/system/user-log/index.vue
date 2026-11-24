@@ -1,6 +1,6 @@
 <template>
-  <section v-loading="getListLoading">
-    <div class="rounded-b bg-white p-4 shadow">
+  <section v-loading="getListLoading" class="flex min-h-full flex-col gap-3">
+    <div class="rounded bg-white p-4 shadow">
       <v-schema-form
         v-model="searchForm"
         mode="search"
@@ -10,8 +10,8 @@
       />
     </div>
 
-    <div class="my-2 rounded bg-white p-4 shadow">
-      <v-table :data="tableData" :rows="tableRows">
+    <div class="flex min-h-0 flex-1 flex-col rounded bg-white p-4 shadow">
+      <v-table class="min-h-0 flex-1" :data="tableData" :rows="tableRows">
         <template #detail="{ row }">
           <el-button
             class="p-0!"

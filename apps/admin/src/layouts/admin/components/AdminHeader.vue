@@ -1,8 +1,16 @@
 <template>
   <div
-    class="h-header flex items-center justify-between gap-4 bg-white px-2 shadow-sm"
+    class="h-header flex shrink-0 items-center justify-between gap-4 bg-white px-2 shadow-sm"
   >
-    <div class="min-w-0 flex-1"></div>
+    <div class="flex min-w-0 flex-1 items-center gap-6 px-2">
+      <v-icon
+        :icon="menuIcon"
+        :tips="menuTips"
+        class="text-black/65"
+        @click="toggleMenu"
+      />
+      <admin-breadcrumb />
+    </div>
     <div class="flex shrink-0 items-center gap-4">
       <div class="flex items-center gap-2">
         {{ store.$state.user?.nickname }}
@@ -18,16 +26,33 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue';
+
+import AdminBreadcrumb from './AdminBreadcrumb.vue';
 import { useStore } from '@/models';
 import { VIcon } from '@repo/ui';
 import { routerGoLogin } from '@/router';
 import { api } from '@/utils';
 import { logoutHandle } from '@/pages/login/login';
-import { ref } from 'vue';
 
+import LucidePanelLeftClose from '~icons/lucide/panel-left-close';
+import LucidePanelLeftOpen from '~icons/lucide/panel-left-open';
 import MaterialSymbolsLogout from '~icons/material-symbols/logout';
 
 const store = useStore();
+const menuIcon = computed(() => {
+  if (store.NAV_COLLAPSE) return LucidePanelLeftOpen;
+  return LucidePanelLeftClose;
+});
+const menuTips = computed(() => {
+  if (store.NAV_COLLAPSE) return '展开菜单';
+  return '收起菜单';
+});
+
+/** 切换左侧菜单的展开和收起。 */
+function toggleMenu() {
+  store.NAV_COLLAPSE = !store.NAV_COLLAPSE;
+}
 const loggingOut = ref(false);
 
 /**

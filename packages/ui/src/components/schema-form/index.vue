@@ -400,7 +400,7 @@ const formLabelWidth = computed(() => {
     return props.layout?.labelWidth ?? props.formProps?.labelWidth;
   }
 
-  return props.layout?.labelWidth ?? props.formProps?.labelWidth ?? 80;
+  return props.layout?.labelWidth ?? props.formProps?.labelWidth ?? 'auto';
 });
 
 const formProps = computed(() => ({
@@ -636,7 +636,7 @@ defineExpose<SchemaFormExpose>({
   flex-wrap: nowrap;
 }
 
-.v-schema-form--search-inline :deep(.el-form-item__label) {
+.v-schema-form--search :deep(.el-form-item__label) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -657,5 +657,8 @@ defineExpose<SchemaFormExpose>({
 :deep(.el-date-editor--daterange),
 :deep(.el-date-editor--timerange) {
   --el-date-editor-width: 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 </style>

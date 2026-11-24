@@ -44,27 +44,7 @@
         </template>
         <template #createdAt="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         <template #actions="{ row }">
-          <div class="whitespace-nowrap">
-            <el-button link @click="openDocuments(row)">文档</el-button>
-            <el-button
-              v-if="row.myRole === 'manager'"
-              link
-              @click="openMembers(row)"
-            >
-              授权
-            </el-button>
-            <el-button v-if="canEdit(row)" link @click="libraryDialogRef?.open(row)">
-              编辑
-            </el-button>
-            <el-button
-              v-if="canArchive(row)"
-              link
-              :type="archiveButtonType(row)"
-              @click="toggleStatus(row)"
-            >
-              {{ archiveLabel(row) }}
-            </el-button>
-          </div>
+          <v-action-button-group :actions="getActions(row)" :max-visible="3" />
         </template>
       </v-table>
       <page-component @update:model-value="loadLibraries()" />
@@ -83,6 +63,7 @@ import { onMounted, ref, shallowRef } from 'vue';
 import { ElButton, ElTag } from 'element-plus';
 import { VSchemaForm, VTable, usePage } from '@repo/ui';
 
+import VActionButtonGroup from '@/components/action-button-group/VActionButtonGroup.vue';
 import { useStore } from '@/models';
 import { api, confirm } from '@/utils';
 import { formatDateTime } from '../utils';
@@ -97,6 +78,13 @@ import {
   libraryVisibilityLabels,
 } from './utils';
 
+import LucideArchive from '~icons/lucide/archive';
+import LucideArchiveRestore from '~icons/lucide/archive-restore';
+import LucideFileText from '~icons/lucide/file-text';
+import LucideKeyRound from '~icons/lucide/key-round';
+import LucidePencil from '~icons/lucide/pencil';
+
+import type { ActionButtonItem } from '@/components/action-button-group/types';
 import type { LibraryInfo, LibraryStatus } from '@/types';
 import type { LibrarySearchForm } from './types';
 
@@ -168,9 +156,57 @@ function archiveButtonType(library: LibraryInfo) {
 }
 
 /**
+ * 归档和恢复使用不同图标，避免只靠颜色区分。
+ * @param library 当前资料库行。
+ * @returns 对应生命周期的图标。
+ */
+function archiveIcon(library: LibraryInfo) {
+  if (library.status === 'active') return LucideArchive;
+  return LucideArchiveRestore;
+}
+
+/**
  * 在弹窗中管理库内文档。
  * @param library 当前资料库行。
  */
+/**
+ * 外面保留进入文档、授权和编辑，归档放进更多。
+ * @param library 当前资料库行。
+ * @returns 按展示顺序排列的操作。
+ */
+function getActions(library: LibraryInfo): ActionButtonItem[] {
+  return [
+    {
+      key: 'documents',
+      label: '文档',
+      icon: LucideFileText,
+      handler: () => openDocuments(library),
+    },
+    {
+      key: 'grant',
+      label: '授权',
+      icon: LucideKeyRound,
+      isShow: library.myRole === 'manager',
+      handler: () => openMembers(library),
+    },
+    {
+      key: 'edit',
+      label: '编辑',
+      icon: LucidePencil,
+      isShow: canEdit(library),
+      handler: () => libraryDialogRef.value?.open(library),
+    },
+    {
+      key: 'archive',
+      label: archiveLabel(library),
+      icon: archiveIcon(library),
+      type: archiveButtonType(library),
+      isShow: canArchive(library),
+      handler: () => toggleStatus(library),
+    },
+  ];
+}
+
 function openDocuments(library: LibraryInfo) {
   void documentsDialogRef.value?.open(library.libraryId);
 }

@@ -61,7 +61,9 @@
           </div>
         </template>
         <template #library="{ row }">
-          <span v-if="row.libraryId">{{ row.libraryName }}</span>
+          <span v-if="row.libraryId" class="block truncate" :title="row.libraryName">{{
+            row.libraryName
+          }}</span>
           <span v-else class="text-gray-500">未归库</span>
         </template>
         <template #version="{ row }">
@@ -83,46 +85,17 @@
         </template>
         <template #createdAt="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         <template #actions="{ row }">
-          <div class="whitespace-nowrap">
-            <el-button link @click="openDocument(row)">查看</el-button>
-            <el-button link @click="download(row.documentId)">下载</el-button>
-            <el-button
-              v-if="canUpdate(row)"
-              link
-              @click="uploadVersion(row)"
-            >
-              上传新版本
-            </el-button>
-            <el-button
-              v-if="canUpdate(row)"
-              link
-              @click="moveDocument(row)"
-            >
-              移动到资料库
-            </el-button>
-            <el-button
-              v-if="canRegenerate(row)"
-              link
-              @click="retryPreview(row)"
-            >
-              重新生成预览
-            </el-button>
-            <el-button
-              v-if="canDelete(row)"
-              link
-              type="danger"
-              @click="removeDocument(row)"
-            >
-              删除
-            </el-button>
-          </div>
+          <v-action-button-group :actions="getActions(row)" :max-visible="3" />
         </template>
       </v-table>
       <page-component v-if="!failed" @update:model-value="loadDocuments()" />
     </div>
     <document-uploader ref="uploaderRef" @uploaded="handleUploaded" />
     <document-move-dialog ref="moveDialogRef" @changed="refreshDocuments" />
-    <document-detail-dialog ref="detailDialogRef" @changed="refreshDocuments" />
+    <document-version-dialog
+      ref="versionDialogRef"
+      @changed="refreshDocuments"
+    />
   </section>
 </template>
 
@@ -131,11 +104,13 @@ import { computed, onMounted, ref, shallowRef } from 'vue';
 import { ElButton, ElResult, ElTag } from 'element-plus';
 import { VSchemaForm, VTable, usePage } from '@repo/ui';
 
+import VActionButtonGroup from '@/components/action-button-group/VActionButtonGroup.vue';
 import DocumentUploader from '@/components/upload/DocumentUploader.vue';
 import { useStore } from '@/models';
+import { routerGo } from '@/router';
 import { api, confirm, notify } from '@/utils';
-import DocumentDetailDialog from './DocumentDetailDialog.vue';
 import DocumentMoveDialog from './DocumentMoveDialog.vue';
+import DocumentVersionDialog from './DocumentVersionDialog.vue';
 import {
   formatDateTime,
   formatFileSize,
@@ -148,8 +123,16 @@ import {
   previewStatusLabels,
 } from '../utils';
 
+import LucideDownload from '~icons/lucide/download';
+import LucideEye from '~icons/lucide/eye';
 import LucideFileText from '~icons/lucide/file-text';
+import LucideFolderInput from '~icons/lucide/folder-input';
+import LucideHistory from '~icons/lucide/history';
+import LucideRefreshCw from '~icons/lucide/refresh-cw';
+import LucideTrash2 from '~icons/lucide/trash-2';
+import LucideUpload from '~icons/lucide/upload';
 
+import type { ActionButtonItem } from '@/components/action-button-group/types';
 import type { DocumentInfo, DocumentUploadResult, LibraryInfo } from '@/types';
 import type { DocumentRow, DocumentSearchForm } from '../types';
 
@@ -172,7 +155,7 @@ const loading = ref(false);
 const failed = ref(false);
 const uploaderRef = ref<InstanceType<typeof DocumentUploader>>();
 const moveDialogRef = ref<InstanceType<typeof DocumentMoveDialog>>();
-const detailDialogRef = ref<InstanceType<typeof DocumentDetailDialog>>();
+const versionDialogRef = ref<InstanceType<typeof DocumentVersionDialog>>();
 const { pageComponent, pageRange, setPageData } = usePage({
   page: { size: 20 },
 });
@@ -219,7 +202,7 @@ const emptyText = computed(() => {
     return '没有符合条件的文档，请调整筛选';
   }
   if (canUpload.value) return '暂无文档，点击“上传文档”添加';
-  return '暂无可查看的文档';
+  return '暂无可预览的文档';
 });
 
 /**
@@ -254,6 +237,71 @@ function canDelete(document: DocumentInfo) {
 }
 
 /**
+ * 外面固定预览、下载、删除，其余维护动作收进更多。
+ * @param document 当前文档行。
+ * @returns 按展示顺序排列的操作。
+ */
+function getActions(document: DocumentInfo): ActionButtonItem[] {
+  return [
+    {
+      key: 'preview',
+      label: '预览',
+      icon: LucideEye,
+      handler: () => openDocument(document),
+    },
+    {
+      key: 'download',
+      label: '下载',
+      icon: LucideDownload,
+      handler: () => download(document.documentId),
+    },
+    {
+      key: 'remove',
+      label: '删除',
+      icon: LucideTrash2,
+      type: 'danger',
+      isShow: canDelete(document),
+      handler: () => removeDocument(document),
+    },
+    {
+      key: 'versions',
+      label: '版本',
+      icon: LucideHistory,
+      handler: () => openVersions(document),
+    },
+    {
+      key: 'upload',
+      label: '上传新版本',
+      icon: LucideUpload,
+      isShow: canUpdate(document),
+      handler: () => uploadVersion(document),
+    },
+    {
+      key: 'move',
+      label: '移动到资料库',
+      icon: LucideFolderInput,
+      isShow: canUpdate(document),
+      handler: () => moveDocument(document),
+    },
+    {
+      key: 'retry',
+      label: '重新处理',
+      icon: LucideRefreshCw,
+      isShow: canRegenerate(document),
+      handler: () => retryPreview(document),
+    },
+  ];
+}
+
+/**
+ * 打开全部上传版本，并在其中切换当前展示版本。
+ * @param document 当前文档行。
+ */
+function openVersions(document: DocumentInfo) {
+  void versionDialogRef.value?.open(document.documentId);
+}
+
+/**
  * 为当前展示版本上传新文件，不在列表里改所属资料库。
  * @param document 当前文档行。
  */
@@ -281,7 +329,7 @@ async function retryPreview(document: DocumentInfo) {
     documentId: document.documentId,
     documentVersionId: document.activeVersion.documentVersionId,
   });
-  notify('success', '已提交预览生成任务');
+  notify('success', '已提交重新处理');
   await loadDocuments();
 }
 
@@ -306,11 +354,13 @@ function moveSelected() {
 }
 
 /**
- * 在弹窗中查看文档，不离开当前列表。
- * @param document 用户要查看的文档。
+ * 打开只含预览的文档页，版本切换留在该页的小选择器里。
+ * @param document 用户要预览的文档。
  */
 function openDocument(document: DocumentInfo) {
-  void detailDialogRef.value?.open(document.documentId);
+  void routerGo('documents.detail', {
+    params: { documentId: document.documentId },
+  });
 }
 
 /**

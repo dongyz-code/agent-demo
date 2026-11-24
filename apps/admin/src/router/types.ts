@@ -24,6 +24,7 @@ export const routeNameMap = {
 
   documents: '文档中心',
   'documents.list': '文档',
+  'documents.detail': '文档预览',
   'documents.library': '资料库',
 };
 

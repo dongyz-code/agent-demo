@@ -1,6 +1,6 @@
 <template>
   <div
-    class="inline-flex items-center gap-1 whitespace-nowrap [&_.el-button]:ml-0 [&_.el-button]:px-1.5"
+    class="action-button-group inline-flex items-center gap-1 whitespace-nowrap [&_.el-button]:px-1.5"
   >
     <el-button
       v-for="(action, index) in visibleActions"
@@ -116,3 +116,10 @@ function runOverflowAction(index: number): void {
   if (action) runAction(action);
 }
 </script>
+
+<style scoped>
+/* Element Plus 只给相邻按钮加左外边距，「更多」在下拉组件里，所以两边间距不一致。 */
+.action-button-group :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+</style>
