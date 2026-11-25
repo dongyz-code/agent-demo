@@ -1,4 +1,3 @@
-export * from './plugins/schedule/index.js';
 export * from './plugins/csv/index.js';
 export * from './plugins/gzip/index.js';
 export * from './plugins/authorization/index.js';

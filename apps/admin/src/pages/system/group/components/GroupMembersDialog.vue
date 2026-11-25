@@ -20,7 +20,9 @@
     </div>
     <v-table :data="members" :rows="rows">
       <template #actions="{ row }">
-        <el-button link type="danger" @click="removeMember(row.userId)">移除</el-button>
+        <el-button link type="danger" @click="removeMember(row.userId)">
+          移除
+        </el-button>
       </template>
     </v-table>
     <template #footer>
@@ -76,7 +78,8 @@ async function searchUsers(search: string) {
 /** 加入待保存成员。 */
 function addMember() {
   if (!selectedUserId.value) return;
-  if (members.value.some((member) => member.userId === selectedUserId.value)) return;
+  if (members.value.some((member) => member.userId === selectedUserId.value))
+    return;
   const user = users.value.find((item) => item.userId === selectedUserId.value);
   if (!user) return;
   members.value = [...members.value, user];

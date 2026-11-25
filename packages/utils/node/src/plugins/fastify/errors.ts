@@ -50,11 +50,7 @@ function parseErrorCodeStatus(code: unknown) {
 /** 将未知错误转换为统一错误响应信息。 */
 export function normalizeError(
   value: unknown,
-  {
-    defaultCode,
-    defaultStatusCode = 500,
-    statusCode,
-  }: NormalizeErrorOptions,
+  { defaultCode, defaultStatusCode = 500, statusCode }: NormalizeErrorOptions,
 ) {
   const error = value as Partial<ErrorLike>;
   const resolvedStatusCode = isErrorStatusCode(statusCode)

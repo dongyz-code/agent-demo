@@ -33,7 +33,9 @@ export function initPinoLogger({
 }: InitPinoLoggerOptions): InitPinoLoggerResult {
   const fileEnabled = Boolean(logDir && (file?.enabled ?? true));
   const retentionDays = file?.retentionDays ?? 30;
-  const stdoutDestination = stdout ? createStdoutDestination(devPretty) : undefined;
+  const stdoutDestination = stdout
+    ? createStdoutDestination(devPretty)
+    : undefined;
   const fileDestinations = {
     fastify: createDailyFileDestination({
       enabled: fileEnabled,

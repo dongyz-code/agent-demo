@@ -9,7 +9,8 @@
           :status="progressStatus"
         />
         <div v-if="!item.error" class="mt-1 text-xs text-gray-400">
-          {{ stageText }}<span v-if="item.restored"> · 已恢复</span>
+          {{ stageText }}
+          <span v-if="item.restored">· 已恢复</span>
         </div>
         <div v-if="item.error" class="mt-1 text-xs text-red-500">
           {{ item.error }}

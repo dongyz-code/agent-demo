@@ -175,9 +175,7 @@ async function initialize(
         .where(eq(schemas.file_upload_sessions.file_id, createdFileId))
         .limit(1);
       if (!persisted)
-        await storage
-          .abortMultipart(createdMultipart)
-          .catch(() => undefined);
+        await storage.abortMultipart(createdMultipart).catch(() => undefined);
     }
     throw error;
   }
@@ -199,10 +197,7 @@ async function signPart(
   input: UploadApi['sign-parts']['body'],
   userId: string,
 ): Promise<UploadApi['sign-parts']['resp']> {
-  const { session, file } = await requireUploadSession(
-    input.sessionId,
-    userId,
-  );
+  const { session, file } = await requireUploadSession(input.sessionId, userId);
   assertTransferableUploadSession(session);
   if (
     session.mode !== 'multipart' ||
@@ -243,8 +238,7 @@ async function listParts(
 ): Promise<UploadApi['list-parts']['resp']> {
   const { session, file } = await requireUploadSession(sessionId, userId);
   assertTransferableUploadSession(session);
-  if (session.mode !== 'multipart' || !session.upload_id)
-    return { parts: [] };
+  if (session.mode !== 'multipart' || !session.upload_id) return { parts: [] };
   const parts = await storage.listParts({
     ...temporaryReference(file),
     uploadId: session.upload_id,
@@ -270,7 +264,10 @@ async function listParts(
 }
 
 /** 固化并验证上传对象，文件可信状态与会话完成状态原子发布。 */
-async function complete(sessionId: string, userId: string): Promise<UploadedFile> {
+async function complete(
+  sessionId: string,
+  userId: string,
+): Promise<UploadedFile> {
   const { session, file } = await requireUploadSession(sessionId, userId);
   if (session.status === 'completed') return toUploadedFile(file);
   assertTransferableUploadSession(session);
@@ -280,8 +277,7 @@ async function complete(sessionId: string, userId: string): Promise<UploadedFile
     'completing',
     userId,
   );
-  if (!claimed)
-    throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
+  if (!claimed) throw new ROOT_ERROR('文件上传: 上传会话正在确认，请稍后重试');
   const started = Date.now();
   const temporary = temporaryReference(file);
   try {
@@ -479,8 +475,7 @@ async function cleanupExpired(): Promise<number> {
       }
       await removeObjects([file.file_id]);
       await db.transaction(
-        async (transaction) =>
-          await deleteRecords([file.file_id], transaction),
+        async (transaction) => await deleteRecords([file.file_id], transaction),
       );
       removed++;
     } catch {
@@ -511,10 +506,7 @@ async function put(input: PutFileInput, userId: string): Promise<UploadedFile> {
       input.content.byteLength,
     );
   } else {
-    content = await readStreamToBuffer(
-      input.content,
-      policy.maxFileSizeBytes,
-    );
+    content = await readStreamToBuffer(input.content, policy.maxFileSizeBytes);
   }
   const declaration = { ...input, size: content.length };
   const { filename, extension } = validateFileDeclaration(declaration);
@@ -523,8 +515,7 @@ async function put(input: PutFileInput, userId: string): Promise<UploadedFile> {
     filename,
     input.contentType,
   );
-  if (!contentType)
-    throw new ROOT_ERROR('文件上传: 文件内容与声明类型不匹配');
+  if (!contentType) throw new ROOT_ERROR('文件上传: 文件内容与声明类型不匹配');
   const now = new Date();
   const key = randomUUID();
   const reference = {
@@ -572,7 +563,10 @@ async function put(input: PutFileInput, userId: string): Promise<UploadedFile> {
 }
 
 /** 获取已验证文件的安全元数据；业务访问授权由调用方负责。 */
-async function getInfo(key: string, executor: FileReader = db): Promise<UploadedFile> {
+async function getInfo(
+  key: string,
+  executor: FileReader = db,
+): Promise<UploadedFile> {
   return toUploadedFile(await getStored(key, executor));
 }
 
@@ -593,7 +587,10 @@ async function requireOwned(
 }
 
 /** 为已经通过业务权限校验的文件生成短期 URL；此方法不是客户端授权入口。 */
-async function getUrl(key: string, options: FileUrlOptions = {}): Promise<FileAccess> {
+async function getUrl(
+  key: string,
+  options: FileUrlOptions = {},
+): Promise<FileAccess> {
   const results = await getUrls([key], options);
   return results.get(key)!;
 }
@@ -766,8 +763,7 @@ async function validateStoredObject(file: StoredFile): Promise<string> {
     file.filename,
     file.declared_content_type,
   );
-  if (!contentType)
-    throw new ROOT_ERROR('文件上传: 文件内容与声明类型不匹配');
+  if (!contentType) throw new ROOT_ERROR('文件上传: 文件内容与声明类型不匹配');
   return contentType;
 }
 
@@ -888,7 +884,10 @@ function validateFileDeclaration(input: {
   if (input.size > policy.maxFileSizeBytes) {
     throw new ROOT_ERROR('文件上传: 文件大小超过限制');
   }
-  if (typeof input.filename !== 'string' || typeof input.contentType !== 'string') {
+  if (
+    typeof input.filename !== 'string' ||
+    typeof input.contentType !== 'string'
+  ) {
     throw new ROOT_ERROR('非法参数');
   }
   const filename =

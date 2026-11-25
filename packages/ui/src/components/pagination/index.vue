@@ -29,10 +29,11 @@
             color: var(--el-text-color-regular);
             margin-right: 16px;
           "
-          >共 {{ totalLimit.value }} 条
-          <span class="text-tcolor text-xs" v-if="totalLimit.over"
-            >(查询上限: {{ totalLimit.over }})</span
-          >
+        >
+          共 {{ totalLimit.value }} 条
+          <span class="text-tcolor text-xs" v-if="totalLimit.over">
+            (查询上限: {{ totalLimit.over }})
+          </span>
         </span>
       </template>
     </el-pagination>

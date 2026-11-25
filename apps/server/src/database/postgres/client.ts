@@ -31,3 +31,8 @@ function quoteSearchPathIdentifier(value: string) {
 const pool = new Pool(createPoolConfig());
 
 export const db = drizzle({ client: pool, schema: schemas });
+
+/** 关闭数据库连接池，用于服务退出和集成验证，关闭后不得继续查询。 */
+export async function closeDatabase(): Promise<void> {
+  await pool.end();
+}

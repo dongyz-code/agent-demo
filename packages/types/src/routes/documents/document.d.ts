@@ -246,4 +246,3 @@ export type DocumentAction = ApiMultAction<{
     resp: DocumentPreviewWindow;
   };
 }>;
-

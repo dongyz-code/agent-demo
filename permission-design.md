@@ -27,10 +27,10 @@
 
 数据权限放在资料库授权上，决定能读哪些文件、能维护哪个库。客户端问答只查数据权限，不要求用户拥有管理端页面权限。
 
-| 平面 | 存在哪里 | 例子 |
-| --- | --- | --- |
+| 平面     | 存在哪里          | 例子                             |
+| -------- | ----------------- | -------------------------------- |
 | 功能权限 | `role.permission` | 能否进入资料库页、能否新建用户组 |
-| 数据权限 | `library_grants` | 是否是某个库的使用者或管理员 |
+| 数据权限 | `library_grants`  | 是否是某个库的使用者或管理员     |
 
 系统管理员 `ROOT.SYS_ADMIN_USER_ID` 不写入授权表。判定时直接视为全部资料库的管理员。
 
@@ -38,12 +38,12 @@
 
 资料库是唯一的分享边界。
 
-| 字段 | 取值 | 含义 |
-| --- | --- | --- |
-| `visibility` | `restricted` | 只有授权表里的人能使用 |
-| `visibility` | `published` | 每个已登录用户都是使用者 |
-| `status` | `active` | 正常 |
-| `status` | `archived` | 停止检索；文档和授权保留 |
+| 字段         | 取值         | 含义                     |
+| ------------ | ------------ | ------------------------ |
+| `visibility` | `restricted` | 只有授权表里的人能使用   |
+| `visibility` | `published`  | 每个已登录用户都是使用者 |
+| `status`     | `active`     | 正常                     |
+| `status`     | `archived`   | 停止检索；文档和授权保留 |
 
 `published` 只把登录用户抬到使用者。管理员仍然必须出现在授权表里。
 
@@ -57,10 +57,10 @@
 
 一个主体在一个库里只有一行。用户直接授权和所属用户组授权同时存在时，取更高的一档。
 
-| 身份 | 预览、下载、检索 | 上传、换版、删除、重新处理、移库 | 编辑库、归档、改授权 |
-| --- | --- | --- | --- |
-| 使用者 `user` | 可以 |  |  |
-| 管理员 `manager` | 可以 | 可以 | 可以 |
+| 身份             | 预览、下载、检索 | 上传、换版、删除、重新处理、移库 | 编辑库、归档、改授权 |
+| ---------------- | ---------------- | -------------------------------- | -------------------- |
+| 使用者 `user`    | 可以             |                                  |                      |
+| 管理员 `manager` | 可以             | 可以                             | 可以                 |
 
 使用者不能打开授权弹窗。身份不够做某个管理动作时，接口返回「权限不足」。完全没有该库身份，并且库也不是全员可使用时，资料库和其中的文档都返回「不存在」。
 
@@ -209,12 +209,12 @@ GROUP BY l.library_id, l.visibility;
 
 文档动作对照：
 
-| 动作 | 需要的身份 | 额外条件 |
-| --- | --- | --- |
-| 列表、详情、预览、下载 | `user` 或 `manager` | 文档未删除 |
-| 问答检索 | `user` 或 `manager` | 库为 `active`，并且命中 `indexed_version_id` |
-| 上传新文档、换版、删除、重新处理、移库 | `manager` | 移库时目标库也是 `manager` |
-| 改资料库、归档、恢复、改授权 | `manager` |  |
+| 动作                                   | 需要的身份          | 额外条件                                     |
+| -------------------------------------- | ------------------- | -------------------------------------------- |
+| 列表、详情、预览、下载                 | `user` 或 `manager` | 文档未删除                                   |
+| 问答检索                               | `user` 或 `manager` | 库为 `active`，并且命中 `indexed_version_id` |
+| 上传新文档、换版、删除、重新处理、移库 | `manager`           | 移库时目标库也是 `manager`                   |
+| 改资料库、归档、恢复、改授权           | `manager`           |                                              |
 
 预览和下载校验文档权限之后，仍通过现有 upload 模块签发短期地址。
 
@@ -244,16 +244,16 @@ GROUP BY l.library_id, l.visibility;
 
 ### 8.1 资料库
 
-| 文件 | 功能权限 | 数据身份 |
-| --- | --- | --- |
-| `library-list.ts` | `pages.documents.library` | 有资格的库；系统管理员看全部 |
-| `library-detail.ts` | 同上 | 无资格返回不存在 |
-| `library-create.ts` | `actions.documents.library-create` | 创建人成为管理员 |
-| `library-update.ts` | `actions.documents.library-update` | `manager` |
-| `library-archive.ts` | `actions.documents.library-archive` | `manager` |
-| `library-restore.ts` | 同上 | `manager` |
-| `library-grant-list.ts` | `pages.documents.library` | 本库 `user` 可看；只读 |
-| `library-grant-save.ts` | `actions.documents.library-grant` | `manager`；按最终名单替换 |
+| 文件                    | 功能权限                            | 数据身份                     |
+| ----------------------- | ----------------------------------- | ---------------------------- |
+| `library-list.ts`       | `pages.documents.library`           | 有资格的库；系统管理员看全部 |
+| `library-detail.ts`     | 同上                                | 无资格返回不存在             |
+| `library-create.ts`     | `actions.documents.library-create`  | 创建人成为管理员             |
+| `library-update.ts`     | `actions.documents.library-update`  | `manager`                    |
+| `library-archive.ts`    | `actions.documents.library-archive` | `manager`                    |
+| `library-restore.ts`    | 同上                                | `manager`                    |
+| `library-grant-list.ts` | `pages.documents.library`           | 本库 `user` 可看；只读       |
+| `library-grant-save.ts` | `actions.documents.library-grant`   | `manager`；按最终名单替换    |
 
 `library-grant-save` 提交这个库的完整授权名单。服务端在同一事务里计算新增、更新和删除，并拒绝删掉最后一个管理员。同一主体重复出现时保留更高身份。
 
@@ -275,13 +275,13 @@ GROUP BY l.library_id, l.visibility;
 
 放在系统管理，只受功能权限控制：
 
-| 文件 | 功能权限 |
-| --- | --- |
-| `group-list.ts` | `pages.sys.sys.group` |
-| `group-detail.ts` | 同上 |
-| `group-create.ts` | `actions.group.create` |
-| `group-update.ts` | `actions.group.update` |
-| `group-delete.ts` | `actions.group.delete` |
+| 文件                   | 功能权限               |
+| ---------------------- | ---------------------- |
+| `group-list.ts`        | `pages.sys.sys.group`  |
+| `group-detail.ts`      | 同上                   |
+| `group-create.ts`      | `actions.group.create` |
+| `group-update.ts`      | `actions.group.update` |
+| `group-delete.ts`      | `actions.group.delete` |
 | `group-member-save.ts` | `actions.group.member` |
 
 删除接口先返回 `libraryCount`。确认删除时同时删除 `library_grants` 里 `subject_type = group` 的行。
@@ -309,11 +309,11 @@ GROUP BY l.library_id, l.visibility;
 
 行内按钮按 `myRole` 和功能权限一起决定：
 
-| 操作 | 使用者 | 管理员 |
-| --- | --- | --- |
-| 文档 | 进入只读列表 | 进入，并可上传、删除、换版 |
-| 授权 | 不显示 | 打开授权弹窗 |
-| 编辑、归档或恢复 | 不显示 | 显示 |
+| 操作             | 使用者       | 管理员                     |
+| ---------------- | ------------ | -------------------------- |
+| 文档             | 进入只读列表 | 进入，并可上传、删除、换版 |
+| 授权             | 不显示       | 打开授权弹窗               |
+| 编辑、归档或恢复 | 不显示       | 显示                       |
 
 归档确认写明：归档后停止检索，文档和授权保留。
 
@@ -386,19 +386,19 @@ GROUP BY l.library_id, l.visibility;
 
 ## 13. 验收
 
-| 场景 | 结果 |
-| --- | --- |
-| 用户与库无关，库也不是全员可使用 | 列表没有该库；直接请求详情返回不存在 |
-| 使用者请求上传、删除、改授权 | 返回权限不足，按钮本身不渲染 |
-| 用户只通过用户组获得使用者 | 可以预览、下载和检索 |
-| 把用户移出用户组 | 下一次问答不再检索该库 |
-| 全员可使用的库 | 登录用户可以检索；只有授权管理员可以上传 |
-| 归档资料库 | 客户端不再检索；管理员仍可在管理端恢复 |
-| 新版本处理中 | 问答仍使用 `indexed_version_id` 指向的旧版本 |
-| 新版本处理成功 | 问答只使用新版本 |
-| 新版本处理失败 | 旧的可检索版本保留，版本上可见失败原因 |
-| 移动文档 | 来源库立即不能检索，目标库下一次问答可以检索 |
-| 客户端传入无权的 `library_id` | 不扩大检索范围 |
-| 伪造文档 id 下载 | 返回不存在 |
-| 系统管理员 | 可以查看和维护全部资料库与文档 |
-| 打开已失权的历史引用 | 不再返回片段和预览地址 |
+| 场景                             | 结果                                         |
+| -------------------------------- | -------------------------------------------- |
+| 用户与库无关，库也不是全员可使用 | 列表没有该库；直接请求详情返回不存在         |
+| 使用者请求上传、删除、改授权     | 返回权限不足，按钮本身不渲染                 |
+| 用户只通过用户组获得使用者       | 可以预览、下载和检索                         |
+| 把用户移出用户组                 | 下一次问答不再检索该库                       |
+| 全员可使用的库                   | 登录用户可以检索；只有授权管理员可以上传     |
+| 归档资料库                       | 客户端不再检索；管理员仍可在管理端恢复       |
+| 新版本处理中                     | 问答仍使用 `indexed_version_id` 指向的旧版本 |
+| 新版本处理成功                   | 问答只使用新版本                             |
+| 新版本处理失败                   | 旧的可检索版本保留，版本上可见失败原因       |
+| 移动文档                         | 来源库立即不能检索，目标库下一次问答可以检索 |
+| 客户端传入无权的 `library_id`    | 不扩大检索范围                               |
+| 伪造文档 id 下载                 | 返回不存在                                   |
+| 系统管理员                       | 可以查看和维护全部资料库与文档               |
+| 打开已失权的历史引用             | 不再返回片段和预览地址                       |

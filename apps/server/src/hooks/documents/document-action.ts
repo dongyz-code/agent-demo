@@ -28,7 +28,10 @@ import { documentPreview } from './preview/index.js';
 import { documentsConfig } from './config.js';
 import { resolveDocumentVersion } from './document/resolve-version.js';
 import { upload } from '@/hooks/upload/index.js';
-import { requireLibraryAccess, resolveLibraryAccess } from './library-access.js';
+import {
+  requireLibraryAccess,
+  resolveLibraryAccess,
+} from './library-access.js';
 import { enqueueDocumentCleanup } from './tasks/cleanup.js';
 import { enqueueDocumentProcess } from './document-process-action.js';
 import type {
@@ -327,9 +330,7 @@ class DocumentAction {
     const roles = new Map<string, LibraryRole>();
     const libraryIds = [
       ...new Set(
-        rows.flatMap((row) =>
-          row.library ? [row.library.library_id] : [],
-        ),
+        rows.flatMap((row) => (row.library ? [row.library.library_id] : [])),
       ),
     ];
     for (const libraryId of libraryIds) {
@@ -386,28 +387,28 @@ class DocumentAction {
       );
     });
     const [versionCounts, coverRows, quickCoverRows] = await Promise.all([
-        db
-          .select({
-            documentId: schemas.document_versions.document_id,
-            value: count(),
-          })
-          .from(schemas.document_versions)
-          .where(inArray(schemas.document_versions.document_id, documentIds))
-          .groupBy(schemas.document_versions.document_id),
-        db.select().from(schemas.document_preview_pages).where(coverWhere),
-        db
-          .select()
-          .from(schemas.document_preview_quick_pages)
-          .where(
-            and(
-              inArray(
-                schemas.document_preview_quick_pages.document_version_id,
-                versionIds,
-              ),
-              eq(schemas.document_preview_quick_pages.page_number, 1),
+      db
+        .select({
+          documentId: schemas.document_versions.document_id,
+          value: count(),
+        })
+        .from(schemas.document_versions)
+        .where(inArray(schemas.document_versions.document_id, documentIds))
+        .groupBy(schemas.document_versions.document_id),
+      db.select().from(schemas.document_preview_pages).where(coverWhere),
+      db
+        .select()
+        .from(schemas.document_preview_quick_pages)
+        .where(
+          and(
+            inArray(
+              schemas.document_preview_quick_pages.document_version_id,
+              versionIds,
             ),
+            eq(schemas.document_preview_quick_pages.page_number, 1),
           ),
-      ]);
+        ),
+    ]);
     const clearCoverByVersion = new Map(
       coverRows.map((row) => [row.document_version_id, row]),
     );
@@ -592,7 +593,13 @@ class DocumentAction {
     const now = new Date();
     if (!input.documentId) {
       if (!input.libraryId) throw new ROOT_ERROR('非法参数');
-      await requireLibraryAccess(input.libraryId, userId, 'manager', 'admin', tx);
+      await requireLibraryAccess(
+        input.libraryId,
+        userId,
+        'manager',
+        'admin',
+        tx,
+      );
       const documentId = randomUUID();
       const documentVersionId = randomUUID();
       const name = input.name?.trim() || file.filename;

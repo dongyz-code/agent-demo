@@ -47,7 +47,10 @@ export async function getTablePreview({
   }
 
   const safeOffset = Math.max(0, Number.isFinite(offset) ? offset : 0);
-  const safeLimit = Math.max(1, Math.min(100, Number.isFinite(limit) ? limit : 20));
+  const safeLimit = Math.max(
+    1,
+    Math.min(100, Number.isFinite(limit) ? limit : 20),
+  );
   const orderColumn =
     columns.find((column) => column.primaryKey) ??
     columns.find((column) => column.name === 'create_timestamp') ??

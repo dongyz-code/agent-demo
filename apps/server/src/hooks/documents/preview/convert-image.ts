@@ -8,10 +8,7 @@ import sharp from 'sharp';
 
 import { ROOT_ERROR } from '@/configs/index.js';
 
-import {
-  encodePreviewPage,
-  PREVIEW_VARIANT_CONFIGS,
-} from './shared.js';
+import { encodePreviewPage, PREVIEW_VARIANT_CONFIGS } from './shared.js';
 
 import type { ConvertedDocumentPage, PreviewVariantConfig } from './shared.js';
 import type { DocumentPreviewPageVariant } from '@repo/types';

@@ -1,7 +1,10 @@
 import type { SQL, SQLChunk } from 'drizzle-orm';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 
-import type { SchemaTrigger, SchemaTriggerFunction } from '../declaration/types.js';
+import type {
+  SchemaTrigger,
+  SchemaTriggerFunction,
+} from '../declaration/types.js';
 
 /* ------------------------------------------------------------------ */
 /* 表目标态描述类型（迁移层：DDL 与表管理共用）                         */

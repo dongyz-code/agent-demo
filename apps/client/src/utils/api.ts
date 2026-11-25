@@ -3,10 +3,7 @@ import { AxiosError } from 'axios';
 import type { API } from '@repo/types';
 
 import { API_BASE } from '@/constants/env';
-import {
-  getSessionEpoch,
-  handleUnauthorized,
-} from '@/model';
+import { getSessionEpoch, handleUnauthorized } from '@/model';
 import { getAxios } from '@repo/utils-browser';
 
 type ApiErrorPayload = {

@@ -288,7 +288,9 @@ const constraintTypeMap: Record<string, string> = {
 
 /** 从 pg_indexes.indexdef 中提取索引字段列表。 */
 function parseIndexColumns(definition: string) {
-  const match = definition.match(/\busing\s+\S+\s+\((.*)\)(?:\s+where\s+.*)?$/i);
+  const match = definition.match(
+    /\busing\s+\S+\s+\((.*)\)(?:\s+where\s+.*)?$/i,
+  );
   if (!match) {
     return ['<expression>'];
   }

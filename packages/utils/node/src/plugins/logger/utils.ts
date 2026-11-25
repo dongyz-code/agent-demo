@@ -55,6 +55,6 @@ export function cleanupOldLogDirs(
 /** stderr 兜底输出，避免 logger 初始化失败时递归调用自身。 */
 export function writeFallback(error: unknown) {
   const message =
-    error instanceof Error ? error.stack ?? error.message : String(error);
+    error instanceof Error ? (error.stack ?? error.message) : String(error);
   process.stderr.write(`${message}\n`);
 }

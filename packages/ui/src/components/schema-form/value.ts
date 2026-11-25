@@ -83,7 +83,9 @@ function unwrapFormValue(value: unknown): unknown {
   }
   if (value && typeof value === 'object') {
     const next: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    for (const [key, item] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
       next[key] = unwrapFormValue(item);
     }
     return next;
@@ -116,15 +118,18 @@ export function buildSubmitParams<T extends SchemaFormModel>({
     /** 字段路径。 */
     dataIndex: SchemaFormDataIndex<T>;
     /** 字段配置中的查询行为。 */
-    search?: false | {
-      /** 查询提交转换。 */
-      transform?: (value: unknown, form: T) => Record<string, unknown>;
-    };
+    search?:
+      | false
+      | {
+          /** 查询提交转换。 */
+          transform?: (value: unknown, form: T) => Record<string, unknown>;
+        };
   }[];
 }): Record<string, unknown> {
   return fields.reduce<Record<string, unknown>>((acc, field) => {
     const value = getFormValue(form, field.dataIndex);
-    const transform = field.search === false ? undefined : field.search?.transform;
+    const transform =
+      field.search === false ? undefined : field.search?.transform;
     if (transform) {
       Object.assign(acc, transform(value, form));
       return acc;

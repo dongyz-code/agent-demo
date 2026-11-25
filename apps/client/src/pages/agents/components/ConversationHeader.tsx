@@ -18,9 +18,7 @@ type ConversationHeaderProps = {
  * @param props 当前会话。
  * @returns 会话顶栏节点。
  */
-export function ConversationHeader({
-  conversation,
-}: ConversationHeaderProps) {
+export function ConversationHeader({ conversation }: ConversationHeaderProps) {
   const { renameConversation } = useConversationActions();
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState<string | null>(null);

@@ -43,7 +43,8 @@ const loading = ref(false);
 /** 路由切换时只接受最新一次详情。 */
 let requestSequence = 0;
 const documentId = computed(() => {
-  if (typeof route.params.documentId === 'string') return route.params.documentId;
+  if (typeof route.params.documentId === 'string')
+    return route.params.documentId;
   return '';
 });
 /** 读取文档并默认预览主版本。切换版本只改本页画面。 */

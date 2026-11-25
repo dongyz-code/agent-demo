@@ -61,7 +61,10 @@ export const library_grants = pgTable(
       table.subject_type,
       table.subject_id,
     ),
-    index('library_grants_subject_idx').on(table.subject_type, table.subject_id),
+    index('library_grants_subject_idx').on(
+      table.subject_type,
+      table.subject_id,
+    ),
     ...timestampsTrigger({
       createColumn: 'create_timestamp',
       updateColumn: 'last_update_timestamp',

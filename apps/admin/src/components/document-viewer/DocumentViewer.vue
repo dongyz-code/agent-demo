@@ -63,9 +63,9 @@
           v-if="preview.pages.length < preview.pageCount"
           class="text-center"
         >
-          <el-button :loading="loadingMore" @click="load(false)"
-            >加载后续页面</el-button
-          >
+          <el-button :loading="loadingMore" @click="load(false)">
+            加载后续页面
+          </el-button>
         </div>
       </div>
     </template>

@@ -98,7 +98,13 @@ function parseMarkdown(source: string, fileId: string) {
         code.push(lines[index] ?? '');
       }
       blocks.push(
-        createBlock(fileId, blocks.length, 'code', code.join('\n'), headingPath),
+        createBlock(
+          fileId,
+          blocks.length,
+          'code',
+          code.join('\n'),
+          headingPath,
+        ),
       );
       continue;
     }
@@ -123,7 +129,13 @@ function parseMarkdown(source: string, fileId: string) {
       }
       index -= 1;
       blocks.push(
-        createBlock(fileId, blocks.length, 'table', table.join('\n'), headingPath),
+        createBlock(
+          fileId,
+          blocks.length,
+          'table',
+          table.join('\n'),
+          headingPath,
+        ),
       );
       continue;
     }
@@ -264,7 +276,9 @@ function parseCsv(source: string, fileId: string) {
     `| ${header} |`,
     `| ${separator} |`,
     ...records.slice(1).map((record) => {
-      const cells = records[0]!.map((_, index) => escapeTableCell(record[index] ?? ''));
+      const cells = records[0]!.map((_, index) =>
+        escapeTableCell(record[index] ?? ''),
+      );
       return `| ${cells.join(' | ')} |`;
     }),
   ];

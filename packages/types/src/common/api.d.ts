@@ -30,41 +30,42 @@ type HasApiField<T, Key extends PropertyKey> = Key extends keyof T
   : false;
 
 /** 路由 body 类型；旧 req 在非 GET 方法下按 body 兼容。 */
-export type ApiRouteBody<T> = HasApiField<T, 'body'> extends true
-  ? T['body' & keyof T]
-  : HasApiField<T, 'req'> extends true
-    ? ApiRouteMethod<T> extends 'GET'
-      ? never
-      : T['req' & keyof T]
-    : never;
+export type ApiRouteBody<T> =
+  HasApiField<T, 'body'> extends true
+    ? T['body' & keyof T]
+    : HasApiField<T, 'req'> extends true
+      ? ApiRouteMethod<T> extends 'GET'
+        ? never
+        : T['req' & keyof T]
+      : never;
 
 /** 路由 query 类型；旧 req 在 GET 方法下按 query 兼容。 */
-export type ApiRouteQuery<T> = HasApiField<T, 'query'> extends true
-  ? T['query' & keyof T]
-  : HasApiField<T, 'req'> extends true
-    ? ApiRouteMethod<T> extends 'GET'
-      ? T['req' & keyof T]
-      : never
-    : never;
+export type ApiRouteQuery<T> =
+  HasApiField<T, 'query'> extends true
+    ? T['query' & keyof T]
+    : HasApiField<T, 'req'> extends true
+      ? ApiRouteMethod<T> extends 'GET'
+        ? T['req' & keyof T]
+        : never
+      : never;
 
 /** 路由 params 类型；未声明时表示没有路径参数。 */
-export type ApiRouteParams<T> = HasApiField<T, 'params'> extends true
-  ? T['params' & keyof T]
-  : never;
+export type ApiRouteParams<T> =
+  HasApiField<T, 'params'> extends true ? T['params' & keyof T] : never;
 
 /** 路由响应类型；未声明 resp 时保持旧约定返回 ok。 */
-export type ApiRouteResponse<T> = HasApiField<T, 'resp'> extends true
-  ? T['resp' & keyof T]
-  : 'ok';
+export type ApiRouteResponse<T> =
+  HasApiField<T, 'resp'> extends true ? T['resp' & keyof T] : 'ok';
 
 /** 前端单参数调用时使用的数据类型，优先兼容旧 req，再按 body、query、params 选择。 */
-export type ApiRouteRequest<T> = HasApiField<T, 'req'> extends true
-  ? T['req' & keyof T]
-  : [ApiRouteBody<T>] extends [never]
-    ? [ApiRouteQuery<T>] extends [never]
-      ? ApiRouteParams<T>
-      : ApiRouteQuery<T>
-    : ApiRouteBody<T>;
+export type ApiRouteRequest<T> =
+  HasApiField<T, 'req'> extends true
+    ? T['req' & keyof T]
+    : [ApiRouteBody<T>] extends [never]
+      ? [ApiRouteQuery<T>] extends [never]
+        ? ApiRouteParams<T>
+        : ApiRouteQuery<T>
+      : ApiRouteBody<T>;
 
 /** 标准化后的路由契约，给前后端工具提供稳定字段。 */
 export type ApiRouteNormalized<T> = {
@@ -83,8 +84,10 @@ export type ApiRouteNormalized<T> = {
 };
 
 /** 拼接嵌套路由前缀和当前键，确保路径以 / 开头。 */
-type JoinApiPath<Prefix extends string, Key extends string> =
-  `${Prefix}${Key}` extends `/${infer Rest}` ? `/${Rest}` : `${Prefix}${Key}`;
+type JoinApiPath<
+  Prefix extends string,
+  Key extends string,
+> = `${Prefix}${Key}` extends `/${infer Rest}` ? `/${Rest}` : `${Prefix}${Key}`;
 
 /** 将嵌套 API 树铺平成以完整路径为 key 的内部映射。 */
 type FlattenApiRoutes<T, Prefix extends string = ''> = UnionToIntersection<

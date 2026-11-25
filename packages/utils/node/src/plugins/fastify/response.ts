@@ -5,8 +5,8 @@ import type { Readable } from 'node:stream';
 function isStream(payload: unknown): payload is Readable {
   return Boolean(
     payload &&
-      typeof payload === 'object' &&
-      typeof (payload as Partial<Readable>).pipe === 'function',
+    typeof payload === 'object' &&
+    typeof (payload as Partial<Readable>).pipe === 'function',
   );
 }
 

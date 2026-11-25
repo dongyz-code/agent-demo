@@ -150,14 +150,11 @@ export const contentTypesByExtension = Object.fromEntries(
   contentTypeEntries.flatMap(([type, items]) =>
     items.flatMap((item) =>
       item.extensions.map(
-        (extension) =>
-          [extension, { type, mime: item.mime }] as const,
+        (extension) => [extension, { type, mime: item.mime }] as const,
       ),
     ),
   ),
-) as Readonly<
-  Record<SupportedFileExtension, ContentTypeByExtensionItem>
->;
+) as Readonly<Record<SupportedFileExtension, ContentTypeByExtensionItem>>;
 
 /**
  * 提取注册表支持的不带点小写文件扩展名。

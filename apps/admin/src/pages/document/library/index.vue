@@ -36,13 +36,17 @@
         <template #visibility="{ row }">
           {{ libraryVisibilityLabels[row.visibility] }}
         </template>
-        <template #myRole="{ row }">{{ libraryRoleLabels[row.myRole] }}</template>
+        <template #myRole="{ row }">
+          {{ libraryRoleLabels[row.myRole] }}
+        </template>
         <template #status="{ row }">
           <el-tag :type="statusTagType(row.status)" size="small">
             {{ libraryStatusLabels[row.status] }}
           </el-tag>
         </template>
-        <template #createdAt="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        <template #createdAt="{ row }">
+          {{ formatDateTime(row.createdAt) }}
+        </template>
         <template #actions="{ row }">
           <v-action-button-group :actions="getActions(row)" :max-visible="3" />
         </template>
@@ -254,7 +258,8 @@ async function toggleStatus(library: LibraryInfo) {
   let action = '恢复资料库';
   if (archiving) {
     title = `归档“${library.name}”？`;
-    message = '使用者将无法访问，问答不再检索此库。文档和授权保留，可随时恢复。';
+    message =
+      '使用者将无法访问，问答不再检索此库。文档和授权保留，可随时恢复。';
     action = '归档资料库';
   }
   await confirm({

@@ -8,9 +8,14 @@ import type {
 } from '../models.js';
 import type { TaskAction } from './task.js';
 import type { TableManagementAction } from './table.js';
+import type {
+  CacheManagementAction,
+  ScheduleManagementAction,
+} from './monitor.js';
 
 export type * from './task.js';
 export type * from './table.js';
+export type * from './monitor.js';
 
 /** 系统基础配置，提取前后端都使用的类型 */
 export type SysConfBase = {};
@@ -317,6 +322,9 @@ export type GroupAction = ApiMultAction<{
 }>;
 
 export type Sys = {
+  /** 持久化定时计划与触发记录。 */
+  [key in keyof ScheduleManagementAction as `schedule/${key}`]: ScheduleManagementAction[key];
+} & {
   // 系统设置
   [key in keyof SettingAction as `setting/${key}`]: SettingAction[key];
 } & {
@@ -343,4 +351,7 @@ export type Sys = {
 } & {
   // 表结构管理
   [key in keyof TableManagementAction as `table/${key}`]: TableManagementAction[key];
+} & {
+  /** 受管缓存监控。 */
+  [key in keyof CacheManagementAction as `cache/${key}`]: CacheManagementAction[key];
 };

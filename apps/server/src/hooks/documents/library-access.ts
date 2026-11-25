@@ -298,9 +298,7 @@ export async function listIndexedVersionIds(
       ),
     );
   return {
-    versionIds: rows.flatMap((row) =>
-      row.versionId ? [row.versionId] : [],
-    ),
+    versionIds: rows.flatMap((row) => (row.versionId ? [row.versionId] : [])),
     scopeCleared,
   };
 }

@@ -36,7 +36,11 @@
                 <h3 class="mb-2 font-bold">Drizzle schema</h3>
                 <el-table :data="detail.schemaColumns" border size="small">
                   <el-table-column prop="name" label="字段" min-width="140" />
-                  <el-table-column prop="sqlType" label="类型" min-width="160" />
+                  <el-table-column
+                    prop="sqlType"
+                    label="类型"
+                    min-width="160"
+                  />
                   <el-table-column label="约束" min-width="140">
                     <template #default="{ row }">
                       <div class="flex flex-wrap gap-1">
@@ -56,7 +60,11 @@
                 <h3 class="mb-2 font-bold">数据库实态</h3>
                 <el-table :data="detail.catalogColumns" border size="small">
                   <el-table-column prop="name" label="字段" min-width="140" />
-                  <el-table-column prop="sqlType" label="类型" min-width="160" />
+                  <el-table-column
+                    prop="sqlType"
+                    label="类型"
+                    min-width="160"
+                  />
                   <el-table-column label="约束" min-width="140">
                     <template #default="{ row }">
                       <div class="flex flex-wrap gap-1">
@@ -64,7 +72,11 @@
                         <el-tag v-if="row.notNull" size="small" type="warning">
                           NOT NULL
                         </el-tag>
-                        <el-tag v-if="row.hasDefault" size="small" type="success">
+                        <el-tag
+                          v-if="row.hasDefault"
+                          size="small"
+                          type="success"
+                        >
                           DEFAULT
                         </el-tag>
                       </div>
@@ -249,7 +261,7 @@ const previewRows = computed(() => {
       Object.entries(row).map(([key, value]) => [
         key,
         typeof value === 'object' && value && 'masked' in value
-          ? (value as { summary?: string }).summary ?? '已脱敏'
+          ? ((value as { summary?: string }).summary ?? '已脱敏')
           : value,
       ]),
     );

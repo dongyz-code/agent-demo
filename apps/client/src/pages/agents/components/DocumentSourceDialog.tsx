@@ -70,14 +70,20 @@ export function DocumentSourceDialog({
         <DialogHeader>
           <DialogTitle>文档引用</DialogTitle>
         </DialogHeader>
-        {error ? <p className="text-sm text-muted-foreground">{error}</p> : null}
+        {error ? (
+          <p className="text-sm text-muted-foreground">{error}</p>
+        ) : null}
         {source ? (
           <p className="max-h-40 overflow-auto text-sm whitespace-pre-wrap">
             {source.content}
           </p>
         ) : null}
         {pageUrl ? (
-          <img src={pageUrl} alt="文档预览" className="max-h-80 w-full object-contain" />
+          <img
+            src={pageUrl}
+            alt="文档预览"
+            className="max-h-80 w-full object-contain"
+          />
         ) : null}
         {source && !error ? (
           <Button

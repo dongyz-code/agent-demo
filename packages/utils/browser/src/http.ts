@@ -1,10 +1,6 @@
 import axios from 'axios';
 
-import type {
-  AxiosInstance,
-  AxiosRequestConfig,
-  AxiosResponse,
-} from 'axios';
+import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import type {
   APISource,
   ApiRouteBody,
@@ -87,9 +83,7 @@ function isRequestParts(value: unknown): value is {
     return false;
   }
   return (
-    hasOwn(value, 'body') ||
-    hasOwn(value, 'query') ||
-    hasOwn(value, 'params')
+    hasOwn(value, 'body') || hasOwn(value, 'query') || hasOwn(value, 'params')
   );
 }
 
@@ -116,7 +110,10 @@ function mergeQueryParams(base: unknown, query: unknown) {
 }
 
 /** 使用路径参数替换 URL 中的 :name 片段。 */
-function applyPathParams(url: string, params: Record<string, unknown> | undefined) {
+function applyPathParams(
+  url: string,
+  params: Record<string, unknown> | undefined,
+) {
   if (!params) {
     return url;
   }
@@ -184,9 +181,11 @@ export function getAxios<T extends { routes: Record<string, unknown> }>({
       params: mergeQueryParams(config?.params, requestParts.query),
       data: requestParts.body,
     });
-    return (isObjectPayload(response.data) && 'data' in response.data
-      ? response.data.data
-      : response.data) as Awaited<ReturnType<ApiFunc<T>>>;
+    return (
+      isObjectPayload(response.data) && 'data' in response.data
+        ? response.data.data
+        : response.data
+    ) as Awaited<ReturnType<ApiFunc<T>>>;
   }) as ApiFunc<T>;
 
   return {

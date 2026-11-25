@@ -76,9 +76,7 @@ export type SchemaFormOptionsSource<T> =
   | (() => SchemaMaybePromise<SchemaMaybeRef<T>>);
 
 /** schema-form 控件懒加载选项配置，函数返回当前控件可直接使用的选项数组。 */
-export type SchemaFormLazyOptions<T> =
-  | boolean
-  | (() => SchemaMaybePromise<T>);
+export type SchemaFormLazyOptions<T> = boolean | (() => SchemaMaybePromise<T>);
 
 /** 级联控件选项类型，直接复用 Element Plus 的 cascader options 结构。 */
 export type SchemaFormCascaderOptions = NonNullable<
@@ -191,15 +189,17 @@ export interface SchemaFormColumnCtx<T extends SchemaFormModel> {
 }
 
 /** 异步选项请求上下文，keyword 来自远程搜索输入。 */
-export interface SchemaFormRequestCtx<T extends SchemaFormModel>
-  extends SchemaFormColumnCtx<T> {
+export interface SchemaFormRequestCtx<
+  T extends SchemaFormModel,
+> extends SchemaFormColumnCtx<T> {
   /** 当前远程搜索关键字。 */
   keyword?: string;
 }
 
 /** 自定义字段渲染上下文。 */
-export interface SchemaFormRenderCtx<T extends SchemaFormModel>
-  extends SchemaFormColumnCtx<T> {
+export interface SchemaFormRenderCtx<
+  T extends SchemaFormModel,
+> extends SchemaFormColumnCtx<T> {
   /** 字段是否禁用。 */
   disabled: boolean;
   /** 字段是否只读。 */
@@ -438,8 +438,9 @@ export interface NormalizedSchemaFormColumn<
 }
 
 /** 字段运行时状态，合并了动态函数配置和组件级默认值。 */
-export interface RuntimeSchemaFormField<T extends SchemaFormModel = SchemaFormModel>
-  extends NormalizedSchemaFormColumn<T> {
+export interface RuntimeSchemaFormField<
+  T extends SchemaFormModel = SchemaFormModel,
+> extends NormalizedSchemaFormColumn<T> {
   /** 当前值。 */
   value: unknown;
   /** 是否隐藏。 */
@@ -455,7 +456,9 @@ export interface RuntimeSchemaFormField<T extends SchemaFormModel = SchemaFormMo
 }
 
 /** 布局后的字段项，包含 CSS grid 位置和收起可见性。 */
-export interface SchemaFormLayoutItem<T extends SchemaFormModel = SchemaFormModel> {
+export interface SchemaFormLayoutItem<
+  T extends SchemaFormModel = SchemaFormModel,
+> {
   /** 字段运行时状态。 */
   field: RuntimeSchemaFormField<T>;
   /** 字段所在行，从 0 开始。 */
@@ -467,8 +470,9 @@ export interface SchemaFormLayoutItem<T extends SchemaFormModel = SchemaFormMode
 }
 
 /** 渲染器上下文，内部 renderer 根据它创建 VNode。 */
-export interface SchemaRendererCtx<T extends SchemaFormModel = SchemaFormModel>
-  extends SchemaFormRenderCtx<T> {
+export interface SchemaRendererCtx<
+  T extends SchemaFormModel = SchemaFormModel,
+> extends SchemaFormRenderCtx<T> {
   /** 当前字段运行时状态。 */
   field: RuntimeSchemaFormField<T>;
   /** 远程搜索关键字更新函数。 */
@@ -487,7 +491,9 @@ export type SchemaKnownControlProps =
   | InstanceType<typeof ElCascader>['$props'];
 
 /** 字段 slot props，提供给 `#field-*`、`#label-*` 和 `#actions` 等 slot。 */
-export interface SchemaFormSlotProps<T extends SchemaFormModel = SchemaFormModel> {
+export interface SchemaFormSlotProps<
+  T extends SchemaFormModel = SchemaFormModel,
+> {
   /** 当前完整表单。 */
   form: T;
   /** 当前字段；actions slot 中没有字段时为 undefined。 */

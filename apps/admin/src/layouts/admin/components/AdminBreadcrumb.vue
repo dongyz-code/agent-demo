@@ -4,16 +4,22 @@
     class="text-sm leading-[22px] [&_.el-breadcrumb__inner]:font-normal [&_.el-breadcrumb__inner]:text-inherit [&_.el-breadcrumb__separator]:mx-2 [&_.el-breadcrumb__separator]:text-black/45"
     separator="/"
   >
-    <el-breadcrumb-item v-for="item in items" :key="`${item.to ?? ''}-${item.label}`">
+    <el-breadcrumb-item
+      v-for="item in items"
+      :key="`${item.to ?? ''}-${item.label}`"
+    >
       <button
         v-if="item.to"
         type="button"
-        class="cursor-pointer text-black/88 hover:text-primary"
+        class="hover:text-primary cursor-pointer text-black/88"
         @click="open(item.to)"
       >
         {{ item.label }}
       </button>
-      <span v-else class="inline-block max-w-md truncate align-bottom text-black/45">
+      <span
+        v-else
+        class="inline-block max-w-md truncate align-bottom text-black/45"
+      >
         {{ item.label }}
       </span>
     </el-breadcrumb-item>

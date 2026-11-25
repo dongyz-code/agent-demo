@@ -34,11 +34,16 @@ export function buildResetColumnSourceMap({
     const sourceColumn = catalogColumns.get(sourceName);
     if (!sourceColumn) {
       if (targetColumn.notNull && !targetColumn.hasDefault) {
-        blockers.push(`新字段 ${targetColumn.name} 不允许为空且没有可复制源字段`);
+        blockers.push(
+          `新字段 ${targetColumn.name} 不允许为空且没有可复制源字段`,
+        );
       }
       return;
     }
-    if (normalizeSqlType(sourceColumn.sqlType) !== normalizeSqlType(targetColumn.sqlType)) {
+    if (
+      normalizeSqlType(sourceColumn.sqlType) !==
+      normalizeSqlType(targetColumn.sqlType)
+    ) {
       blockers.push(`字段 ${sourceName} 与 ${targetColumn.name} 类型不兼容`);
       return;
     }

@@ -42,15 +42,4 @@ export type TaskAction = ApiMultAction<{
     };
     resp: { list: TaskItem[]; count: number };
   };
-  /** ---------- 定时任务相关 ---------- */
-  'schedule-list': {
-    req: Record<string, never>;
-    resp: { name: string; cron: string; status: boolean }[];
-  };
-  'schedule-pause': {
-    req: { name: string };
-  };
-  'schedule-resume': {
-    req: { name: string };
-  };
 }>;

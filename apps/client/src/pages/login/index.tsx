@@ -86,7 +86,9 @@ export default function LoginPage() {
           </div>
           <div className="rounded border border-border bg-card p-4">
             <div className="text-lg font-semibold text-success">运行</div>
-            <div className="mt-1 text-xs text-muted-foreground">实时任务调度</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              实时任务调度
+            </div>
           </div>
           <div className="rounded border border-border bg-card p-4">
             <div className="text-lg font-semibold text-warning">管理</div>

@@ -12,9 +12,7 @@ import type { AnyPgTable } from 'drizzle-orm/pg-core';
 export function listManagedTableSchemas(): ManagedTableSchema[] {
   return Object.entries(tables)
     .filter(([, drizzleTable]) => is(drizzleTable, PgTable))
-    .map(([table, drizzleTable]) =>
-      getManagedTableSchema(table, drizzleTable),
-    );
+    .map(([table, drizzleTable]) => getManagedTableSchema(table, drizzleTable));
 }
 
 /** 根据 tables/index.ts 导出名称返回单张表的 Drizzle 目标结构。 */

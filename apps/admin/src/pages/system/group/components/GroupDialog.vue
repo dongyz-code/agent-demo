@@ -1,5 +1,8 @@
 <template>
-  <v-dialog v-model="visible" :title="form.userGroupId ? '编辑用户组' : '新建用户组'">
+  <v-dialog
+    v-model="visible"
+    :title="form.userGroupId ? '编辑用户组' : '新建用户组'"
+  >
     <el-form label-width="72px">
       <el-form-item label="名称">
         <el-input v-model="form.name" maxlength="255" />

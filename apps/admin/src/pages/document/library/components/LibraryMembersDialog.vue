@@ -14,10 +14,7 @@
         :library="library"
         @changed="refresh"
       />
-      <el-empty
-        v-else-if="!loading"
-        description="资料库不存在或你已无权访问"
-      />
+      <el-empty v-else-if="!loading" description="资料库不存在或你已无权访问" />
     </div>
   </v-dialog>
 </template>

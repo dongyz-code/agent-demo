@@ -34,11 +34,7 @@
               class="flex items-center gap-2"
               :class="{ 'text-red-500': action.type === 'danger' }"
             >
-              <component
-                :is="action.icon"
-                v-if="action.icon"
-                class="h-4 w-4"
-              />
+              <component :is="action.icon" v-if="action.icon" class="h-4 w-4" />
               {{ action.label }}
             </span>
           </el-dropdown-item>
@@ -60,17 +56,20 @@ import LucideChevronDown from '~icons/lucide/chevron-down';
 
 import type { ActionButtonItem } from './types';
 
-const props = withDefaults(defineProps<{
-  /** 按期望展示顺序排列的操作配置。 */
-  actions: readonly ActionButtonItem[];
-  /** 直接展示的最大操作数，超出部分进入下拉菜单。 */
-  maxVisible?: number;
-  /** 溢出菜单触发按钮文案。 */
-  moreLabel?: string;
-}>(), {
-  maxVisible: 3,
-  moreLabel: '更多',
-});
+const props = withDefaults(
+  defineProps<{
+    /** 按期望展示顺序排列的操作配置。 */
+    actions: readonly ActionButtonItem[];
+    /** 直接展示的最大操作数，超出部分进入下拉菜单。 */
+    maxVisible?: number;
+    /** 溢出菜单触发按钮文案。 */
+    moreLabel?: string;
+  }>(),
+  {
+    maxVisible: 3,
+    moreLabel: '更多',
+  },
+);
 
 /** 过滤掉显式隐藏的操作后再分配到按钮区与溢出菜单。 */
 const shownActions = computed(() =>

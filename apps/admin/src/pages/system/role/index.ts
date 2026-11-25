@@ -249,11 +249,13 @@ function useRoleActions(options: ReturnType<typeof useUserList>) {
     notify('success', '删除成功');
   }
 
-  const tableEditBtns = computed<{
-    icon: FunctionalComponent;
-    method: (item: RoleItem) => Promise<unknown>;
-    tips?: string;
-  }[]>(() => [
+  const tableEditBtns = computed<
+    {
+      icon: FunctionalComponent;
+      method: (item: RoleItem) => Promise<unknown>;
+      tips?: string;
+    }[]
+  >(() => [
     ...(access.value.openEditor
       ? [
           {

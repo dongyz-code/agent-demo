@@ -39,10 +39,7 @@ const { api } = routerHandler({
         .select({ user_id: schemas.agent_conversations.user_id })
         .from(schemas.agent_conversations)
         .where(
-          eq(
-            schemas.agent_conversations.conversation_id,
-            body.conversation_id,
-          ),
+          eq(schemas.agent_conversations.conversation_id, body.conversation_id),
         )
         .limit(1);
       const isRootAdmin = __token.user_id === ROOT.SYS_ADMIN_USER_ID;

@@ -22,7 +22,9 @@ export const DOCUMENT_SEGMENTS_COLLECTION = 'document_segments';
 export const EMBEDDING_DIMENSION = 1024;
 
 /** Qdrant 客户端单例，按 QDRANT_URL 缓存。 */
-export const qdrantClient: QdrantClient = createQdrantClient({ url: QDRANT_URL });
+export const qdrantClient: QdrantClient = createQdrantClient({
+  url: QDRANT_URL,
+});
 
 /**
  * 启动期确保 document_segments 集合就绪：不存在则按 1024 维 Cosine 创建，

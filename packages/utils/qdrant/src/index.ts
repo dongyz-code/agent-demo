@@ -16,7 +16,9 @@ export type QdrantFilter = {
 };
 
 /** 向量点：pointId + 向量 + 业务 payload。 */
-export type QdrantPoint<TPayload extends Record<string, unknown> = Record<string, unknown>> = {
+export type QdrantPoint<
+  TPayload extends Record<string, unknown> = Record<string, unknown>,
+> = {
   id: string | number;
   vector: number[];
   payload?: TPayload;
@@ -69,7 +71,9 @@ async function qdrantFetch<T>(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`Qdrant ${method} ${path} 失败: ${res.status} ${text}`.slice(0, 500));
+    throw new Error(
+      `Qdrant ${method} ${path} 失败: ${res.status} ${text}`.slice(0, 500),
+    );
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -126,7 +130,9 @@ export async function createPayloadIndex(
  * @param client Qdrant 客户端配置。
  * @param opts 集合名、点列表、每批大小（默认 256）。
  */
-export async function upsertPoints<TPayload extends Record<string, unknown> = Record<string, unknown>>(
+export async function upsertPoints<
+  TPayload extends Record<string, unknown> = Record<string, unknown>,
+>(
   client: QdrantClient,
   opts: {
     collection: string;
@@ -137,9 +143,14 @@ export async function upsertPoints<TPayload extends Record<string, unknown> = Re
   const batchSize = opts.batchSize ?? 256;
   for (let i = 0; i < opts.points.length; i += batchSize) {
     const chunk = opts.points.slice(i, i + batchSize);
-    await qdrantFetch(client, 'PUT', `/collections/${opts.collection}/points?wait=true`, {
-      points: chunk,
-    });
+    await qdrantFetch(
+      client,
+      'PUT',
+      `/collections/${opts.collection}/points?wait=true`,
+      {
+        points: chunk,
+      },
+    );
   }
 }
 
@@ -181,7 +192,12 @@ export async function deleteByFilter(
   client: QdrantClient,
   opts: { collection: string; filter: QdrantFilter },
 ): Promise<void> {
-  await qdrantFetch(client, 'POST', `/collections/${opts.collection}/points/delete?wait=true`, {
-    filter: opts.filter,
-  });
+  await qdrantFetch(
+    client,
+    'POST',
+    `/collections/${opts.collection}/points/delete?wait=true`,
+    {
+      filter: opts.filter,
+    },
+  );
 }

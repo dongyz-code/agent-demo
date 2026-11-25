@@ -23,9 +23,13 @@
           </span>
         </template>
         <template #filename="{ row }">
-          <span class="block truncate" :title="row.filename">{{ row.filename }}</span>
+          <span class="block truncate" :title="row.filename">
+            {{ row.filename }}
+          </span>
         </template>
-        <template #createdAt="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        <template #createdAt="{ row }">
+          {{ formatDateTime(row.createdAt) }}
+        </template>
         <template #actions="{ row }">
           <div class="flex flex-nowrap items-center">
             <el-button link :disabled="saving" @click="download(row)">
@@ -44,10 +48,7 @@
           </div>
         </template>
       </v-table>
-      <el-empty
-        v-else-if="!loading"
-        description="文档不存在或你已无权访问"
-      />
+      <el-empty v-else-if="!loading" description="文档不存在或你已无权访问" />
     </div>
   </v-dialog>
 </template>
@@ -132,7 +133,8 @@ async function load() {
  */
 function isCurrent(version: DocumentVersionInfo) {
   return (
-    version.documentVersionId === document.value?.activeVersion.documentVersionId
+    version.documentVersionId ===
+    document.value?.activeVersion.documentVersionId
   );
 }
 

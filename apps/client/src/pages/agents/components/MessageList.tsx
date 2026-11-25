@@ -4,7 +4,10 @@ import { CopyIcon, RefreshCwIcon } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { message as showMessage } from '@/utils';
 
-import { DocumentSourceDialog, type DocumentSource } from './DocumentSourceDialog';
+import {
+  DocumentSourceDialog,
+  type DocumentSource,
+} from './DocumentSourceDialog';
 import { MarkdownContent } from './MarkdownContent';
 import { AgentEmptyState } from './AgentEmptyState';
 import { MessageProcess } from './MessageProcess';
@@ -216,12 +219,14 @@ function messageSources(message: AgentChatMessage): DocumentSource[] {
       const documentId = (chunk as { document_id?: unknown }).document_id;
       const content = (chunk as { content?: unknown }).content;
       const headingPath = (chunk as { heading_path?: unknown }).heading_path;
-      if (typeof documentId !== 'string' || typeof content !== 'string') return [];
+      if (typeof documentId !== 'string' || typeof content !== 'string')
+        return [];
       return [
         {
           documentId,
           content,
-          headingPath: typeof headingPath === 'string' ? headingPath : undefined,
+          headingPath:
+            typeof headingPath === 'string' ? headingPath : undefined,
         },
       ];
     });

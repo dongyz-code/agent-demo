@@ -7,14 +7,16 @@
           v-if="selected.length"
           :disabled="saving"
           @click="removeSelected"
-          >取消所选授权（{{ selected.length }}）</el-button
         >
+          取消所选授权（{{ selected.length }}）
+        </el-button>
         <el-button
           type="primary"
           :disabled="loading || saving || failed"
           @click="addVisible = true"
-          >新增授权</el-button
         >
+          新增授权
+        </el-button>
       </div>
     </div>
     <v-schema-form
@@ -24,11 +26,11 @@
       @submit="applySearch"
       @reset="applySearch"
     />
-    <el-result v-if="failed" icon="warning" title="授权名单加载失败"
-      ><template #extra
-        ><el-button @click="loadGrants">重新加载</el-button></template
-      ></el-result
-    >
+    <el-result v-if="failed" icon="warning" title="授权名单加载失败">
+      <template #extra>
+        <el-button @click="loadGrants">重新加载</el-button>
+      </template>
+    </el-result>
     <v-table
       v-else
       :key="tableKey"
@@ -40,9 +42,9 @@
       @selection-change="selectGrants"
     >
       <template #subjectName="{ row }">{{ grantLabel(row) }}</template>
-      <template #subjectType="{ row }">{{
-        row.subjectType === 'group' ? '用户组' : '用户'
-      }}</template>
+      <template #subjectType="{ row }">
+        {{ row.subjectType === 'group' ? '用户组' : '用户' }}
+      </template>
       <template #role="{ row }">
         <el-select
           v-if="canManage"
@@ -57,16 +59,17 @@
         </el-select>
         <span v-else>{{ libraryRoleLabels[row.role] }}</span>
       </template>
-      <template #actions="{ row }"
-        ><el-button
+      <template #actions="{ row }">
+        <el-button
           link
           type="danger"
           :disabled="saving || isLastManager(row)"
           :title="isLastManager(row) ? '至少保留一名管理员' : '取消此项授权'"
           @click="removeGrants([row])"
-          >取消授权</el-button
-        ></template
-      >
+        >
+          取消授权
+        </el-button>
+      </template>
     </v-table>
     <grant-add-dialog
       :visible="addVisible"

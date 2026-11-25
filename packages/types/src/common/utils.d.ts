@@ -1,9 +1,5 @@
 import type { Simplify } from './module.js';
-export type {
-  ApiConfig,
-  ApiMultAction,
-  ApiMultActionToApi,
-} from './api.js';
+export type { ApiConfig, ApiMultAction, ApiMultActionToApi } from './api.js';
 
 /** 将 T 转换为字符串 */
 export type BeString<T> = T extends string ? T : never;

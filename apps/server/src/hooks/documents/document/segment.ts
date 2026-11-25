@@ -58,9 +58,7 @@ export function createDocumentSegments({
       joinedTokens([...current, unit]) > profile.segmentSizeTokens;
     if (newSection || overflow) {
       groups.push(current);
-      current = newSection
-        ? []
-        : fitOverlap(current, unit, profile);
+      current = newSection ? [] : fitOverlap(current, unit, profile);
     }
     current = [...current, unit];
   }
@@ -280,7 +278,10 @@ function fitOverlap(
 ) {
   let budget = profile.overlapTokens;
   let overlap = buildOverlap(previous, budget);
-  while (overlap.length && joinedTokens([...overlap, next]) > profile.segmentSizeTokens) {
+  while (
+    overlap.length &&
+    joinedTokens([...overlap, next]) > profile.segmentSizeTokens
+  ) {
     budget = Math.floor(budget / 2);
     if (budget < 1) return [];
     overlap = buildOverlap(previous, budget);
@@ -396,7 +397,8 @@ function proseTail(text: string, budget: number) {
   const kept: string[] = [];
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     const part = parts[index]!;
-    if (!kept.length && estimateTokens(part) > budget) return hardSuffix(part, budget);
+    if (!kept.length && estimateTokens(part) > budget)
+      return hardSuffix(part, budget);
     const candidate = part + kept.join('');
     if (kept.length && estimateTokens(candidate) > budget) break;
     kept.unshift(part);

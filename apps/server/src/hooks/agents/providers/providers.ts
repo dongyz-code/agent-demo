@@ -24,7 +24,7 @@ type AiProviderFactory = (
 ) => AiSdkProvider;
 
 /** 已创建的 provider 句柄缓存，避免每次取模型都重复构造请求配置。 */
-const providerCache: Partial<Record<AiProvider, AiSdkProvider>> = {};
+const providerCache = new Map<AiProvider, AiSdkProvider>();
 
 /** 构造 OpenAI 兼容供应商工厂（bailian/volcengine/awsBedrock 等代理共用，需要 apiKey + baseUrl）。 */
 function openAICompatibleFactory(provider: AiProvider): AiProviderFactory {
@@ -72,15 +72,11 @@ const AI_PROVIDER_FACTORIES: { [P in AiProvider]: AiProviderFactory } = {
  * @returns 同时可创建 LanguageModel 与 TextEmbeddingModel 的 SDK 句柄。
  */
 export function getSdk(provider: AiProvider): AiSdkProvider {
-  const cached = providerCache[provider];
-  if (cached) {
-    return cached;
-  }
-
-  const created = AI_PROVIDER_FACTORIES[provider](ROOT.AI?.[provider]);
-  providerCache[provider] = created;
-
-  return created;
+  const cached = providerCache.get(provider);
+  if (cached) return cached;
+  const sdk = AI_PROVIDER_FACTORIES[provider](ROOT.AI?.[provider]);
+  providerCache.set(provider, sdk);
+  return sdk;
 }
 
 /**

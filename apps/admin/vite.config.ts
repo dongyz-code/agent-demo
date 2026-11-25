@@ -31,9 +31,7 @@ export default defineConfig({
   },
   plugins,
   resolve: {
-    alias: [
-      { find: '@', replacement: join(__dirname, 'src') },
-    ],
+    alias: [{ find: '@', replacement: join(__dirname, 'src') }],
   },
   build: {
     rollupOptions: {

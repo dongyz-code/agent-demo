@@ -1,15 +1,12 @@
 import { createFastify, pickObj } from '@repo/utils-node';
-import {
-  fastifyLogger,
-  logger,
-  ROOT_SCHEDULE,
-  ROOT,
-  PORT,
-} from '@/configs/index.js';
+import { fastifyLogger, logger, ROOT, PORT } from '@/configs/index.js';
 import { startupTableStructureSync } from '@/database/postgres/structure/index.js';
 import { ensureDocumentSegmentsCollection } from '@/database/vector/client.js';
 import { getRoutes, callback } from '@/router/index.js';
 import { upload } from '@/hooks/upload/index.js';
+import { startSchedules, stopSchedules } from '@/hooks/schedules/index.js';
+import { startRedis, redis } from '@/hooks/cache/index.js';
+import { closeDatabase } from '@/database/index.js';
 import { task } from '@/hooks/tasks/task.js';
 
 logger.info(
@@ -20,6 +17,7 @@ logger.info(
   'server config loaded',
 );
 
+/** 完成基础设施自检后启动 HTTP 服务，再安装当前实例的后台调度。 */
 async function createServer() {
   await upload.checkBucket();
   // 启动期自检：缺失表自动建，字段漂移只打印不改，不阻塞启动。
@@ -69,14 +67,8 @@ async function createServer() {
     },
   });
 
-  ROOT_SCHEDULE.add({
-    name: 'upload.cleanup',
-    cron: '*/10 * * * *',
-    async event() {
-      await upload.cleanupExpired();
-    },
-  });
-  ROOT_SCHEDULE.install();
+  await startSchedules();
+  startRedis();
 }
 
 createServer();
@@ -102,3 +94,13 @@ process.on('uncaughtExceptionMonitor', (error) => {
 process.on('exit', (code) => {
   logger.info({ event: 'process.exit', code }, 'process exit');
 });
+
+/** 开发退出及部署关闭时停止调度和 Redis 重连；已入队任务由 lease 恢复。 */
+async function shutdown(): Promise<void> {
+  stopSchedules();
+  if (redis.isOpen) redis.destroy();
+  await closeDatabase();
+  process.exit(0);
+}
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);

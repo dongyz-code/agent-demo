@@ -54,8 +54,9 @@
         :key="subject.id"
         :closable="!saving"
         @close="toggle(subject)"
-        >{{ subject.name }}</el-tag
       >
+        {{ subject.name }}
+      </el-tag>
     </div>
     <el-form label-width="72px" class="mt-4" :disabled="saving">
       <el-form-item label="分配身份">
@@ -79,8 +80,9 @@
         :disabled="!selected.length"
         :loading="saving"
         @click="confirm"
-        >确认授权</el-button
       >
+        确认授权
+      </el-button>
     </template>
   </v-dialog>
 </template>

@@ -34,7 +34,8 @@ const fileEnabled = LOGGING_FILE.enabled ?? true;
 export const { logger, fastifyLogger } = initPinoLogger({
   devPretty: !ROOT.APP_PROD,
   fastifyLevel:
-    LOGGING.fastifyLevel ?? (ROOT.APP_PROD ? 'warn' : LOGGING.level ?? 'info'),
+    LOGGING.fastifyLevel ??
+    (ROOT.APP_PROD ? 'warn' : (LOGGING.level ?? 'info')),
   file: {
     enabled: fileEnabled,
     retentionDays: LOGGING_FILE.retentionDays ?? 30,

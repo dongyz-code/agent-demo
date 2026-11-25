@@ -17,7 +17,13 @@ export type AgentMessageStatus = 'active' | 'error' | 'partial';
 export interface AgentAssistantMeta {
   stepNumber: number;
   model: { provider: string; modelId: string };
-  finishReason: 'stop' | 'tool-calls' | 'length' | 'content-filter' | 'error' | 'other';
+  finishReason:
+    | 'stop'
+    | 'tool-calls'
+    | 'length'
+    | 'content-filter'
+    | 'error'
+    | 'other';
   usage: { inputTokens: number; outputTokens: number };
   performance?: { stepTimeMs?: number };
 }

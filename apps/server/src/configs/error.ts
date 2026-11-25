@@ -16,6 +16,7 @@ export const ROOT_ERROR_CODE_INTERNAL = '500';
 export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
   default_code: ROOT_ERROR_CODE_INTERNAL,
   vals: [
+    { key: 'Redis 不可用', code: '503' },
     {
       key: '暂未开放',
       code: ROOT_ERROR_CODE_FORBIDDEN,
@@ -163,6 +164,18 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
     },
     {
       key: '用户组不存在',
+      code: ROOT_ERROR_CODE_NOT_FOUND,
+    },
+    {
+      key: '定时任务不存在',
+      code: ROOT_ERROR_CODE_NOT_FOUND,
+    },
+    {
+      key: '定时任务正在执行',
+      code: ROOT_ERROR_CODE_CONFLICT,
+    },
+    {
+      key: '受管缓存不存在',
       code: ROOT_ERROR_CODE_NOT_FOUND,
     },
     {

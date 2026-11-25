@@ -47,9 +47,9 @@
     </el-form>
     <template #footer>
       <el-button :disabled="saving" @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="submit"
-        >保存</el-button
-      >
+      <el-button type="primary" :loading="saving" @click="submit">
+        保存
+      </el-button>
     </template>
   </v-dialog>
 </template>

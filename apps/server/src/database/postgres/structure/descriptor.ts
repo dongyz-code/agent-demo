@@ -54,7 +54,9 @@ export function describeTableTarget(
   const target = getTableDdlTarget({ table, ...options });
   const config = getTableConfig(table);
   const primaryNameSet = new Set(
-    config.primaryKeys.flatMap((item) => item.columns.map((column) => column.name)),
+    config.primaryKeys.flatMap((item) =>
+      item.columns.map((column) => column.name),
+    ),
   );
 
   const columns: TargetColumnDescriptor[] = config.columns.map((column) => {

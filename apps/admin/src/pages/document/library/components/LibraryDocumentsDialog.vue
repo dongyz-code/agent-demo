@@ -23,16 +23,9 @@
           show-icon
           :closable="false"
         />
-        <document-list-panel
-          embedded
-          :library="library"
-          @changed="refresh"
-        />
+        <document-list-panel embedded :library="library" @changed="refresh" />
       </template>
-      <el-empty
-        v-else-if="!loading"
-        description="资料库不存在或你已无权访问"
-      />
+      <el-empty v-else-if="!loading" description="资料库不存在或你已无权访问" />
     </div>
   </v-dialog>
 </template>

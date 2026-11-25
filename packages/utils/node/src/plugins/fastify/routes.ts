@@ -113,7 +113,9 @@ export async function getAPIBySingleFile({
     string,
     RouteOptions
   >;
-  const routes = Object.values(module).map((route) => withPrefix(route, prefix));
+  const routes = Object.values(module).map((route) =>
+    withPrefix(route, prefix),
+  );
   if (log) {
     console.table(routes.map(({ method, url }) => ({ method, url })));
   }

@@ -106,7 +106,12 @@ export function numSplit(value: number | string, step = 3) {
   const chars = body.split('').reverse();
   const groups: string[] = [];
   for (let i = 0; i < chars.length; i += step) {
-    groups.push(chars.slice(i, i + step).reverse().join(''));
+    groups.push(
+      chars
+        .slice(i, i + step)
+        .reverse()
+        .join(''),
+    );
   }
   const formatted = sign + groups.reverse().join(',');
   return decimal === undefined ? formatted : `${formatted}.${decimal}`;

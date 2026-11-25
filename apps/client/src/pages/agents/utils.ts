@@ -127,9 +127,17 @@ function applyToolResult(
   messages: AgentChatMessage[],
   result: Extract<AgentMessagePart, { type: 'tool-result' }>,
 ) {
-  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+  for (
+    let messageIndex = messages.length - 1;
+    messageIndex >= 0;
+    messageIndex -= 1
+  ) {
     const message = messages[messageIndex];
-    for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex -= 1) {
+    for (
+      let partIndex = message.parts.length - 1;
+      partIndex >= 0;
+      partIndex -= 1
+    ) {
       const part = message.parts[partIndex];
       if (
         part.type !== 'dynamic-tool' ||
@@ -229,9 +237,11 @@ export function extractMessageParts(
 export function extractMessageToolParts(
   message: AgentChatMessage,
 ): AgentMessageToolView[] {
-  return message.parts.filter(
-    (part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-'),
-  ).map((part) => part as unknown as AgentMessageToolView);
+  return message.parts
+    .filter(
+      (part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-'),
+    )
+    .map((part) => part as unknown as AgentMessageToolView);
 }
 
 /**
@@ -240,9 +250,7 @@ export function extractMessageToolParts(
  * @param record 服务端会话记录。
  * @returns 客户端会话元数据。
  */
-export function toConversation(
-  record: AgentConversationRecord,
-): Conversation {
+export function toConversation(record: AgentConversationRecord): Conversation {
   return {
     id: record.conversation_id,
     title: record.title ?? '未命名会话',

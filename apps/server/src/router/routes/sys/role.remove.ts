@@ -14,7 +14,9 @@ const { api } = routerHandler({
 
     const roleIds = Array.isArray(ids) ? ids : [ids];
     await db.transaction(async (tx) => {
-      await tx.delete(schemas.role).where(inArray(schemas.role.role_id, roleIds));
+      await tx
+        .delete(schemas.role)
+        .where(inArray(schemas.role.role_id, roleIds));
       await tx
         .delete(schemas.user_role)
         .where(inArray(schemas.user_role.role_id, roleIds));

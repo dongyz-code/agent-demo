@@ -95,11 +95,11 @@ export function ConversationSidebar({
                   {timeGroupLabels[label]}
                 </div>
                 {items.map((conversation) => (
-                <ConversationListItem
-                  key={conversation.id}
-                  conversation={conversation}
-                  currentId={currentId}
-                />
+                  <ConversationListItem
+                    key={conversation.id}
+                    conversation={conversation}
+                    currentId={currentId}
+                  />
                 ))}
               </Fragment>
             ))}

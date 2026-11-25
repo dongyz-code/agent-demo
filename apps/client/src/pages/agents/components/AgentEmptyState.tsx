@@ -68,7 +68,10 @@ export function AgentEmptyState({ onPrompt }: AgentEmptyStateProps) {
             onClick={() => onPrompt(prompt)}
             className="h-auto justify-start gap-3 rounded-xl px-4 py-3 text-left"
           >
-            <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <Icon
+              className="size-4 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
             <span className="min-w-0 text-sm font-medium">{title}</span>
           </Button>
         ))}

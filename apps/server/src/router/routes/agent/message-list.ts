@@ -68,10 +68,16 @@ const { api } = routerHandler({
         const chunks = output.chunks;
         if (!Array.isArray(chunks)) return [];
         return chunks.flatMap((chunk) => {
-          if (!chunk || typeof chunk !== 'object' || !('document_id' in chunk)) {
+          if (
+            !chunk ||
+            typeof chunk !== 'object' ||
+            !('document_id' in chunk)
+          ) {
             return [];
           }
-          return typeof chunk.document_id === 'string' ? [chunk.document_id] : [];
+          return typeof chunk.document_id === 'string'
+            ? [chunk.document_id]
+            : [];
         });
       }),
     );

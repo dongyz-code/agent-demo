@@ -60,15 +60,12 @@
       </div>
     </div>
 
-    <page-component
-      class="mt-4"
-      @update:model-value="getListDebounce()"
-    />
+    <page-component class="mt-4" @update:model-value="getListDebounce()" />
 
     <v-dialog title="编辑" v-model="form.visible">
       <v-schema-form v-model="form.data" :columns="formColumns" />
       <template #footer>
-        <el-button type="primary" @click="handleConfirm"> 确认 </el-button>
+        <el-button type="primary" @click="handleConfirm">确认</el-button>
         <el-button @click="form.visible = false">取消</el-button>
       </template>
     </v-dialog>

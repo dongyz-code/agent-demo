@@ -16,9 +16,9 @@ export default function AgentPage() {
   const chat = useAgentChat({ conversationId: currentId });
   const isStreaming =
     chat.status === 'submitted' || chat.status === 'streaming';
-  const [libraries, setLibraries] = useState<{ libraryId: string; name: string }[]>(
-    [],
-  );
+  const [libraries, setLibraries] = useState<
+    { libraryId: string; name: string }[]
+  >([]);
   const [libraryId, setLibraryId] = useState<string | null>(null);
   const lockedLibraryId = current?.libraryId ?? null;
 
@@ -30,8 +30,9 @@ export default function AgentPage() {
 
   useEffect(() => {
     function onScope(event: Event) {
-      const detail = (event as CustomEvent<{ libraryId: string | null; cleared: boolean }>)
-        .detail;
+      const detail = (
+        event as CustomEvent<{ libraryId: string | null; cleared: boolean }>
+      ).detail;
       if (detail.cleared) {
         setLibraryId(null);
       }

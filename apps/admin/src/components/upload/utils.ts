@@ -9,7 +9,8 @@ export function getUploadErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object') {
     const value = error as { message?: unknown; msg?: unknown };
     if (typeof value.msg === 'string' && value.msg) return value.msg;
-    if (typeof value.message === 'string' && value.message) return value.message;
+    if (typeof value.message === 'string' && value.message)
+      return value.message;
   }
   return fallback;
 }

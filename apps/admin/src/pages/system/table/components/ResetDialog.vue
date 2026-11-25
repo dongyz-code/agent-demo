@@ -12,7 +12,9 @@
         <div class="space-y-1 text-sm text-amber-800">
           <p>系统会按当前 schema 创建新表并回填数据，原表会改名为备份表。</p>
           <p>字段改名通过下方“复制来源字段”选择完成，不需要手写 SQL。</p>
-          <p>如果有字段将从正式表移除，必须先勾选允许移除；数据仍保留在备份表中。</p>
+          <p>
+            如果有字段将从正式表移除，必须先勾选允许移除；数据仍保留在备份表中。
+          </p>
         </div>
       </div>
 
@@ -80,7 +82,10 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column :label="dialogMeta.sourceColumnLabel" min-width="240">
+          <el-table-column
+            :label="dialogMeta.sourceColumnLabel"
+            min-width="240"
+          >
             <template #default="{ row }">
               <el-select
                 v-model="row.source"
@@ -163,7 +168,10 @@
           <summary class="cursor-pointer font-medium">
             {{ dialogMeta.previewTitle }}
           </summary>
-          <pre class="max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-white">{{ dialog.plan.sqlPreview.join('\n') }}</pre>
+          <pre
+            class="max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-white"
+            >{{ dialog.plan.sqlPreview.join('\n') }}</pre
+          >
         </details>
         <div v-if="dialog.plan.warnings.length" class="space-y-2">
           <el-alert
@@ -195,7 +203,9 @@
       </template>
     </div>
     <template #footer>
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      >
         <span class="text-left text-sm text-gray-500">
           {{ applyDisabledReason || '已满足执行条件，请再次确认风险后执行。' }}
         </span>
@@ -317,11 +327,7 @@ const changedColumnMappings = computed(() => getChangedColumnMappings());
 
 const usedSourceColumns = computed(
   () =>
-    new Set(
-      dialog.columnMappings
-        .map((item) => item.source)
-        .filter(Boolean),
-    ),
+    new Set(dialog.columnMappings.map((item) => item.source).filter(Boolean)),
 );
 
 const removedCatalogColumns = computed(() => {
@@ -336,9 +342,9 @@ const hasSchemaChanges = computed(() => {
   }
   return Boolean(
     dialog.detail.diffLevel !== 'synced' ||
-      changedColumnMappings.value.length ||
-      removedCatalogColumns.value.length ||
-      dialog.columnMappings.some((item) => !item.source),
+    changedColumnMappings.value.length ||
+    removedCatalogColumns.value.length ||
+    dialog.columnMappings.some((item) => !item.source),
   );
 });
 

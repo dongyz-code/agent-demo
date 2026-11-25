@@ -2,15 +2,19 @@ import { helperRouterName } from '@/router/types';
 
 import MajesticonsApplications from '~icons/majesticons/applications';
 import LucideFolderOpen from '~icons/lucide/folder-open';
+import LucideActivity from '~icons/lucide/activity';
 
 import type { MenuItem } from './types';
 import type { RouteName } from '@/router/types';
 
 /** 侧栏菜单项。分组用 shell 对应壳路由，叶子用 value 对应页面。 */
-type AdminMenuItem = MenuItem<RouteName, { shell?: RouteName; opened?: boolean }>;
+type AdminMenuItem = MenuItem<
+  RouteName,
+  { shell?: RouteName; opened?: boolean }
+>;
 
 /**
- * 后台菜单顺序。文档和资料库同属文档中心，进入后台时按这个顺序找第一个有权限的页面。
+ * 后台菜单顺序。文档中心、系统管理和系统监控按组展示，进入后台时按顺序寻找有权限的页面。
  */
 export const adminMenu: AdminMenuItem[] = [
   {
@@ -38,10 +42,25 @@ export const adminMenu: AdminMenuItem[] = [
       helperRouterName('system.table'),
     ],
   },
+  {
+    label: '系统监控',
+    icon: LucideActivity,
+    shell: 'monitor',
+    children: [
+      helperRouterName('monitor.schedule'),
+      helperRouterName('monitor.runs'),
+      helperRouterName('monitor.cache'),
+    ],
+  },
 ];
 
 /** 只承载子页面、自己没有内容的壳路由。 */
-const shellRoutes = new Set<RouteName>(['root', 'system', 'documents']);
+const shellRoutes = new Set<RouteName>([
+  'root',
+  'system',
+  'documents',
+  'monitor',
+]);
 
 /**
  * 判断路由是不是没有独立页面的壳。

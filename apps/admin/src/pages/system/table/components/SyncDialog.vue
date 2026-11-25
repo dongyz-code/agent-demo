@@ -10,8 +10,14 @@
       <div class="rounded border border-sky-200 bg-sky-50 p-4">
         <h3 class="mb-2 font-medium text-sky-900">同步说明</h3>
         <div class="space-y-1 text-sm text-sky-800">
-          <p>对已有表幂等补建 schema 声明但 DB 缺失的索引（create index if not exists）。</p>
-          <p>同步 trigger 函数体与绑定（create or replace function + 重建 trigger）。</p>
+          <p>
+            对已有表幂等补建 schema 声明但 DB 缺失的索引（create index if not
+            exists）。
+          </p>
+          <p>
+            同步 trigger 函数体与绑定（create or replace function + 重建
+            trigger）。
+          </p>
           <p>不重建表、不复制数据、不生成备份；列结构变更请用“重置表结构”。</p>
         </div>
       </div>
@@ -68,7 +74,10 @@
         </el-descriptions>
         <details class="rounded border border-gray-200 p-3">
           <summary class="cursor-pointer font-medium">同步 SQL 预览</summary>
-          <pre class="max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-white">{{ dialog.plan.sqlPreview.join('\n') }}</pre>
+          <pre
+            class="max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-white"
+            >{{ dialog.plan.sqlPreview.join('\n') }}</pre
+          >
         </details>
         <div v-if="dialog.plan.warnings.length" class="space-y-2">
           <el-alert
@@ -100,7 +109,9 @@
       </template>
     </div>
     <template #footer>
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      >
         <span class="text-left text-sm text-gray-500">
           {{ applyDisabledReason || '已满足执行条件，请再次确认后执行。' }}
         </span>

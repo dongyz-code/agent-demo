@@ -27,8 +27,16 @@
   --warning: color-mix(in oklch, var(--brand-warning) 62%, black);
   --warning-subtle: color-mix(in oklch, var(--warning) 10%, transparent);
   --destructive: color-mix(in oklch, var(--brand-error) 74%, black);
-  --destructive-subtle: color-mix(in oklch, var(--destructive) 10%, transparent);
-  --primary-ink: color-mix(in oklch, var(--brand-primary) 86%, black); /* 主色文字(link/info) */
+  --destructive-subtle: color-mix(
+    in oklch,
+    var(--destructive) 10%,
+    transparent
+  );
+  --primary-ink: color-mix(
+    in oklch,
+    var(--brand-primary) 86%,
+    black
+  ); /* 主色文字(link/info) */
   --info: var(--primary-ink);
   --info-subtle: color-mix(in oklch, var(--info) 10%, transparent);
   --link: var(--primary-ink);

@@ -69,7 +69,9 @@ function buildControlProps<T extends SchemaFormModel>({
 /** 渲染选项 slot，优先使用业务 render，否则回退 label。 */
 function renderOptionContent(option: SchemaFormOption) {
   if (option.render) {
-    return typeof option.render === 'function' ? option.render : () => option.render;
+    return typeof option.render === 'function'
+      ? option.render
+      : () => option.render;
   }
   return () => option.label;
 }
@@ -147,21 +149,18 @@ function renderCheckbox<T extends SchemaFormModel>(
   ctx: SchemaRendererCtx<T>,
   props: Record<string, unknown> = {},
 ): VNode {
-  return h(
-    looseElCheckboxGroup,
-    buildControlProps({ ctx, extra: props }),
-    () =>
-      ctx.options.map((option) =>
-        h(
-          looseElCheckbox,
-          {
-            disabled: option.disabled,
-            key: String(option.value),
-            value: option.value,
-          },
-          () => option.label,
-        ),
+  return h(looseElCheckboxGroup, buildControlProps({ ctx, extra: props }), () =>
+    ctx.options.map((option) =>
+      h(
+        looseElCheckbox,
+        {
+          disabled: option.disabled,
+          key: String(option.value),
+          value: option.value,
+        },
+        () => option.label,
       ),
+    ),
   );
 }
 
@@ -170,21 +169,18 @@ function renderRadio<T extends SchemaFormModel>(
   ctx: SchemaRendererCtx<T>,
   props: Record<string, unknown> = {},
 ): VNode {
-  return h(
-    looseElRadioGroup,
-    buildControlProps({ ctx, extra: props }),
-    () =>
-      ctx.options.map((option) =>
-        h(
-          looseElRadio,
-          {
-            disabled: option.disabled,
-            key: String(option.value),
-            value: option.value,
-          },
-          () => option.label,
-        ),
+  return h(looseElRadioGroup, buildControlProps({ ctx, extra: props }), () =>
+    ctx.options.map((option) =>
+      h(
+        looseElRadio,
+        {
+          disabled: option.disabled,
+          key: String(option.value),
+          value: option.value,
+        },
+        () => option.label,
       ),
+    ),
   );
 }
 

@@ -8,7 +8,12 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('pages.documents.library'),
   handler: async ({ body, __token }) => {
-    await requireLibraryAccess(body.libraryId, __token.user_id, 'user', 'admin');
+    await requireLibraryAccess(
+      body.libraryId,
+      __token.user_id,
+      'user',
+      'admin',
+    );
     return { list: await listLibraryGrants(body.libraryId) };
   },
 });

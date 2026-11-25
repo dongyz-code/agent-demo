@@ -12,9 +12,9 @@ import type { UserGroupInfo, UserGroupMemberInfo } from '@repo/types';
  * @param userGroupId 用户组标识。
  * @returns 用户组详情。
  */
-export async function getUserGroup(userGroupId: string): Promise<
-  UserGroupInfo & { members: UserGroupMemberInfo[] }
-> {
+export async function getUserGroup(
+  userGroupId: string,
+): Promise<UserGroupInfo & { members: UserGroupMemberInfo[] }> {
   const [group] = await db
     .select()
     .from(schemas.user_group)

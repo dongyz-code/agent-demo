@@ -20,13 +20,12 @@ export type AdminPermissionNode = {
 };
 
 /** 从权限树节点中递归提取 key。 */
-type NodeKey<Node> =
-  Node extends {
-    key: infer Key extends string;
-    children?: infer Children extends readonly unknown[];
-  }
-    ? Key | TreeKey<Children>
-    : never;
+type NodeKey<Node> = Node extends {
+  key: infer Key extends string;
+  children?: infer Children extends readonly unknown[];
+}
+  ? Key | TreeKey<Children>
+  : never;
 
 /** 从权限树中递归提取所有权限 key。 */
 type TreeKey<Tree extends readonly unknown[]> = Tree[number] extends infer Node
@@ -34,22 +33,20 @@ type TreeKey<Tree extends readonly unknown[]> = Tree[number] extends infer Node
   : never;
 
 /** 从权限树节点中递归提取 route。 */
-type NodeRoute<Node> =
-  Node extends {
-    route: infer Route extends string;
-    children?: infer Children extends readonly unknown[];
-  }
-    ? Route | TreeRoute<Children>
-    : Node extends {
-          children?: infer Children extends readonly unknown[];
-        }
-      ? TreeRoute<Children>
-      : never;
+type NodeRoute<Node> = Node extends {
+  route: infer Route extends string;
+  children?: infer Children extends readonly unknown[];
+}
+  ? Route | TreeRoute<Children>
+  : Node extends {
+        children?: infer Children extends readonly unknown[];
+      }
+    ? TreeRoute<Children>
+    : never;
 
 /** 从权限树中递归提取所有绑定过权限的 route name。 */
-type TreeRoute<Tree extends readonly unknown[]> = Tree[number] extends infer Node
-  ? NodeRoute<Node>
-  : never;
+type TreeRoute<Tree extends readonly unknown[]> =
+  Tree[number] extends infer Node ? NodeRoute<Node> : never;
 
 /** admin 权限 key，由 `adminPermissionTree` 自动推导。 */
 export type AdminPermissionKey = TreeKey<typeof adminPermissionTree>;

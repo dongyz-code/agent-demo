@@ -161,7 +161,11 @@ export function initRoutes<T extends Opts>({
           if (isNginx) {
             return reply.status(401).send('401');
           } else {
-            errorHandle(reply, error, hasHttpErrorCode(error) ? undefined : 401);
+            errorHandle(
+              reply,
+              error,
+              hasHttpErrorCode(error) ? undefined : 401,
+            );
           }
         }
       });

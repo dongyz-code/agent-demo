@@ -3,6 +3,7 @@ import { getKeys } from '@repo/utils-browser';
 import type { RouteMeta } from '@repo/ui';
 import type { AdminPermissionKey } from '@repo/shared/permission';
 
+/** 管理端路由名称与展示文案，菜单、面包屑和路由类型共用。 */
 export const routeNameMap = {
   login: '登录',
   'not-found': '404',
@@ -19,6 +20,12 @@ export const routeNameMap = {
   'system.user-log': '操作日志',
   'system.task': '任务管理',
   'system.table': '表管理',
+
+  /** 系统监控页面与后台运行时的状态入口。 */
+  monitor: '系统监控',
+  'monitor.schedule': '定时任务',
+  'monitor.runs': '执行记录',
+  'monitor.cache': '缓存监控',
 
   /** ============ 文档中心相关 ============ */
 

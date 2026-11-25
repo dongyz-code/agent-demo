@@ -66,9 +66,7 @@ export function operationStatusLabel(status: ApiSys.TableStructureOpStatus) {
  * @param status 服务端保存的结构操作状态。
  * @returns Element Plus tag 类型。
  */
-export function operationStatusTagType(
-  status: ApiSys.TableStructureOpStatus,
-) {
+export function operationStatusTagType(status: ApiSys.TableStructureOpStatus) {
   return {
     planned: 'warning',
     running: 'primary',

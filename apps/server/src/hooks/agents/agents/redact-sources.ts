@@ -14,7 +14,10 @@ export function redactSearchResults(
   readableDocumentIds: Set<string>,
 ): AgentMessagePart[] {
   return content.map((part) => {
-    if (part.type !== 'tool-result' || part.toolName !== 'searchKnowledgeBase') {
+    if (
+      part.type !== 'tool-result' ||
+      part.toolName !== 'searchKnowledgeBase'
+    ) {
       return part;
     }
     if (!part.output || typeof part.output !== 'object') return part;

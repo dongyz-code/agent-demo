@@ -1,9 +1,9 @@
 <template>
   <main
-    class="relative min-h-screen overflow-hidden bg-[linear-gradient(135deg,color-mix(in_srgb,var(--color-primary)_14%,transparent),transparent_38%),linear-gradient(315deg,color-mix(in_srgb,var(--color-warning)_10%,transparent),transparent_42%),var(--color-background)] px-5 py-10 text-tcolor"
+    class="text-tcolor relative min-h-screen overflow-hidden bg-[linear-gradient(135deg,color-mix(in_srgb,var(--color-primary)_14%,transparent),transparent_38%),linear-gradient(315deg,color-mix(in_srgb,var(--color-warning)_10%,transparent),transparent_42%),var(--color-background)] px-5 py-10"
   >
     <div
-      class="pointer-events-none absolute inset-0 bg-[linear-gradient(color-mix(in_srgb,var(--color-primary)_8%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_srgb,var(--color-primary)_8%,transparent)_1px,transparent_1px)] bg-[length:48px_48px] [mask-image:linear-gradient(to_bottom,black,transparent_78%)]"
+      class="pointer-events-none absolute inset-0 bg-[linear-gradient(color-mix(in_srgb,var(--color-primary)_8%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_srgb,var(--color-primary)_8%,transparent)_1px,transparent_1px)] [mask-image:linear-gradient(to_bottom,black,transparent_78%)] bg-[length:48px_48px]"
       aria-hidden="true"
     ></div>
 
@@ -12,21 +12,21 @@
     >
       <div class="max-w-xl">
         <div
-          class="inline-flex items-center gap-2 rounded-full border border-primary-white bg-white/80 px-3 py-1.5 text-xs font-bold tracking-[0.18em] text-primary shadow-sm backdrop-blur"
+          class="border-primary-white text-primary inline-flex items-center gap-2 rounded-full border bg-white/80 px-3 py-1.5 text-xs font-bold tracking-[0.18em] shadow-sm backdrop-blur"
         >
-          <span class="size-2 rounded-full bg-primary"></span>
+          <span class="bg-primary size-2 rounded-full"></span>
           PAGE NOT FOUND
         </div>
 
-        <p class="mt-6 text-sm font-semibold tracking-widest text-primary">
+        <p class="text-primary mt-6 text-sm font-semibold tracking-widest">
           错误代码 · 404
         </p>
         <h1
-          class="mt-3 text-4xl leading-tight font-bold text-tcolor-dark sm:text-5xl"
+          class="text-tcolor-dark mt-3 text-4xl leading-tight font-bold sm:text-5xl"
         >
           页面走丢了
         </h1>
-        <p class="mt-5 max-w-lg text-base leading-7 text-tcolor-light">
+        <p class="text-tcolor-light mt-5 max-w-lg text-base leading-7">
           你访问的页面不存在、已被移动，或者当前账号没有访问权限。请检查地址，也可以返回管理台继续操作。
         </p>
 
@@ -41,7 +41,7 @@
             返回首页
           </el-button>
           <el-button
-            class="!m-0 !h-11 !rounded-lg !border-tcolor-white !bg-white/80 !px-5 !font-semibold !text-tcolor"
+            class="!border-tcolor-white !text-tcolor !m-0 !h-11 !rounded-lg !bg-white/80 !px-5 !font-semibold"
             size="large"
             @click="routeGoBack"
           >
@@ -53,25 +53,25 @@
 
       <div class="relative mx-auto w-full max-w-[560px]" aria-hidden="true">
         <div
-          class="absolute -top-8 -right-5 size-32 rounded-full bg-warning-soft blur-2xl"
+          class="bg-warning-soft absolute -top-8 -right-5 size-32 rounded-full blur-2xl"
         ></div>
         <div
-          class="absolute -bottom-10 -left-8 size-40 rounded-full bg-primary-soft blur-3xl"
+          class="bg-primary-soft absolute -bottom-10 -left-8 size-40 rounded-full blur-3xl"
         ></div>
 
         <div
           class="relative overflow-hidden rounded-2xl border border-white/80 bg-white/90 shadow-[0_28px_90px_rgb(15_23_42_/_16%)] backdrop-blur"
         >
           <div
-            class="flex h-14 items-center gap-4 border-b border-tcolor-white px-5"
+            class="border-tcolor-white flex h-14 items-center gap-4 border-b px-5"
           >
             <div class="flex gap-1.5">
-              <span class="size-2.5 rounded-full bg-error-lighter"></span>
-              <span class="size-2.5 rounded-full bg-warning-lighter"></span>
-              <span class="size-2.5 rounded-full bg-success-lighter"></span>
+              <span class="bg-error-lighter size-2.5 rounded-full"></span>
+              <span class="bg-warning-lighter size-2.5 rounded-full"></span>
+              <span class="bg-success-lighter size-2.5 rounded-full"></span>
             </div>
             <div
-              class="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-background px-3 py-2 text-xs text-tcolor-light"
+              class="bg-background text-tcolor-light flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-xs"
             >
               <LucideLockKeyhole class="size-3.5 shrink-0" />
               <span class="truncate">{{ route.path }}</span>
@@ -82,13 +82,13 @@
             class="relative flex min-h-[360px] flex-col items-center justify-center overflow-hidden px-6 py-12"
           >
             <div
-              class="absolute top-10 left-10 size-3 rounded-full bg-primary-lighter"
+              class="bg-primary-lighter absolute top-10 left-10 size-3 rounded-full"
             ></div>
             <div
-              class="absolute right-14 bottom-14 size-5 rounded-md border-2 border-warning-lighter rotate-12"
+              class="border-warning-lighter absolute right-14 bottom-14 size-5 rotate-12 rounded-md border-2"
             ></div>
             <div
-              class="absolute top-20 right-12 h-px w-16 bg-tcolor-white -rotate-12"
+              class="bg-tcolor-white absolute top-20 right-12 h-px w-16 -rotate-12"
             ></div>
 
             <div class="relative">
@@ -98,7 +98,7 @@
                 404
               </div>
               <div
-                class="absolute -right-3 -bottom-1 flex size-16 items-center justify-center rounded-2xl border-4 border-white bg-primary-white text-primary shadow-lg rotate-6"
+                class="bg-primary-white text-primary absolute -right-3 -bottom-1 flex size-16 rotate-6 items-center justify-center rounded-2xl border-4 border-white shadow-lg"
               >
                 <LucideFileQuestion class="size-8" />
               </div>

@@ -39,7 +39,8 @@ export function timestampsTrigger({
   validateSqlIdentifier(updateColumn, '更新时间列名');
 
   const resolvedFunctionName =
-    functionName ?? `${DEFAULT_FUNCTION_PREFIX}_${createColumn}_${updateColumn}`;
+    functionName ??
+    `${DEFAULT_FUNCTION_PREFIX}_${createColumn}_${updateColumn}`;
   const resolvedTriggerName = triggerName ?? DEFAULT_TRIGGER_NAME;
 
   const fn: SchemaTriggerFunction = {
@@ -76,7 +77,7 @@ function buildTimestampsBody({
 }) {
   return [
     'begin',
-    '  if tg_op = \'INSERT\' then',
+    "  if tg_op = 'INSERT' then",
     `    new.${createColumn} = now();`,
     `    new.${updateColumn} = now();`,
     '  else',

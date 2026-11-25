@@ -71,8 +71,10 @@ export function normalizeColumns<T extends SchemaFormModel>({
   }
 
   return [...list].sort((a, b) => {
-    const aOrder = a.column.search === false ? undefined : a.column.search?.order;
-    const bOrder = b.column.search === false ? undefined : b.column.search?.order;
+    const aOrder =
+      a.column.search === false ? undefined : a.column.search?.order;
+    const bOrder =
+      b.column.search === false ? undefined : b.column.search?.order;
     return (aOrder ?? a.index) - (bOrder ?? b.index);
   });
 }

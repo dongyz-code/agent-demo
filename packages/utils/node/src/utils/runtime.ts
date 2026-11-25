@@ -1,11 +1,6 @@
 import fse from 'fs-extra';
 
-import {
-  initQueueTask,
-  reTryFunc,
-  sleep,
-  taskLoop,
-} from '@repo/utils-common';
+import { initQueueTask, reTryFunc, sleep, taskLoop } from '@repo/utils-common';
 
 export { fse, initQueueTask, reTryFunc, sleep, taskLoop };
 

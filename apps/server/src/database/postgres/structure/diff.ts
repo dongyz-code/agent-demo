@@ -70,7 +70,10 @@ export function compareTableStructure(
       return;
     }
 
-    if (normalizeSqlType(column.sqlType) !== normalizeSqlType(catalogColumn.sqlType)) {
+    if (
+      normalizeSqlType(column.sqlType) !==
+      normalizeSqlType(catalogColumn.sqlType)
+    ) {
       diff.push({
         scope: 'column',
         type: 'changed',

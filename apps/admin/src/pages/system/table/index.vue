@@ -22,7 +22,9 @@
           @row-click="selectTable"
         >
           <template #physicalStatus="{ row }">
-            <el-tag :type="row.physicalStatus === 'exists' ? 'success' : 'danger'">
+            <el-tag
+              :type="row.physicalStatus === 'exists' ? 'success' : 'danger'"
+            >
               {{ row.physicalStatus === 'exists' ? '存在' : '缺失' }}
             </el-tag>
           </template>
@@ -32,7 +34,10 @@
             </el-tag>
           </template>
           <template #latestOperation="{ row }">
-            <div v-if="row.latestOperation" class="flex flex-wrap items-center gap-1">
+            <div
+              v-if="row.latestOperation"
+              class="flex flex-wrap items-center gap-1"
+            >
               <span>{{ operationTypeLabel(row.latestOperation.type) }}</span>
               <el-tag
                 size="small"
@@ -199,7 +204,12 @@ const tableRows: TableRow[] = [
   { label: 'Key', value: 'table', minWidth: 'normal' },
   { label: '表名', value: 'tableName', minWidth: 'normal' },
   { label: 'Schema', value: 'schemaName', minWidth: 'sm' },
-  { label: '物理状态', value: 'physicalStatus', slot: 'physicalStatus', width: 110 },
+  {
+    label: '物理状态',
+    value: 'physicalStatus',
+    slot: 'physicalStatus',
+    width: 110,
+  },
   { label: '差异', value: 'diffLevel', slot: 'diffLevel', width: 110 },
   { label: '字段数', value: 'columnCount', width: 90 },
   { label: '估算行数', value: 'estimatedRows', width: 110 },
@@ -209,7 +219,13 @@ const tableRows: TableRow[] = [
     slot: 'latestOperation',
     minWidth: 'normal',
   },
-  { label: '操作', value: 'actions', slot: 'actions', width: 280, fixed: 'right' },
+  {
+    label: '操作',
+    value: 'actions',
+    slot: 'actions',
+    width: 280,
+    fixed: 'right',
+  },
 ];
 
 /**

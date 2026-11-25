@@ -1,9 +1,4 @@
-import type {
-  IconComponent,
-  RouteMeta,
-  RouteName,
-  RoutePath,
-} from '@/router';
+import type { IconComponent, RouteMeta, RouteName, RoutePath } from '@/router';
 import type { AdminPermissionKey } from '@repo/shared/permission';
 
 import { canAccessClientRoute, routePathMap, routes } from '@/router';

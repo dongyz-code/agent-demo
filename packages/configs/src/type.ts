@@ -16,6 +16,16 @@ export type CONF = {
     host: string;
     /** 端口 */
     port: number;
+    /** 可选 ACL 用户名。 */
+    username?: string;
+    /** 可选连接密码，仅服务端持有。 */
+    password?: string;
+    /** Redis 逻辑数据库编号，默认 0。 */
+    database?: number;
+    /** 隔离应用和环境的唯一前缀，不含通配符。 */
+    prefix?: string;
+    /** 是否使用 TLS。 */
+    tls?: boolean;
   };
   /** elasticsearch 配置 */
   es: {

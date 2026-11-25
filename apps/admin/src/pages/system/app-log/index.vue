@@ -21,7 +21,7 @@
                 color: row.status?.color,
               }"
             />
-            <span> {{ row.status?.text }} </span>
+            <span>{{ row.status?.text }}</span>
           </div>
           <span class="ml-2" v-else>-</span>
         </template>
@@ -57,13 +57,7 @@ import { dayJsformat, debounce } from '@repo/utils-browser';
 import { api, httpCache, notify } from '@/utils';
 import { staticMapping, staticOptions } from '@/constants';
 
-import {
-  VDialog,
-  VTable,
-  VSchemaForm,
-  loadingFunc,
-  usePage,
-} from '@repo/ui';
+import { VDialog, VTable, VSchemaForm, loadingFunc, usePage } from '@repo/ui';
 import { ElButton } from 'element-plus';
 
 import TablerPointFilled from '~icons/tabler/point-filled';

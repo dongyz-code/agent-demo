@@ -1,5 +1,10 @@
 /** 时间分组键，键名保持稳定，展示文案由 labels 提供。 */
-export type TimeGroup = 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'earlier';
+export type TimeGroup =
+  | 'today'
+  | 'yesterday'
+  | 'last7Days'
+  | 'last30Days'
+  | 'earlier';
 
 /** 时间分组展示文案。 */
 export const timeGroupLabels: Record<TimeGroup, string> = {
@@ -30,7 +35,8 @@ export function getTimeGroup(
   timestamp: number | Date,
   now: number | Date = Date.now(),
 ): TimeGroup {
-  const targetTime = timestamp instanceof Date ? timestamp.getTime() : timestamp;
+  const targetTime =
+    timestamp instanceof Date ? timestamp.getTime() : timestamp;
   const currentTime = now instanceof Date ? now.getTime() : now;
   if (!Number.isFinite(targetTime) || !Number.isFinite(currentTime)) {
     return 'earlier';

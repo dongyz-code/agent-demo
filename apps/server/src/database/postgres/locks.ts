@@ -18,5 +18,7 @@ export async function pgAdvisoryXactLock(
   tx: DbTransaction,
   ...parts: string[]
 ): Promise<void> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${parts.join(':')}))`);
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${parts.join(':')}))`,
+  );
 }

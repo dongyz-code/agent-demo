@@ -10,11 +10,10 @@ import type {
 } from './api.js';
 
 /** 类型相等断言，供声明文件在编译期校验 API helper 行为。 */
-type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <
-  T,
->() => T extends B ? 1 : 2
-  ? true
-  : false;
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
 
 /** 编译期断言，传入 false 时触发 TypeScript 错误。 */
 type Assert<T extends true> = T;

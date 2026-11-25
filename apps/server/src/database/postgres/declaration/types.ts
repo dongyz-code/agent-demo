@@ -62,4 +62,7 @@ export type TableSchemaObjects = {
   triggers: SchemaTrigger[];
 };
 
-export type { PgTableExtraConfig, PgTableExtraConfigValue } from 'drizzle-orm/pg-core';
+export type {
+  PgTableExtraConfig,
+  PgTableExtraConfigValue,
+} from 'drizzle-orm/pg-core';

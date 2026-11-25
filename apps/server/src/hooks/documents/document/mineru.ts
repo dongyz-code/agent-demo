@@ -124,14 +124,11 @@ export class MinerUClient {
         return api<T>(request, meta);
       },
       send<T>(request: AxiosRequestConfig, label: string) {
-        const attempt = reTryFunc(
-          () => api<T>(request, meta),
-          {
-            count: document.minerURequestMaxAttempts,
-            duration: document.minerURequestRetryDelayMs,
-            label,
-          },
-        );
+        const attempt = reTryFunc(() => api<T>(request, meta), {
+          count: document.minerURequestMaxAttempts,
+          duration: document.minerURequestRetryDelayMs,
+          label,
+        });
         return attempt();
       },
     };

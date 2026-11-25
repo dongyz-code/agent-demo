@@ -1,8 +1,5 @@
 import type { LiteralUnion } from '@/types/index.js';
-import type {
-  AxiosResponse,
-  InternalAxiosRequestConfig,
-} from 'axios';
+import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 const API_LOG_LABELS = ['mineru'] as const;
 

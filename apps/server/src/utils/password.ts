@@ -35,10 +35,7 @@ export async function hashPassword(password: string) {
  * @param password 用户提交的原文密码。
  * @returns 凭据匹配且编码有效时返回 true；格式错误按不匹配处理。
  */
-export async function verifyPassword(
-  passwordHash: string,
-  password: string,
-) {
+export async function verifyPassword(passwordHash: string, password: string) {
   if (!isArgon2idHash(passwordHash) || !password) {
     return false;
   }

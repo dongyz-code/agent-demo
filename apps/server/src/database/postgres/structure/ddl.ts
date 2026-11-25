@@ -13,7 +13,10 @@ import type {
   CreateTableSqlOptions,
   CreateTriggerSqlOptions,
 } from './types.js';
-import type { SchemaTrigger, SchemaTriggerFunction } from '../declaration/types.js';
+import type {
+  SchemaTrigger,
+  SchemaTriggerFunction,
+} from '../declaration/types.js';
 
 /* ------------------------------------------------------------------ */
 /* schema / table / index                                              */
@@ -109,7 +112,9 @@ export function createTableIndexSqls({
       if (skipComplex) {
         return false;
       }
-      throw new Error(`复杂索引 ${index.name} 无法自动生成 DDL，请使用 raw SQL 迁移`);
+      throw new Error(
+        `复杂索引 ${index.name} 无法自动生成 DDL，请使用 raw SQL 迁移`,
+      );
     })
     .map((index) => {
       const indexName = indexNamePrefix

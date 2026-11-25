@@ -20,7 +20,12 @@
           新建用户组
         </el-button>
       </div>
-      <v-table class="min-h-0 flex-1" :data="groups" :rows="rows" :loading="loading">
+      <v-table
+        class="min-h-0 flex-1"
+        :data="groups"
+        :rows="rows"
+        :loading="loading"
+      >
         <template #actions="{ row }">
           <el-button
             v-if="store.hasPermission('actions.group.member')"
@@ -72,16 +77,29 @@ const groups = shallowRef<(UserGroupInfo & Record<string, unknown>)[]>([]);
 const loading = ref(false);
 const dialogRef = ref<InstanceType<typeof GroupDialog>>();
 const memberRef = ref<InstanceType<typeof GroupMembersDialog>>();
-const { pageComponent, pageRange, setPageData } = usePage({ page: { size: 20 } });
+const { pageComponent, pageRange, setPageData } = usePage({
+  page: { size: 20 },
+});
 
 const searchColumns: SchemaFormColumn<{ search?: string }>[] = [
-  { dataIndex: 'search', title: '名称', valueType: 'text', fieldProps: { clearable: true } },
+  {
+    dataIndex: 'search',
+    title: '名称',
+    valueType: 'text',
+    fieldProps: { clearable: true },
+  },
 ];
 const rows: TableRow[] = [
   { label: '名称', value: 'name', minWidth: 'normal' },
   { label: '人数', value: 'memberCount', width: 100 },
   { label: '说明', value: 'description', minWidth: 240 },
-  { label: '操作', value: 'actions', slot: 'actions', width: 180, fixed: 'right' },
+  {
+    label: '操作',
+    value: 'actions',
+    slot: 'actions',
+    width: 180,
+    fixed: 'right',
+  },
 ];
 
 /** 分页加载用户组。 */

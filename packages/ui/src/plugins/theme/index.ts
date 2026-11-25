@@ -65,6 +65,9 @@ export function applyThemeBaseColors(
       continue;
     }
 
-    target.style.setProperty(`--theme-${name}-base`, normalizeThemeColor(color));
+    target.style.setProperty(
+      `--theme-${name}-base`,
+      normalizeThemeColor(color),
+    );
   }
 }

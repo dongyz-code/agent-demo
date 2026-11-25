@@ -100,7 +100,9 @@ function includesAdminPermissionKey(
   permissions: ReadonlySet<string> | readonly string[],
   key: string,
 ) {
-  return 'has' in permissions ? permissions.has(key) : permissions.includes(key);
+  return 'has' in permissions
+    ? permissions.has(key)
+    : permissions.includes(key);
 }
 
 /**

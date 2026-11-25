@@ -44,7 +44,9 @@
         <div
           class="v-schema-form__actions flex min-h-8 w-full min-w-0 items-center gap-2"
           :class="
-            searchConfig.actionAlign === 'left' ? 'justify-start' : 'justify-end'
+            searchConfig.actionAlign === 'left'
+              ? 'justify-start'
+              : 'justify-end'
           "
         >
           <slot v-if="$slots.actions" name="actions" v-bind="actionSlotProps" />
@@ -279,10 +281,11 @@ const searchLabelPosition = computed(() =>
   resolveSearchLabelPosition({ width: gridWidth.value }),
 );
 
-const effectiveLabelPosition = computed(() =>
-  props.formProps?.labelPosition ??
-  props.layout?.labelPosition ??
-  (mode.value === 'search' ? searchLabelPosition.value : undefined),
+const effectiveLabelPosition = computed(
+  () =>
+    props.formProps?.labelPosition ??
+    props.layout?.labelPosition ??
+    (mode.value === 'search' ? searchLabelPosition.value : undefined),
 );
 
 const formClass = computed(() => ({
@@ -414,9 +417,9 @@ const baseFormItemStyle = {
   minWidth: 0,
 };
 
-const optionStates = reactive<Record<string, ReturnType<typeof createOptionState>>>(
-  {},
-);
+const optionStates = reactive<
+  Record<string, ReturnType<typeof createOptionState>>
+>({});
 
 /** 获取字段选项状态；不存在时创建默认状态。 */
 function getOptionState(field: NormalizedSchemaFormColumn<T>) {
@@ -517,11 +520,16 @@ watch(
 
 /** 更新字段值并向外发出新的表单对象。 */
 function updateField(field: RuntimeSchemaFormField<T>, value: unknown) {
-  emit('update:modelValue', setFormValue(props.modelValue, field.dataIndex, value));
+  emit(
+    'update:modelValue',
+    setFormValue(props.modelValue, field.dataIndex, value),
+  );
 }
 
 /** 生成 renderer 上下文。 */
-function getRendererCtx(field: RuntimeSchemaFormField<T>): SchemaRendererCtx<T> {
+function getRendererCtx(
+  field: RuntimeSchemaFormField<T>,
+): SchemaRendererCtx<T> {
   const state = getOptionState(field);
   return {
     column: field.column,
@@ -544,7 +552,9 @@ function getRendererCtx(field: RuntimeSchemaFormField<T>): SchemaRendererCtx<T> 
 }
 
 /** 生成 slot props，保证业务自定义渲染能复用组件动作。 */
-function getSlotProps(field?: RuntimeSchemaFormField<T>): SchemaFormSlotProps<T> {
+function getSlotProps(
+  field?: RuntimeSchemaFormField<T>,
+): SchemaFormSlotProps<T> {
   return {
     collapsed: realCollapsed.value,
     field,

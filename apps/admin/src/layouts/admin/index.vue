@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="flex h-svh overflow-hidden bg-background"
-    :style="shellStyle"
-  >
+  <div class="bg-background flex h-svh overflow-hidden" :style="shellStyle">
     <aside
       class="flex h-full w-[var(--menu-width)] shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white transition-[width] duration-200"
     >
@@ -13,7 +10,7 @@
         <img :src="logo" alt="Admin Console" class="h-8 w-auto rounded-lg" />
         <span
           v-if="!collapsed"
-          class="truncate text-base font-semibold text-tcolor-dark"
+          class="text-tcolor-dark truncate text-base font-semibold"
         >
           Admin Console
         </span>

@@ -7,11 +7,7 @@ const { api } = routerHandler({
   method: 'POST',
   permission: adminPermissionKey('actions.documents.library-grant'),
   handler: async ({ body, __token }) => ({
-    list: await saveLibraryGrants(
-      body.libraryId,
-      body.grants,
-      __token.user_id,
-    ),
+    list: await saveLibraryGrants(body.libraryId, body.grants, __token.user_id),
   }),
 });
 

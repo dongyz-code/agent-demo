@@ -185,9 +185,7 @@ function isTriggerFunctionDefinition(
 }
 
 /** 判断 extra config 值是否为 trigger 声明。 */
-function isTriggerDefinition(
-  value: unknown,
-): value is SchemaTriggerDefinition {
+function isTriggerDefinition(value: unknown): value is SchemaTriggerDefinition {
   return getSchemaExtraKind(value) === 'trigger';
 }
 

@@ -14,7 +14,9 @@
         <strong v-if="!embedded">文档</strong>
         <div class="ml-auto flex items-center gap-2">
           <template v-if="selected.length">
-            <span class="text-sm text-gray-600">已选 {{ selected.length }} 份</span>
+            <span class="text-sm text-gray-600">
+              已选 {{ selected.length }} 份
+            </span>
             <el-button @click="moveSelected">移动到资料库</el-button>
           </template>
           <el-button v-if="canUpload" type="primary" @click="openUpload">
@@ -61,14 +63,20 @@
           </div>
         </template>
         <template #library="{ row }">
-          <span v-if="row.libraryId" class="block truncate" :title="row.libraryName">{{
-            row.libraryName
-          }}</span>
+          <span
+            v-if="row.libraryId"
+            class="block truncate"
+            :title="row.libraryName"
+          >
+            {{ row.libraryName }}
+          </span>
           <span v-else class="text-gray-500">未归库</span>
         </template>
         <template #version="{ row }">
           <span>V{{ row.activeVersion.version }}</span>
-          <p class="mt-1 text-xs text-gray-500">共 {{ row.versionCount }} 个版本</p>
+          <p class="mt-1 text-xs text-gray-500">
+            共 {{ row.versionCount }} 个版本
+          </p>
         </template>
         <template #preview="{ row }">
           <el-tag
@@ -83,7 +91,9 @@
             {{ getRetrievalLabel(row) }}
           </el-tag>
         </template>
-        <template #createdAt="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        <template #createdAt="{ row }">
+          {{ formatDateTime(row.createdAt) }}
+        </template>
         <template #actions="{ row }">
           <v-action-button-group :actions="getActions(row)" :max-visible="3" />
         </template>
@@ -185,7 +195,9 @@ const canSelect = computed(() => {
 const canUpload = computed(() => {
   if (!store.hasPermission('actions.documents.upload')) return false;
   if (props.library) {
-    return props.library.myRole === 'manager' && props.library.status === 'active';
+    return (
+      props.library.myRole === 'manager' && props.library.status === 'active'
+    );
   }
   return libraries.value.some(
     (library) => library.myRole === 'manager' && library.status === 'active',
@@ -374,7 +386,9 @@ async function loadDocuments(reset = false) {
   failed.value = false;
   selected.value = [];
   try {
-    let previewStatus: DocumentInfo['activeVersion']['previewStatus'][] | undefined;
+    let previewStatus:
+      | DocumentInfo['activeVersion']['previewStatus'][]
+      | undefined;
     if (searchForm.value.previewStatus) {
       previewStatus = [searchForm.value.previewStatus];
     }

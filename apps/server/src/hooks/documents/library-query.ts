@@ -7,7 +7,11 @@ import {
   resolveLibraryAccess,
 } from './library-access.js';
 
-import type { LibraryInfo, LibraryStatus, LibraryVisibility } from '@repo/types';
+import type {
+  LibraryInfo,
+  LibraryStatus,
+  LibraryVisibility,
+} from '@repo/types';
 
 /** 资料库列表查询条件。 */
 export interface SearchLibrariesInput {
@@ -39,7 +43,8 @@ export async function searchLibraries(
   const [start = 0, end = 20] = input.limit ?? [];
   let statuses: LibraryStatus[] = ['active'];
   if (input.scope === 'archived') statuses = ['archived'];
-  if (input.scope !== 'archived' && input.status?.length) statuses = input.status;
+  if (input.scope !== 'archived' && input.status?.length)
+    statuses = input.status;
   const where = buildWhere((filter) => {
     const access = libraryAdminListWhere(userId);
     if (access) filter.push(access);
@@ -137,8 +142,7 @@ async function toLibraryInfos(
   const infos: LibraryInfo[] = [];
   for (const row of rows) {
     const access = await resolveLibraryAccess(row.library_id, userId, 'admin');
-    const myRole =
-      userId === ROOT.SYS_ADMIN_USER_ID ? 'manager' : access?.role;
+    const myRole = userId === ROOT.SYS_ADMIN_USER_ID ? 'manager' : access?.role;
     if (!myRole) continue;
     infos.push({
       libraryId: row.library_id,

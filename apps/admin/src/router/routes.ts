@@ -3,6 +3,7 @@ import { adminPermissionKey } from '@repo/shared/permission';
 import type { RouteItem } from '@repo/ui';
 import type { RouteName, Meta } from './types';
 
+/** 管理端路由声明；页面按需加载，访问权限统一放在 meta 中。 */
 export const routes: RouteItem<RouteName, Meta>[] = [
   {
     path: '/',
@@ -45,6 +46,35 @@ export const routes: RouteItem<RouteName, Meta>[] = [
         ],
       },
       /** ============ 系统管理相关 ============ */
+      {
+        path: 'monitor',
+        name: 'monitor',
+        component: () => import('@/pages/system/index.vue'),
+        children: [
+          {
+            path: 'schedule',
+            name: 'monitor.schedule',
+            component: () => import('@/pages/monitor/schedule/index.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.monitor.schedule')],
+            },
+          },
+          {
+            path: 'runs',
+            name: 'monitor.runs',
+            component: () => import('@/pages/monitor/runs/index.vue'),
+            meta: { permissions: [adminPermissionKey('pages.monitor.runs')] },
+          },
+          {
+            path: 'cache',
+            name: 'monitor.cache',
+            component: () => import('@/pages/monitor/cache/index.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.monitor.cache')],
+            },
+          },
+        ],
+      },
       {
         path: 'system',
         name: 'system',

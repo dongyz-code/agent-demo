@@ -42,7 +42,9 @@ export const chatAgent = async (input: {
   const conversation_id = input.conversation_id || uuidv7();
   const message_id = uuidv7();
   const usableLibraries = await listUsableLibraries(input.userId);
-  const usableIds = new Set(usableLibraries.map((library) => library.libraryId));
+  const usableIds = new Set(
+    usableLibraries.map((library) => library.libraryId),
+  );
   let libraryId: string | null = null;
   let scopeCleared = false;
   if (isNewConversation) {
@@ -75,7 +77,9 @@ export const chatAgent = async (input: {
       await db
         .update(schemas.agent_conversations)
         .set({ library_id: null })
-        .where(eq(schemas.agent_conversations.conversation_id, conversation_id));
+        .where(
+          eq(schemas.agent_conversations.conversation_id, conversation_id),
+        );
     }
   }
   const indexed = await listIndexedVersionIds(input.userId, libraryId);
@@ -83,9 +87,7 @@ export const chatAgent = async (input: {
   const { model, providerOptions } = getModel({
     provider: 'bailian',
     model: 'glm-5.2',
-    providerOptions: input.reasoning
-      ? { enable_thinking: true }
-      : undefined,
+    providerOptions: input.reasoning ? { enable_thinking: true } : undefined,
   });
 
   // 先取历史（不含本次 user 消息），再落 user 消息，最后把 user 消息拼进上下文——避免重复入上下文。
@@ -228,7 +230,10 @@ export const chatAgent = async (input: {
         const toolDurationMs = Object.values(
           performance.toolExecutionMs,
         ).reduce((sum, ms) => sum + ms, 0);
-        const toolMeta: AgentToolMeta = { stepNumber, durationMs: toolDurationMs };
+        const toolMeta: AgentToolMeta = {
+          stepNumber,
+          durationMs: toolDurationMs,
+        };
         const toolStatus: AgentMessageStatus = toolResults.some(
           (tr) => (tr as { isError?: boolean }).isError === true,
         )
@@ -251,7 +256,9 @@ export const chatAgent = async (input: {
       await db
         .update(schemas.agent_conversations)
         .set({ last_message_timestamp: input.now })
-        .where(eq(schemas.agent_conversations.conversation_id, conversation_id));
+        .where(
+          eq(schemas.agent_conversations.conversation_id, conversation_id),
+        );
     },
   });
 
@@ -286,10 +293,16 @@ async function redactModelMessages(
           const chunks = output.chunks;
           if (!Array.isArray(chunks)) return [];
           return chunks.flatMap((chunk) => {
-            if (!chunk || typeof chunk !== 'object' || !('document_id' in chunk)) {
+            if (
+              !chunk ||
+              typeof chunk !== 'object' ||
+              !('document_id' in chunk)
+            ) {
               return [];
             }
-            return typeof chunk.document_id === 'string' ? [chunk.document_id] : [];
+            return typeof chunk.document_id === 'string'
+              ? [chunk.document_id]
+              : [];
           });
         })
       : [],

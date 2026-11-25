@@ -175,7 +175,11 @@ export async function applyResetPlan({
     confirm,
     type: 'reset',
     execute: async ({ plan, schemaTable }) => {
-      if (plan.type !== 'reset' || !plan.temporaryTableName || !plan.backupTableName) {
+      if (
+        plan.type !== 'reset' ||
+        !plan.temporaryTableName ||
+        !plan.backupTableName
+      ) {
         throw new ROOT_ERROR('非法参数');
       }
       const temporaryTableName = plan.temporaryTableName;
@@ -242,7 +246,9 @@ export async function createSyncPlan({
   /** tables/index.ts 中的目标表导出名称。 */
   table: string;
 }): Promise<TableOperationPlan> {
-  const { schemaTable, catalogTable } = await getAuthorizedTableState({ table });
+  const { schemaTable, catalogTable } = await getAuthorizedTableState({
+    table,
+  });
   const op_id = randomUUID();
   const blockers: string[] = [];
   const warnings = compareTableStructure(schemaTable, catalogTable).diff.map(
@@ -253,7 +259,9 @@ export async function createSyncPlan({
     blockers.push(`源表 ${schemaTable.tableName} 不存在`);
   }
 
-  const catalogIndexNames = new Set(catalogTable.indexes.map((index) => index.name));
+  const catalogIndexNames = new Set(
+    catalogTable.indexes.map((index) => index.name),
+  );
   // 缺失索引 = schema 声明但 DB 没有；complex 的无法自动建，进 blocker。
   const missingIndexes = schemaTable.indexes
     .filter((index) => !catalogIndexNames.has(index.name))
@@ -268,10 +276,15 @@ export async function createSyncPlan({
 
   const sqlPreview = [
     ...missingIndexes.map(
-      (name) => `create index if not exists ${name} on ${quoteQualified(schemaTable.schemaName, schemaTable.tableName)}`,
+      (name) =>
+        `create index if not exists ${name} on ${quoteQualified(schemaTable.schemaName, schemaTable.tableName)}`,
     ),
-    ...schemaTable.triggers.map((trigger) => `create or replace function ${trigger.execute.name} ...`),
-    ...schemaTable.triggers.map((trigger) => `create trigger ${trigger.name} ...`),
+    ...schemaTable.triggers.map(
+      (trigger) => `create or replace function ${trigger.execute.name} ...`,
+    ),
+    ...schemaTable.triggers.map(
+      (trigger) => `create trigger ${trigger.name} ...`,
+    ),
   ];
 
   return await saveOperationPlan({
@@ -384,7 +397,9 @@ async function saveOperationPlan({
 }): Promise<TableOperationPlan> {
   const now = new Date();
   const expire = new Date(now.getTime() + planExpireMs);
-  const status: TableStructureOpStatus = blockers.length ? 'blocked' : 'planned';
+  const status: TableStructureOpStatus = blockers.length
+    ? 'blocked'
+    : 'planned';
   await db.insert(schemas.table_structure_ops).values({
     op_id,
     type,
@@ -589,7 +604,10 @@ async function copyTableData({
 
   await execute(sql`
     insert into ${sql.identifier(plan.schemaName)}.${sql.identifier(temporaryTableName)}
-      (${sql.join(targetColumns.map((column) => sql.identifier(column.name)), sql`, `)})
+      (${sql.join(
+        targetColumns.map((column) => sql.identifier(column.name)),
+        sql`, `,
+      )})
     select ${sql.join(
       targetColumns.map((column) =>
         sql.identifier(plan.columnSourceMap[column.name]!),
@@ -629,8 +647,7 @@ function buildBackupTableName({
     maxIdentifierLength - prefix.length - postfix.length,
   );
   const safeTableName =
-    tableName.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '') ||
-    'table';
+    tableName.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '') || 'table';
 
   return `${prefix}${safeTableName.slice(0, maxTableNameLength)}${postfix}`;
 }
