@@ -12,6 +12,6 @@ export default async function cleanupUploads(
 ): Promise<void> {
   await context.throwIfCanceled();
   await context.log.info('开始回收过期上传会话与临时对象');
-  await upload.cleanupExpired();
-  await context.log.info('上传清理完成');
+  const removed = await upload.cleanupExpired(context.throwIfCanceled);
+  await context.log.info(`上传清理完成，共回收 ${removed} 个过期会话`);
 }

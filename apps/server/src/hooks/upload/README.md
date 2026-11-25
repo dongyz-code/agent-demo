@@ -24,7 +24,7 @@ key 不是访问凭证。`getInfo`、`getUrl`、`getUrls`、`open`、`getReadabl
 | `open`、`getReadableSource`      | 打开新流或获取可重复打开的源文件描述                         |
 | `removeObjects`、`deleteRecords` | 对象清理后，由业务事务解除引用并删除文件记录                 |
 | `remove`                         | 清理服务端已经确认无引用的文件，例如未发布预览页面           |
-| `cleanupExpired`                 | 每次最多清理 100 个失效且未验证的会话                        |
+| `cleanupExpired`                 | 每批读取 100 个失效且未验证的会话，逐批回收并返回成功总数    |
 
 文件用途保存在 `files.purpose`。attachment 和 document 上限 200 MiB，avatar 上限 10 MiB 且只允许注册图片格式，preview 仅允许可信服务端写入图片。格式来源统一使用 `@repo/shared`；用途只约束内容，不代替业务权限。
 
@@ -42,7 +42,7 @@ key 不是访问凭证。`getInfo`、`getUrl`、`getUrls`、`open`、`getReadabl
 - 客户端只能写入 `temporary/` 对象；完成时复制到独立最终位置，再验证最终对象大小与可信 MIME，防止旧 PUT 地址覆盖已验证文件。
 - 文件 verified 和会话 completed 同事务发布，完成后不再签发上传地址。数据库提交回执不确定时，先检查当前状态，不能删除已经发布的对象。
 - 已发布文件不可修改；重新上传产生新 key。Multipart ETag 不作为完整文件摘要。
-- 服务启动后每 10 分钟执行失效上传清理，超过会话期限后额外等待最长签名有效时间。只回收 pending/rejected 且不在 confirming 流程中的对象，失败时保留记录供重试。
+- 内置失效上传清理计划默认每天凌晨 3 点执行（`0 3 * * *`，`Asia/Shanghai`），可在定时任务页面调整。超过会话期限后额外等待最长签名有效时间，只回收 pending/rejected 且不在 confirming 流程中的对象。一次任务每批读取 100 个会话，按游标继续至本轮候选处理完或触发任务超时；单条失败不会阻塞后续批次，保留记录供后续执行重试。
 - 已验证但尚未绑定业务的文件暂不自动回收。完成后旧 PUT 仍可重建临时对象，生产存储需要配置 `temporary/` 生命周期清理；该目录不得用于业务读取。
 - 业务负责确认文件可释放，先幂等删除对象，再在解除引用的同一事务中删除通用文件记录；禁止从客户端直接转发 key 执行物理删除。
 

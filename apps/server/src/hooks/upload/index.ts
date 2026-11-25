@@ -1,7 +1,7 @@
 import { isUtf8 } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { fileTypeFromBuffer } from 'file-type';
-import { and, asc, eq, inArray, lt } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, lt } from 'drizzle-orm';
 
 import { logger, ROOT, ROOT_ERROR } from '@/configs/index.js';
 import { db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
@@ -430,63 +430,82 @@ async function getStatus(
   return { status: session.status };
 }
 
-/** 有界回收失效且未验证的上传，保留所有已验证文件和仍在确认的会话。 */
-async function cleanupExpired(): Promise<number> {
+/**
+ * 按会话标识分批回收失效且未验证的上传，保留已验证文件和仍在确认的会话。
+ * @param checkCanceled 每批读取前检查调用任务是否取消，未提供时直接继续。
+ * @returns 本轮成功回收的会话总数；单条失败记录保留到后续执行，游标继续推进以免阻塞其余批次。
+ */
+async function cleanupExpired(
+  checkCanceled?: () => Promise<void>,
+): Promise<number> {
+  // 固定本轮过期边界，执行过程中刚达到清理期限的会话留到下次处理。
   const cutoff = new Date(
     Date.now() - uploadConfig.presignExpiresSeconds * 1000,
   );
-  const candidates = await db
-    .select({ session: schemas.file_upload_sessions, file: schemas.files })
-    .from(schemas.file_upload_sessions)
-    .innerJoin(
-      schemas.files,
-      eq(schemas.files.file_id, schemas.file_upload_sessions.file_id),
-    )
-    .where(
-      and(
-        lt(schemas.file_upload_sessions.expire_timestamp, cutoff),
-        inArray(schemas.file_upload_sessions.status, [
-          'initialized',
-          'uploading',
-          'failed',
-          'canceled',
-          'expired',
-        ]),
-        inArray(schemas.files.status, ['pending', 'rejected']),
-      ),
-    )
-    .orderBy(asc(schemas.file_upload_sessions.expire_timestamp))
-    .limit(100);
+  let cursor: string | undefined;
   let removed = 0;
-  for (const { session, file } of candidates) {
-    try {
-      const claimed = await transitionUploadSession(
-        session,
-        ['initialized', 'uploading', 'failed', 'canceled', 'expired'],
-        'expired',
-        ROOT.SYS_ADMIN_USER_ID,
-      );
-      if (!claimed) continue;
-      if (session.upload_id) {
-        await storage.abortMultipart({
-          ...temporaryReference(file),
-          uploadId: session.upload_id,
-        });
+  while (true) {
+    await checkCanceled?.();
+    let afterCursor;
+    if (cursor)
+      afterCursor = gt(schemas.file_upload_sessions.session_id, cursor);
+    const candidates = await db
+      .select({ session: schemas.file_upload_sessions, file: schemas.files })
+      .from(schemas.file_upload_sessions)
+      .innerJoin(
+        schemas.files,
+        eq(schemas.files.file_id, schemas.file_upload_sessions.file_id),
+      )
+      .where(
+        and(
+          afterCursor,
+          lt(schemas.file_upload_sessions.expire_timestamp, cutoff),
+          inArray(schemas.file_upload_sessions.status, [
+            'initialized',
+            'uploading',
+            'failed',
+            'canceled',
+            'expired',
+          ]),
+          inArray(schemas.files.status, ['pending', 'rejected']),
+        ),
+      )
+      .orderBy(asc(schemas.file_upload_sessions.session_id))
+      .limit(100);
+    if (!candidates.length) break;
+    for (const { session, file } of candidates) {
+      cursor = session.session_id;
+      try {
+        const claimed = await transitionUploadSession(
+          session,
+          ['initialized', 'uploading', 'failed', 'canceled', 'expired'],
+          'expired',
+          ROOT.SYS_ADMIN_USER_ID,
+        );
+        if (!claimed) continue;
+        if (session.upload_id) {
+          await storage.abortMultipart({
+            ...temporaryReference(file),
+            uploadId: session.upload_id,
+          });
+        }
+        await removeObjects([file.file_id]);
+        await db.transaction(
+          async (transaction) =>
+            await deleteRecords([file.file_id], transaction),
+        );
+        removed++;
+      } catch {
+        logger.warn(
+          {
+            event: 'upload.expired_cleanup_failed',
+            sessionId: session.session_id,
+          },
+          '过期上传清理失败，保留记录等待重试',
+        );
       }
-      await removeObjects([file.file_id]);
-      await db.transaction(
-        async (transaction) => await deleteRecords([file.file_id], transaction),
-      );
-      removed++;
-    } catch {
-      logger.warn(
-        {
-          event: 'upload.expired_cleanup_failed',
-          sessionId: session.session_id,
-        },
-        '过期上传清理失败，保留记录等待重试',
-      );
     }
+    if (candidates.length < 100) break;
   }
   return removed;
 }
