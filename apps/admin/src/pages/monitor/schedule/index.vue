@@ -10,26 +10,16 @@
       />
     </div>
     <div class="flex min-h-0 flex-1 flex-col rounded bg-white p-4 shadow">
-      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 class="text-base font-semibold">定时计划</h2>
-          <p class="mt-1 text-sm text-gray-600">
-            共 {{ summary.total }} 项 · 启用 {{ summary.enabled }} 项 · 活动中
-            {{ summary.active }} 项 ·
-            <span :class="{ 'text-red-600': summary.failed24h > 0 }">
-              近 24 小时失败 {{ summary.failed24h }} 次
-            </span>
-          </p>
-        </div>
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <strong>定时任务</strong>
         <div class="flex flex-wrap items-center gap-2">
-          <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
-          <el-button :loading="loading" @click="load()">刷新</el-button>
+          <el-button @click="records?.open()">执行记录</el-button>
           <el-button
             v-if="store.hasPermission('actions.schedule.edit')"
             type="primary"
             @click="editor?.open()"
           >
-            新建计划
+            新建任务
           </el-button>
         </div>
       </div>
@@ -38,29 +28,37 @@
         class="mb-3"
         type="error"
         :closable="false"
-        title="计划加载失败，已保留上次数据。请刷新重试。"
+        title="任务加载失败，请重试。"
       />
       <v-table
+        class="min-h-0 flex-1"
         :data="tableData"
-        :rows="scheduleRows"
+        :rows="rows"
         :loading="loading"
-        empty-text="暂无定时计划，可新建计划并选择业务处理器"
+        :props="{ emptyText: '暂无定时任务' }"
       >
         <template #name="{ row }">
           <div class="font-medium">{{ row.name }}</div>
           <div class="mt-1 text-xs text-gray-600">
             {{ row.handlerLabel }}
-            <span v-if="row.active" class="ml-2 text-blue-600">任务活动中</span>
           </div>
         </template>
         <template #cron="{ row }">
-          <div>{{ cronText(row.cron) }}</div>
-          <code class="text-xs text-gray-600">{{ row.cron }}</code>
-          <div class="text-xs text-gray-600">{{ row.timezone }}</div>
+          <span :title="`${row.cron} · ${row.timezone}`">
+            {{ cronText(row.cron) }}
+          </span>
         </template>
         <template #enabled="{ row }">
-          <el-tag v-if="row.enabled" type="success">启用</el-tag>
-          <el-tag v-else type="info">暂停</el-tag>
+          <el-switch
+            :model-value="row.enabled"
+            :disabled="
+              !store.hasPermission('actions.schedule.toggle') || busy || failed
+            "
+            active-text="启用"
+            inactive-text="暂停"
+            inline-prompt
+            @change="operate('toggle', row)"
+          />
         </template>
         <template #lastRun="{ row }">
           <template v-if="row.lastRun">
@@ -77,85 +75,35 @@
           {{ monitorTime(row.nextRunAt) }}
         </template>
         <template #actions="{ row }">
-          <el-button
-            v-if="store.hasPermission('actions.schedule.edit')"
-            link
-            type="primary"
-            :disabled="busy || failed"
-            @click="editor?.open(row)"
-          >
-            编辑
-          </el-button>
-          <el-button
-            v-if="store.hasPermission('actions.schedule.run')"
-            link
-            type="primary"
-            :disabled="busy || failed || row.active"
-            @click="run(row)"
-          >
-            执行一次
-          </el-button>
-          <el-button
-            v-if="store.hasPermission('pages.monitor.runs')"
-            link
-            @click="showRuns(row.id)"
-          >
-            记录
-          </el-button>
-          <el-dropdown
-            v-if="
-              store.hasPermission('actions.schedule.toggle') ||
-              store.hasPermission('actions.schedule.delete')
-            "
-            trigger="click"
-            :disabled="busy || failed"
-            @command="(command: string) => operate(command, row)"
-          >
-            <el-button link aria-label="更多计划操作">更多</el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item
-                  v-if="store.hasPermission('actions.schedule.toggle')"
-                  command="toggle"
-                >
-                  {{ row.enabled ? '暂停调度' : '启用调度' }}
-                </el-dropdown-item>
-                <el-dropdown-item
-                  v-if="store.hasPermission('actions.schedule.delete')"
-                  command="remove"
-                >
-                  删除计划
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <v-action-button-group
+            :actions="getActions(row)"
+            :max-visible="actionCount"
+          />
         </template>
       </v-table>
-      <page-component class="mt-4" @update:model-value="load()" />
-      <p class="mt-4 text-xs text-gray-600">
-        计划配置跨重启保留。暂停只影响后续触发；同一计划的活动任务不会重叠入队。列表时间按浏览器时区显示。
-      </p>
+      <page-component @update:model-value="load()" />
     </div>
     <schedule-editor ref="editor" @saved="load()" />
+    <schedule-runs-drawer ref="records" />
   </section>
 </template>
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
-import { useIntervalFn } from '@vueuse/core';
 import {
-  ElAlert,
-  ElButton,
-  ElCheckbox,
-  ElDropdown,
-  ElDropdownMenu,
-  ElDropdownItem,
-  ElTag,
-} from 'element-plus';
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue';
+import { useIntervalFn, useMediaQuery } from '@vueuse/core';
+import { ElAlert, ElButton, ElSwitch, ElTag } from 'element-plus';
 import { VSchemaForm, VTable, usePage } from '@repo/ui';
-import { useRouter } from 'vue-router';
+import VActionButtonGroup from '@/components/action-button-group/VActionButtonGroup.vue';
 import { useStore } from '@/models';
 import { api, confirm, notify } from '@/utils';
 import ScheduleEditor from './components/ScheduleEditor.vue';
+import ScheduleRunsDrawer from './components/ScheduleRunsDrawer.vue';
 import {
   cronText,
   monitorTime,
@@ -166,23 +114,52 @@ import {
 } from '../utils';
 import type { ScheduleInfo } from '@/types';
 import type { ScheduleSearchForm } from '../types';
+import type { ActionButtonItem } from '@/components/action-button-group/types';
 
 const store = useStore();
-const router = useRouter();
 const editor = ref<InstanceType<typeof ScheduleEditor>>();
+const records = ref<InstanceType<typeof ScheduleRunsDrawer>>();
 const searchForm = ref<ScheduleSearchForm>({});
 const plans = shallowRef<ScheduleInfo[]>([]);
 const tableData = computed(() => plans.value.map((plan) => ({ ...plan })));
-const summary = ref({ total: 0, enabled: 0, active: 0, failed24h: 0 });
+const compact = useMediaQuery('(max-width: 640px)');
+/** 窄屏收起低频操作，避免固定操作列挡住任务名称。 */
+const actionCount = computed(() => {
+  if (compact.value) return 1;
+  return 3;
+});
+const rows = computed(() => {
+  if (!compact.value) return scheduleRows;
+  return scheduleRows.map((column) => {
+    if (column.value === 'actions') return { ...column, width: 130 };
+    return column;
+  });
+});
 const loading = ref(false);
 /** 区分后台读取和遮罩状态，避免轮询请求重叠。 */
 const refreshing = ref(false);
 const failed = ref(false);
 const busy = ref(false);
-const autoRefresh = ref(false);
 const { pageComponent, pageRange, setPageData } = usePage({
   page: { size: 20 },
 });
+watch(
+  compact,
+  (value) => {
+    if (value) {
+      setPageData({
+        layout: ['total', 'prev', 'pager', 'next'],
+        pagerCount: 5,
+      });
+      return;
+    }
+    setPageData({
+      layout: ['slot', 'sizes', 'prev', 'pager', 'next', 'jumper'],
+      pagerCount: 5,
+    });
+  },
+  { immediate: true },
+);
 /** 只有最近请求可以更新列表。 */
 let sequence = 0;
 /** 已提交筛选，轮询不会应用尚未提交的输入。 */
@@ -214,13 +191,11 @@ async function load(reset = false, silent = false): Promise<void> {
     const result = await api('/sys/schedule/list', query);
     if (current !== sequence) return;
     plans.value = result.list;
-    summary.value = result.summary;
     setPageData({ total: result.count });
     failed.value = false;
   } catch {
     if (current === sequence) {
       failed.value = true;
-      autoRefresh.value = false;
     }
   } finally {
     if (current === sequence) {
@@ -230,11 +205,36 @@ async function load(reset = false, silent = false): Promise<void> {
   }
 }
 /**
- * 跳转独立台账并携带计划筛选。
- * @param id 计划标识。
+ * 与资料库页共用行内操作组，删除等低频操作进入“更多”。
+ * @param plan 当前任务及其执行状态。
+ * @returns 按编辑、执行、记录、删除顺序排列的授权操作。
  */
-function showRuns(id: string): void {
-  void router.push({ name: 'monitor.runs', query: { scheduleId: id } });
+function getActions(plan: ScheduleInfo): ActionButtonItem[] {
+  return [
+    {
+      key: 'edit',
+      label: '编辑',
+      isShow: store.hasPermission('actions.schedule.edit'),
+      disabled: busy.value || failed.value,
+      handler: () => editor.value?.open(plan),
+    },
+    {
+      key: 'run',
+      label: '执行一次',
+      isShow: store.hasPermission('actions.schedule.run'),
+      disabled: busy.value || failed.value || plan.active,
+      handler: () => run(plan),
+    },
+    { key: 'records', label: '记录', handler: () => records.value?.open(plan) },
+    {
+      key: 'remove',
+      label: '删除',
+      type: 'danger',
+      isShow: store.hasPermission('actions.schedule.delete'),
+      disabled: busy.value || failed.value,
+      handler: () => operate('remove', plan),
+    },
+  ];
 }
 /**
  * 同一确认操作只生成一次幂等标识。
@@ -249,7 +249,7 @@ async function run(plan: ScheduleInfo): Promise<void> {
       busy.value = true;
       try {
         await api('/sys/schedule/run', { id: plan.id, requestId });
-        notify('success', '任务已入队，可在执行记录查看进度');
+        notify('success', '已提交执行');
         await load();
       } finally {
         busy.value = false;
@@ -263,11 +263,9 @@ async function run(plan: ScheduleInfo): Promise<void> {
  * @param plan 选中计划。
  */
 async function operate(command: string, plan: ScheduleInfo): Promise<void> {
-  let title = `启用“${plan.name}”的自动调度？`;
-  if (plan.enabled)
-    title = `暂停“${plan.name}”的后续调度？已提交任务继续执行。`;
-  if (command === 'remove')
-    title = `删除计划“${plan.name}”？执行记录会保留，已提交任务继续执行。`;
+  let title = '确认启用该任务？';
+  if (plan.enabled) title = '确认暂停该任务？';
+  if (command === 'remove') title = '确认删除该任务？';
   await confirm({
     title,
     confirmCallback: async () => {
@@ -281,7 +279,7 @@ async function operate(command: string, plan: ScheduleInfo): Promise<void> {
             id: plan.id,
             enabled: !plan.enabled,
           });
-        notify('success', '计划已更新');
+        notify('success', '操作成功');
         await load();
       } finally {
         busy.value = false;
@@ -290,7 +288,11 @@ async function operate(command: string, plan: ScheduleInfo): Promise<void> {
   });
 }
 useIntervalFn(() => {
-  if (autoRefresh.value && document.visibilityState === 'visible')
+  if (
+    !failed.value &&
+    plans.value.some((plan) => plan.active) &&
+    document.visibilityState === 'visible'
+  )
     void load(false, true);
 }, 5000);
 onMounted(() => {

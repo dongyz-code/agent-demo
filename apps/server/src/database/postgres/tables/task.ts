@@ -51,7 +51,7 @@ export const tasks = pgTable(
     current_attempt_id: varchar255('current_attempt_id'),
     /** 当前领取生成的 lease，非 running 时为空。 */
     lease_id: varchar255('lease_id'),
-    /** 当前 lease 到期时间。 */
+    /** 本次执行截止时间加退出宽限期，不通过周期心跳延长。 */
     lease_expires_at: timestamptz('lease_expires_at'),
     /** 最终或最近一次执行的稳定错误码。 */
     error_code: varchar255('error_code'),
@@ -63,7 +63,7 @@ export const tasks = pgTable(
     start_timestamp: timestamptz('start_timestamp'),
     /** 最终完成时间。 */
     end_timestamp: timestamptz('end_timestamp'),
-    /** 最近状态、进度或 heartbeat 更新时间。 */
+    /** 最近状态、进度或业务 checkpoint 更新时间。 */
     last_update_timestamp: timestamptz('last_update_timestamp').notNull(),
   },
   (table) => [

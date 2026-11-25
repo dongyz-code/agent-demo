@@ -5,7 +5,7 @@ export type ScheduleSearchForm = {
   /** 持久化启停筛选。 */
   enabled?: boolean;
 };
-/** 触发台账搜索条件，与路由中的计划标识组合。 */
+/** 记录抽屉搜索条件，与抽屉当前计划标识组合。 */
 export type RunSearchForm = {
   /** 计划名称关键字。 */
   search?: string;
@@ -18,6 +18,8 @@ export type RunSearchForm = {
 };
 /** 键名查询按字面包含匹配。 */
 export type CacheSearchForm = {
+  /** 缓存目录中的类型标识，查询和重置使用相同的默认类型。 */
+  name?: string;
   /** 不带应用前缀的键名关键字。 */
   search?: string;
 };

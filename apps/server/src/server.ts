@@ -98,6 +98,7 @@ process.on('exit', (code) => {
 /** 开发退出及部署关闭时停止调度和 Redis 重连；已入队任务由 lease 恢复。 */
 async function shutdown(): Promise<void> {
   stopSchedules();
+  task.stop();
   if (redis.isOpen) redis.destroy();
   await closeDatabase();
   process.exit(0);

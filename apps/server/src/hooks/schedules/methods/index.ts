@@ -3,6 +3,9 @@ import { defineTask } from '@/hooks/tasks/task.js';
 import type { ScheduleHandlerInfo } from '@repo/types';
 import type { TaskEnqueueOptions, TaskHandle } from '@/hooks/tasks/types.js';
 
+/** 汇总导出定时任务业务方法；Worker 仍按各方法文件独立加载执行。 */
+export { default as cleanupUploads } from './upload-cleanup.js';
+
 /** 已注册处理器只暴露描述、参数校验与类型化入队句柄。 */
 interface RegisteredHandler {
   /** 管理端可见的执行策略，不包含任意脚本入口。 */
@@ -17,7 +20,7 @@ const cleanupPolicy = {
   timeoutMs: 300_000,
   retry: { times: 1, delayMs: 5_000 },
 };
-/** 添加处理器时在此登记，一处维护参数规则和任务句柄。 */
+/** 汇总所有定时方法的注册信息；新增方法在本目录实现后于此登记。 */
 const registry = new Map<string, RegisteredHandler>([
   [
     'upload.cleanup',

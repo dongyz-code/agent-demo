@@ -1,5 +1,10 @@
 <template>
-  <el-drawer v-model="visible" title="执行详情" size="min(900px, 100vw)">
+  <el-drawer
+    v-model="visible"
+    title="执行详情"
+    size="min(900px, 100vw)"
+    append-to-body
+  >
     <div class="mb-4 flex items-center justify-between">
       <strong>{{ detail?.run.scheduleName }}</strong>
       <el-button :loading="loading" @click="load">刷新详情</el-button>

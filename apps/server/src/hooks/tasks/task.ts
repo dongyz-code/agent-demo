@@ -186,12 +186,17 @@ export class TaskApi {
   }
 
   /**
-   * 启动 stale 恢复和统一 Dispatcher。
+   * 启动任务事件订阅和统一 Dispatcher。
    *
    * @returns Dispatcher 完成启动后结束。
    */
   async start(): Promise<void> {
     await this.dispatcher.start();
+  }
+
+  /** 停止事件订阅和本实例子进程，禁止退出期间继续领取任务。 */
+  stop(): void {
+    this.dispatcher.stop();
   }
 
   /**

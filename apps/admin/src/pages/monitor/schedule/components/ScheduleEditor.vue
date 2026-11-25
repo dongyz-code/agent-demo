@@ -12,17 +12,13 @@
       ref="formRef"
       :model="form"
       :rules="rules"
-      label-position="top"
+      label-width="88px"
       :disabled="saving"
     >
-      <el-form-item label="计划名称" prop="name">
-        <el-input
-          v-model="form.name"
-          maxlength="120"
-          placeholder="例如：每天清理过期上传"
-        />
+      <el-form-item label="任务名称" prop="name">
+        <el-input v-model="form.name" maxlength="120" />
       </el-form-item>
-      <el-form-item label="任务处理器" prop="handler">
+      <el-form-item label="处理器" prop="handler">
         <el-select
           v-model="form.handler"
           class="w-full"
@@ -35,20 +31,10 @@
             :value="handler.key"
           />
         </el-select>
-        <div v-if="selectedHandler" class="mt-2 text-sm text-gray-600">
-          {{ selectedHandler.description }}
-          <br />
-          执行超时 {{ selectedHandler.timeoutMs / 1000 }} 秒，失败自动重试
-          {{ selectedHandler.retries }} 次。
-        </div>
       </el-form-item>
       <el-form-item label="执行周期" prop="cron">
         <div class="w-full space-y-2">
-          <el-select
-            :model-value="preset"
-            class="w-full"
-            @change="selectPreset"
-          >
+          <el-select v-model="preset" class="w-full" @change="selectPreset">
             <el-option
               v-for="option in cronPresets"
               :key="option.value"
@@ -58,16 +44,14 @@
             <el-option label="自定义 Cron" value="custom" />
           </el-select>
           <el-input
+            v-if="preset === 'custom'"
             v-model="form.cron"
             placeholder="例如：*/10 * * * *"
             @input="previewDates = []"
           />
-          <p class="text-xs text-gray-600">
-            支持五段或六段 Cron；停机错过的时间点默认跳过。
-          </p>
         </div>
       </el-form-item>
-      <el-form-item label="调度时区" prop="timezone">
+      <el-form-item label="时区" prop="timezone">
         <el-select
           v-model="form.timezone"
           class="w-full"
@@ -84,40 +68,28 @@
           />
         </el-select>
       </el-form-item>
-      <div class="mb-5 rounded bg-gray-50 p-3">
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">未来 5 次执行</span>
-          <el-button :loading="previewing" @click="preview">
-            校验并预览
-          </el-button>
+      <el-form-item label="执行时间">
+        <div class="w-full">
+          <el-button :loading="previewing" @click="preview">预览</el-button>
+          <ol
+            v-if="previewDates.length"
+            class="mt-3 space-y-2 text-sm tabular-nums"
+          >
+            <li v-for="date in previewDates" :key="date">
+              {{ previewTime(date) }}
+            </li>
+          </ol>
         </div>
-        <p class="mt-2 text-xs text-gray-600">
-          按所选调度时区展示，保存时服务端会再次校验。
-        </p>
-        <ol
-          v-if="previewDates.length"
-          class="mt-3 space-y-2 text-sm tabular-nums"
-        >
-          <li v-for="date in previewDates" :key="date">
-            {{ previewTime(date) }}
-          </li>
-        </ol>
-        <p v-else class="mt-3 text-sm text-gray-500">
-          配置周期和时区后预览执行时间。
-        </p>
-      </div>
-      <el-form-item label="业务参数（JSON 对象）">
+      </el-form-item>
+      <el-form-item label="参数">
         <el-input
           v-model="paramsText"
           type="textarea"
           :rows="4"
           spellcheck="false"
         />
-        <span class="mt-1 text-xs text-gray-600">
-          参数必须符合处理器要求；上传清理使用空对象 {}。
-        </span>
       </el-form-item>
-      <el-form-item label="运维说明">
+      <el-form-item label="备注">
         <el-input
           v-model="form.description"
           type="textarea"
@@ -125,22 +97,17 @@
           maxlength="2000"
         />
       </el-form-item>
-      <el-form-item label="自动调度">
+      <el-form-item label="状态">
         <el-switch
           v-model="form.enabled"
           active-text="启用"
           inactive-text="暂停"
         />
       </el-form-item>
-      <p class="text-sm text-gray-600">
-        同一计划已有排队、执行或重试中的任务时，自动触发会跳过。暂停不会中断已提交任务。
-      </p>
     </el-form>
     <template #footer>
       <el-button :disabled="saving" @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">
-        保存计划
-      </el-button>
+      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
     </template>
   </el-drawer>
 </template>
@@ -165,7 +132,7 @@ const emit = defineEmits<{ /** 配置持久化后刷新计划页。 */ saved: []
 const visible = ref(false);
 const saving = ref(false);
 const previewing = ref(false);
-const title = ref('新建定时计划');
+const title = ref('新建任务');
 const formRef = ref<FormInstance>();
 const handlers = ref<ScheduleHandlerInfo[]>([]);
 const form = ref<ScheduleInput>(emptyForm());
@@ -174,22 +141,19 @@ const previewDates = ref<string[]>([]);
 const selectedHandler = computed(() =>
   handlers.value.find((item) => item.key === form.value.handler),
 );
-const preset = computed(
-  () =>
-    cronPresets.find((item) => item.value === form.value.cron)?.value ??
-    'custom',
-);
+/** 自定义选项单独保留，允许从预设切换后继续编辑原表达式。 */
+const preset = ref('*/10 * * * *');
 /** 必填字段先在客户端提示，表达式与参数以服务端校验为准。 */
 const rules: FormRules = {
   name: [
     {
       required: true,
       whitespace: true,
-      message: '请输入计划名称',
+      message: '请输入任务名称',
       trigger: 'blur',
     },
   ],
-  handler: [{ required: true, message: '请选择任务处理器' }],
+  handler: [{ required: true, message: '请选择处理器' }],
   cron: [{ required: true, message: '请输入 Cron 表达式' }],
   timezone: [{ required: true, message: '请选择时区' }],
 };
@@ -214,7 +178,7 @@ function emptyForm(): ScheduleInput {
  */
 async function open(plan?: ScheduleInfo): Promise<void> {
   form.value = emptyForm();
-  title.value = '新建定时计划';
+  title.value = '新建任务';
   if (plan) {
     form.value = {
       id: plan.id,
@@ -226,9 +190,12 @@ async function open(plan?: ScheduleInfo): Promise<void> {
       params: plan.params,
       description: plan.description,
     };
-    title.value = '编辑定时计划';
+    title.value = '编辑任务';
   }
   paramsText.value = JSON.stringify(form.value.params, null, 2);
+  preset.value =
+    cronPresets.find((item) => item.value === form.value.cron)?.value ??
+    'custom';
   previewDates.value = [];
   handlers.value = await api('/sys/schedule/handlers', {});
   if (!plan && handlers.value[0]) {
@@ -287,11 +254,11 @@ async function save(): Promise<void> {
   try {
     params = JSON.parse(paramsText.value);
   } catch {
-    notify('error', '业务参数不是有效 JSON');
+    notify('error', '参数不是有效 JSON');
     return;
   }
   if (!params || Array.isArray(params) || typeof params !== 'object') {
-    notify('error', '业务参数必须是 JSON 对象');
+    notify('error', '参数必须是 JSON 对象');
     return;
   }
   saving.value = true;
@@ -303,7 +270,7 @@ async function save(): Promise<void> {
         params: params as Record<string, unknown>,
       },
     });
-    notify('success', '定时计划已保存');
+    notify('success', '保存成功');
     visible.value = false;
     emit('saved');
   } finally {

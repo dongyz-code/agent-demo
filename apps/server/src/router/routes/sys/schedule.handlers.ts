@@ -1,6 +1,6 @@
 import { adminPermissionKey } from '@repo/shared/permission';
 import { routerHandler } from '@/router/utils.js';
-import { scheduleHandlers } from '@/hooks/schedules/handlers.js';
+import { scheduleHandlers } from '@/hooks/schedules/methods/index.js';
 
 const { api } = routerHandler({
   url: '/sys/schedule/handlers',

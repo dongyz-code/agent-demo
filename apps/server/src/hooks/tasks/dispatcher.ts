@@ -5,6 +5,7 @@ import { logger } from '@/configs/index.js';
 import { uuidv7 } from '@/utils/index.js';
 import { findFileByNameSync } from '@repo/utils-node';
 import { TaskDatabase, taskDatabase } from './database.js';
+import { TaskEvents } from './events.js';
 
 import type { ChildProcess } from 'node:child_process';
 import type { TaskLogLevel } from '@repo/types';
@@ -17,13 +18,9 @@ import type {
   TaskWorkerResult,
 } from './types.js';
 
-/** 当前服务实例的 Dispatcher 资源与轮询配置。 */
+/** 当前服务实例的执行资源配置；队列由数据库事件唤醒。 */
 const TASK_DISPATCHER_CONFIG = {
   globalConcurrency: 4,
-  pollIntervalMs: 2_000,
-  heartbeatIntervalMs: 2_000,
-  leaseDurationMs: 15_000,
-  recoveryIntervalMs: 10_000,
   recoveryBatchSize: 100,
   terminateGraceMs: 1_000,
   processMaxOldSpaceSizeMb: 4 * 1024,
@@ -52,17 +49,32 @@ type TaskSettler = (
 ) => Promise<SettleTaskAttemptResult>;
 
 /**
- * 管理当前服务实例的任务轮询、并发、活动进程和失效恢复。
+ * 通过入队和进程事件管理任务并发、活动进程和到期恢复。
  */
 export class TaskDispatcher {
   /** 当前服务进程的唯一 Dispatcher 标识。 */
   private readonly dispatcherId = `${hostname()}:${process.pid}:${uuidv7()}`;
   /** 当前实例已经领取并监督的任务。 */
   private readonly activeExecutions = new Map<string, TaskExecution>();
-  /** 等待任务轮询 timer。 */
-  private pollTimer: ReturnType<typeof setInterval> | undefined;
-  /** 过期 lease 恢复 timer。 */
-  private recoveryTimer: ReturnType<typeof setInterval> | undefined;
+  /** 只为已存在的重试或执行截止时间创建单次唤醒。 */
+  private wakeTimer: ReturnType<typeof setTimeout> | undefined;
+  /** 服务停止后不再领取任务或处理数据库通知。 */
+  private started = false;
+  /** 合并运行期间收到的事件，避免丢失 drain 尚未结束时的新入队。 */
+  private pending = false;
+  /** 重连时检查全部活动进程，补上断线期间错过的取消通知。 */
+  private readonly events = new TaskEvents(async (taskId) => {
+    if (taskId) {
+      const execution = this.activeExecutions.get(taskId);
+      if (execution && !(await execution.isActive()))
+        execution.stop('canceled');
+    } else {
+      for (const execution of this.activeExecutions.values()) {
+        if (!(await execution.isActive())) execution.stop('canceled');
+      }
+    }
+    this.notify();
+  });
   /** 是否正在执行一轮任务领取。 */
   private draining = false;
   /** 是否正在执行一轮过期任务恢复。 */
@@ -75,52 +87,92 @@ export class TaskDispatcher {
    */
   constructor(private readonly database: TaskDatabase = taskDatabase) {}
 
-  /**
-   * 启动任务轮询、失效恢复并立即尝试领取任务。
-   *
-   * @returns Dispatcher 已经启动后结束。
-   */
+  /** 启动数据库事件订阅，并读取一次已持久化队列。 */
   async start(): Promise<void> {
-    if (this.pollTimer) return;
-    await this.recover();
-    this.pollTimer = setInterval(
-      () => this.notify(),
-      TASK_DISPATCHER_CONFIG.pollIntervalMs,
-    );
-    this.pollTimer.unref();
-    this.recoveryTimer = setInterval(() => {
-      void this.recover().catch((error: unknown) => {
+    if (this.started) return;
+    this.started = true;
+    try {
+      await this.events.start();
+      this.notify();
+    } catch (error) {
+      this.stop();
+      throw error;
+    }
+  }
+
+  /** 关闭订阅、单次唤醒和本实例子进程，停止后不再领取队列。 */
+  stop(): void {
+    this.started = false;
+    this.pending = false;
+    clearTimeout(this.wakeTimer);
+    this.wakeTimer = undefined;
+    this.events.stop();
+    for (const execution of this.activeExecutions.values())
+      execution.stop('lease_lost');
+  }
+
+  /** 合并入队、取消、执行完成及截止时间事件，不做固定间隔轮询。 */
+  notify(): void {
+    if (!this.started) return;
+    this.pending = true;
+    queueMicrotask(() => {
+      void this.dispatch().catch((error: unknown) => {
         logger.error(
-          { event: 'task.recovery_failed', err: error },
-          '过期任务恢复失败',
+          { event: 'task.dispatch_failed', err: error },
+          '任务事件调度失败',
         );
+        // 只在数据库操作失败后补一次尝试，避免最后一次通知因瞬时故障丢失。
+        if (this.started) this.wakeAt(new Date(Date.now() + 2000));
       });
-    }, TASK_DISPATCHER_CONFIG.recoveryIntervalMs);
-    this.recoveryTimer.unref();
-    this.notify();
+    });
+  }
+
+  /** 串行消费唤醒事件，结束后仅为实际存在的未来任务安排一次等待。 */
+  private async dispatch(): Promise<void> {
+    if (this.draining || !this.started) return;
+    this.draining = true;
+    try {
+      let checkedAt = new Date();
+      while (this.pending && this.started) {
+        this.pending = false;
+        await this.recover();
+        checkedAt = new Date();
+        await this.drain(checkedAt);
+      }
+      clearTimeout(this.wakeTimer);
+      this.wakeTimer = undefined;
+      const next = await this.database.nextTaskWakeAt(
+        [...this.activeExecutions.keys()],
+        checkedAt,
+      );
+      if (!next || !this.started) return;
+      this.wakeAt(next);
+    } finally {
+      this.draining = false;
+      if (this.pending) this.notify();
+    }
   }
 
   /**
-   * 通知当前实例尽快执行一轮调度。
-   *
-   * @returns 调度进入微任务队列后立即结束。
+   * 替换单次等待；只用于已知任务截止时间或一次故障重试。
+   * @param at 需要重新处理队列的绝对时间。
    */
-  notify(): void {
-    if (!this.pollTimer) return;
-    queueMicrotask(() => {
-      void this.drain().catch((error: unknown) => {
-        logger.error(
-          { event: 'task.worker_drain_failed', err: error },
-          '任务调度失败',
-        );
-      });
-    });
+  private wakeAt(at: Date): void {
+    clearTimeout(this.wakeTimer);
+    this.wakeTimer = setTimeout(
+      () => {
+        this.wakeTimer = undefined;
+        this.notify();
+      },
+      Math.max(1, Math.min(at.getTime() - Date.now(), 2_147_483_647)),
+    );
+    this.wakeTimer.unref();
   }
 
   /**
    * 终止当前实例监督的任务子进程。
    *
-   * 数据库 canceled 状态必须先提交；跨实例任务由 heartbeat 检测后终止。
+   * 数据库 canceled 状态必须先提交；跨实例任务通过事务通知终止。
    *
    * @param taskId 已持久化取消的通用任务标识。
    * @returns 当前实例持有该任务时返回 true。
@@ -137,64 +189,61 @@ export class TaskDispatcher {
   /**
    * 在全局和分组并发空位内领取并启动任务。
    *
+   * @param checkedAt 本轮候选和后续重试等待共用的时间界限。
    * @returns 本轮候选完成领取尝试后结束，不等待任务执行。
    */
-  private async drain(): Promise<void> {
-    if (this.draining) return;
-    this.draining = true;
-    try {
-      const available =
-        TASK_DISPATCHER_CONFIG.globalConcurrency - this.activeExecutions.size;
-      if (available <= 0) return;
-      const candidates = await this.database.listRunnableTaskCandidates(
-        Math.max(available * 10, 20),
-      );
-      for (const candidate of candidates) {
-        if (
-          this.activeExecutions.size >= TASK_DISPATCHER_CONFIG.globalConcurrency
-        ) {
-          break;
-        }
-        let activeGroupCount = 0;
-        for (const active of this.activeExecutions.values()) {
-          if (active.groupName === candidate.groupName) activeGroupCount++;
-        }
-        if (activeGroupCount >= candidate.concurrency) continue;
-        const claimed = await this.database.claimTask(
-          candidate.taskId,
-          this.dispatcherId,
-          TASK_DISPATCHER_CONFIG.leaseDurationMs,
-        );
-        if (!claimed) continue;
-        const execution = new TaskExecution(
-          claimed,
-          this.database,
-          async (input) => await this.database.settleTaskAttempt(input),
-          () => {
-            this.activeExecutions.delete(claimed.taskId);
-            this.notify();
-          },
-        );
-        this.activeExecutions.set(claimed.taskId, execution);
-        void execution.run().catch((error: unknown) => {
-          logger.error(
-            {
-              event: 'task.supervision_failed',
-              taskId: claimed.taskId,
-              scriptPath: claimed.scriptPath,
-              err: error,
-            },
-            '任务子进程监督失败',
-          );
-        });
+  private async drain(checkedAt: Date): Promise<void> {
+    const available =
+      TASK_DISPATCHER_CONFIG.globalConcurrency - this.activeExecutions.size;
+    if (available <= 0) return;
+    const candidates = await this.database.listRunnableTaskCandidates(
+      Math.max(available * 10, 20),
+      checkedAt,
+    );
+    for (const candidate of candidates) {
+      if (
+        !this.started ||
+        this.activeExecutions.size >= TASK_DISPATCHER_CONFIG.globalConcurrency
+      ) {
+        break;
       }
-    } finally {
-      this.draining = false;
+      let activeGroupCount = 0;
+      for (const active of this.activeExecutions.values()) {
+        if (active.groupName === candidate.groupName) activeGroupCount++;
+      }
+      if (activeGroupCount >= candidate.concurrency) continue;
+      const claimed = await this.database.claimTask(
+        candidate.taskId,
+        this.dispatcherId,
+      );
+      if (!claimed) continue;
+      if (!this.started) return;
+      const execution = new TaskExecution(
+        claimed,
+        this.database,
+        async (input) => await this.database.settleTaskAttempt(input),
+        () => {
+          this.activeExecutions.delete(claimed.taskId);
+          this.notify();
+        },
+      );
+      this.activeExecutions.set(claimed.taskId, execution);
+      void execution.run().catch((error: unknown) => {
+        logger.error(
+          {
+            event: 'task.supervision_failed',
+            taskId: claimed.taskId,
+            scriptPath: claimed.scriptPath,
+            err: error,
+          },
+          '任务子进程监督失败',
+        );
+      });
     }
   }
 
   /**
-   * 在启动和运行期间恢复 lease 过期的 running 任务。
+   * 启动、事件唤醒或执行截止时恢复已过期的 running 任务。
    *
    * @returns 当前批次过期 attempt 完成中断收敛后结束。
    */
@@ -224,7 +273,7 @@ export class TaskDispatcher {
 }
 
 /**
- * 监督单个已领取任务的子进程、日志、heartbeat、超时和结果收敛。
+ * 监督单个已领取任务的子进程、日志、超时和结果收敛。
  */
 class TaskExecution {
   /** 已启动的 Node.js 子进程。 */
@@ -237,10 +286,6 @@ class TaskExecution {
   private killTimer: ReturnType<typeof setTimeout> | undefined;
   /** 单次执行超时 timer。 */
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
-  /** heartbeat timer。 */
-  private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
-  /** 当前正在执行的 heartbeat。 */
-  private heartbeatInFlight: Promise<void> | undefined;
   /** stdout/stderr 按顺序落库的 Promise 链。 */
   private logQueue: Promise<void> = Promise.resolve();
   /** stdout 尚未遇到换行的尾部数据。 */
@@ -293,7 +338,6 @@ class TaskExecution {
         level: 'info',
         message: `任务子进程已启动，PID：${this.child.pid}`,
       });
-      this.startHeartbeat();
       this.timeoutTimer = setTimeout(() => {
         void this.handleTimeout();
       }, this.claimed.timeoutMs);
@@ -326,7 +370,7 @@ class TaskExecution {
             scriptPath: this.claimed.scriptPath,
             err: error,
           },
-          '任务结果收敛失败，将由过期 lease 恢复流程处理',
+          '任务结果写入失败，将在执行截止时间恢复',
         );
         return;
       }
@@ -399,49 +443,15 @@ class TaskExecution {
     });
   }
 
-  // 运行守卫：heartbeat、超时与分级终止。
-
-  /**
-   * 启动当前任务 heartbeat，续租失败时终止子进程。
-   *
-   * @returns timer 建立完成后结束。
-   */
-  private startHeartbeat(): void {
-    this.heartbeatTimer = setInterval(() => {
-      if (this.heartbeatInFlight) return;
-      this.heartbeatInFlight = this.heartbeat().finally(() => {
-        this.heartbeatInFlight = undefined;
-      });
-    }, TASK_DISPATCHER_CONFIG.heartbeatIntervalMs);
-    this.heartbeatTimer.unref();
+  /** 判断数据库是否仍允许当前执行，用于收到取消通知后终止子进程。 */
+  async isActive(): Promise<boolean> {
+    return await this.database.assertTaskLeaseActive(
+      this.claimed.taskId,
+      this.claimed.leaseId,
+    );
   }
 
-  /**
-   * 执行一次续租，数据库状态变化或异常时终止子进程。
-   *
-   * @returns 续租或必要的终止请求完成后结束。
-   */
-  private async heartbeat(): Promise<void> {
-    try {
-      const renewed = await this.database.renewTaskLease(
-        this.claimed.taskId,
-        this.claimed.leaseId,
-        TASK_DISPATCHER_CONFIG.leaseDurationMs,
-      );
-      if (renewed) return;
-    } catch (error) {
-      logger.error(
-        {
-          event: 'task.heartbeat_failed',
-          taskId: this.claimed.taskId,
-          err: error,
-        },
-        '任务续租失败，正在终止子进程',
-      );
-    }
-    if (!this.stopReason) this.stopReason = 'lease_lost';
-    this.terminateWorker();
-  }
+  // 运行守卫：单次超时与分级终止。
 
   /**
    * 处理单次执行超时并终止子进程。
@@ -451,6 +461,7 @@ class TaskExecution {
   private async handleTimeout(): Promise<void> {
     if (this.stopReason) return;
     this.stopReason = 'timed_out';
+    this.terminateWorker();
     try {
       await this.database.appendTaskLog({
         taskId: this.claimed.taskId,
@@ -467,8 +478,6 @@ class TaskExecution {
         },
         '任务超时日志写入失败',
       );
-    } finally {
-      this.terminateWorker();
     }
   }
 
@@ -491,15 +500,13 @@ class TaskExecution {
   }
 
   /**
-   * 清理 timeout、heartbeat、kill timer 并等待正在执行的续租。
+   * 清理本次执行的超时和强制退出等待。
    *
-   * @returns 所有进行中的 heartbeat 完成后结束。
+   * @returns 本次执行不再持有计时器后结束。
    */
   private async stopTimers(): Promise<void> {
     clearTimeout(this.timeoutTimer);
     clearTimeout(this.killTimer);
-    clearInterval(this.heartbeatTimer);
-    await this.heartbeatInFlight;
   }
 
   // 输出持久化：按流拆行，并保持同一任务内的写入顺序。

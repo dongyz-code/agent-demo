@@ -19,13 +19,12 @@ export const routeNameMap = {
   'system.app-log': '接口日志',
   'system.user-log': '操作日志',
   'system.task': '任务管理',
-  'system.table': '表管理',
 
   /** 系统监控页面与后台运行时的状态入口。 */
   monitor: '系统监控',
   'monitor.schedule': '定时任务',
-  'monitor.runs': '执行记录',
-  'monitor.cache': '缓存监控',
+  'monitor.cache': '缓存管理',
+  'monitor.table': '表管理',
 
   /** ============ 文档中心相关 ============ */
 

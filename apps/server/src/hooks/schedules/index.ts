@@ -6,24 +6,27 @@ import {
   gte,
   ilike,
   inArray,
-  isNotNull,
-  lt,
   lte,
-  or,
   sql,
 } from 'drizzle-orm';
 import { db, schemas } from '@/database/index.js';
-import { ROOT_ERROR, logger } from '@/configs/index.js';
+import { ROOT_ERROR } from '@/configs/index.js';
 import { uuidv7 } from '@/utils/index.js';
 import { task } from '@/hooks/tasks/task.js';
 import { taskDispatcher } from '@/hooks/tasks/dispatcher.js';
 import { normalizeTaskPage } from '@/hooks/tasks/policies.js';
 import { nextScheduleDates } from './policy.js';
 import {
+  notifyScheduleChange,
+  refreshScheduleJobs,
+  startScheduleJobs,
+  stopScheduleJobs,
+} from './runtime.js';
+import {
   enqueueSchedule,
   scheduleHandlers,
   validateHandler,
-} from './handlers.js';
+} from './methods/index.js';
 import type { ScheduleInfo, ScheduleInput, ScheduleRunInfo } from '@repo/types';
 import type { TaskTransaction } from '@/hooks/tasks/types.js';
 
@@ -173,7 +176,9 @@ export async function saveSchedule(
         .insert(schemas.schedules)
         .values({ ...data, id, created_at: new Date() });
     await auditMonitor('schedule.save', id, actor, tx);
+    await notifyScheduleChange(tx, id);
   });
+  await refreshScheduleJobs(id);
   return { id };
 }
 
@@ -225,7 +230,9 @@ export async function toggleSchedule(
     let action = 'schedule.toggle';
     if (remove) action = 'schedule.remove';
     await auditMonitor(action, id, actor, tx);
+    await notifyScheduleChange(tx, id);
   });
+  await refreshScheduleJobs(id);
 }
 
 /**
@@ -310,69 +317,76 @@ export async function runSchedule(
 }
 
 /**
- * 领取最多 50 个到期计划，锁行、入队、触发记录和推进时间在同一事务。
- * @param now 统一计算时钟，测试可注入。
- * @returns 本轮入队数量。
+ * 接收 Croner 到点回调，锁定当前计划并原子记录触发、入队和下次时间。
+ * @param id 计划标识。
+ * @param cron 计时器对应的表达式，用于拒绝修改前尚未结束的回调。
+ * @param timezone 计时器对应的时区。
+ * @param plannedAt Croner 安排的本次触发时间，同一时间只能提交一次。
+ * @param now 实际处理时间，供验证延迟和停机跳过规则。
+ * @returns 成功入队返回 1；重复、过期配置或跳过返回 0。
  */
-export async function tickSchedules(now = new Date()): Promise<number> {
+export async function triggerSchedule(
+  id: string,
+  cron: string,
+  timezone: string,
+  plannedAt: Date,
+  now = new Date(),
+): Promise<number> {
   const enqueued = await db.transaction(async (tx) => {
-    const plans = await tx
+    const [plan] = await tx
       .select()
       .from(schemas.schedules)
       .where(
         and(
+          eq(schemas.schedules.id, id),
           eq(schemas.schedules.enabled, true),
           eq(schemas.schedules.deleted, false),
-          lte(schemas.schedules.next_run_at, now),
+          eq(schemas.schedules.cron, cron),
+          eq(schemas.schedules.timezone, timezone),
+          lte(schemas.schedules.next_run_at, plannedAt),
         ),
       )
-      .orderBy(schemas.schedules.next_run_at)
-      .limit(50)
-      .for('update', { skipLocked: true });
-    let enqueued = 0;
-    for (const plan of plans) {
-      const plannedAt = plan.next_run_at!;
-      let message: string | null = null;
-      let taskId: string | null = null;
-      let next: Date | null = null;
-      try {
-        validateHandler(plan.handler, plan.params);
-        next = nextScheduleDates(plan.cron, plan.timezone, now, 1)[0]!;
-        if (now.getTime() - plannedAt.getTime() > 5000)
-          message = '错过计划时间，按停机不补跑策略跳过';
-      } catch {
-        next = null;
-        message = '处理器或计划配置已失效，已自动停用，请检查配置';
-      }
-      if (!message && (await hasActive(tx, plan.id)))
-        message = '上一次任务尚未结束，本次触发跳过';
-      // 数据库与入队错误不能作为配置错误吞掉，必须回滚领取和时间推进。
-      if (!message) {
-        taskId = await enqueueSchedule(plan.handler, plan.params, {
-          actorUserId: null,
-          title: plan.name,
-          correlationId: `schedule:${plan.id}`,
-          transaction: tx,
-        });
-        enqueued += 1;
-      }
-      await tx.insert(schemas.schedule_runs).values({
-        id: uuidv7(),
-        schedule_id: plan.id,
-        schedule_name: plan.name,
-        trigger: 'scheduled',
-        dedupe_key: plannedAt.toISOString(),
-        planned_at: plannedAt,
-        task_id: taskId,
-        message,
-        created_at: now,
-      });
-      await tx
-        .update(schemas.schedules)
-        .set({ next_run_at: next, enabled: next !== null, updated_at: now })
-        .where(eq(schemas.schedules.id, plan.id));
+      .for('update');
+    if (!plan || plannedAt > now) return 0;
+    let message: string | null = null;
+    let taskId: string | null = null;
+    let next: Date | null = null;
+    try {
+      validateHandler(plan.handler, plan.params);
+      next = nextScheduleDates(plan.cron, plan.timezone, now, 1)[0]!;
+      if (now.getTime() - plannedAt.getTime() > 5000)
+        message = '错过计划时间，按停机不补跑策略跳过';
+    } catch {
+      message = '处理器或计划配置已失效，已自动停用，请检查配置';
     }
-    return enqueued;
+    if (!message && (await hasActive(tx, plan.id)))
+      message = '上一次任务尚未结束，本次触发跳过';
+    if (!message) {
+      taskId = await enqueueSchedule(plan.handler, plan.params, {
+        actorUserId: null,
+        title: plan.name,
+        correlationId: `schedule:${plan.id}`,
+        transaction: tx,
+      });
+    }
+    await tx.insert(schemas.schedule_runs).values({
+      id: uuidv7(),
+      schedule_id: plan.id,
+      schedule_name: plan.name,
+      trigger: 'scheduled',
+      dedupe_key: plannedAt.toISOString(),
+      planned_at: plannedAt,
+      task_id: taskId,
+      message,
+      created_at: now,
+    });
+    await tx
+      .update(schemas.schedules)
+      .set({ next_run_at: next, enabled: next !== null, updated_at: now })
+      .where(eq(schemas.schedules.id, plan.id));
+    if (!next) await notifyScheduleChange(tx, id);
+    if (taskId) return 1;
+    return 0;
   });
   if (enqueued) taskDispatcher.notify();
   return enqueued;
@@ -581,83 +595,8 @@ export async function scheduleRunDetail(id: string) {
   return { run: presentRun(row), task: detail, logs };
 }
 
-/** 分批删除 30 天前已终结的调度执行与日志；活动任务永远保留。 */
-async function pruneHistory(): Promise<void> {
-  const before = new Date(Date.now() - 30 * 86_400_000);
-  await db.transaction(async (tx) => {
-    const rows = await tx
-      .select({
-        id: schemas.schedule_runs.id,
-        taskId: schemas.schedule_runs.task_id,
-      })
-      .from(schemas.schedule_runs)
-      .leftJoin(
-        schemas.tasks,
-        eq(schemas.tasks.task_id, schemas.schedule_runs.task_id),
-      )
-      .where(
-        and(
-          lt(schemas.schedule_runs.planned_at, before),
-          or(
-            sql`${schemas.schedule_runs.task_id} is null`,
-            and(
-              isNotNull(schemas.tasks.end_timestamp),
-              lt(schemas.tasks.end_timestamp, before),
-            ),
-          ),
-        ),
-      )
-      .limit(100);
-    const taskIds = rows.flatMap((row) => (row.taskId ? [row.taskId] : []));
-    if (taskIds.length) {
-      await tx
-        .delete(schemas.task_logs)
-        .where(inArray(schemas.task_logs.task_id, taskIds));
-      await tx
-        .delete(schemas.task_attempts)
-        .where(inArray(schemas.task_attempts.task_id, taskIds));
-      await tx
-        .delete(schemas.tasks)
-        .where(inArray(schemas.tasks.task_id, taskIds));
-    }
-    if (rows.length)
-      await tx.delete(schemas.schedule_runs).where(
-        inArray(
-          schemas.schedule_runs.id,
-          rows.map((row) => row.id),
-        ),
-      );
-    // 审计按同样的批次预算保留 90 天。
-    const audits = await tx
-      .select({ id: schemas.monitor_audits.id })
-      .from(schemas.monitor_audits)
-      .where(
-        lt(
-          schemas.monitor_audits.created_at,
-          new Date(Date.now() - 90 * 86_400_000),
-        ),
-      )
-      .limit(100);
-    if (audits.length)
-      await tx.delete(schemas.monitor_audits).where(
-        inArray(
-          schemas.monitor_audits.id,
-          audits.map((row) => row.id),
-        ),
-      );
-  });
-}
-
-/** 当前进程只保留轮询标识，所有业务状态均在数据库。 */
-let timer: ReturnType<typeof setInterval> | undefined;
-/** 防止同一进程重复轮询，跨实例通过数据库行锁协调。 */
-let ticking = false;
-/** 最近一次历史清理时间。 */
-let lastPrunedAt = 0;
-
-/** 启动幂等种子与轮询；已有配置和删除意愿绝不覆盖。 */
+/** 从数据库恢复启用计划；内置配置仅首次插入，已有修改和删除状态保持不变。 */
 export async function startSchedules(): Promise<void> {
-  if (timer) return;
   const now = new Date();
   await db
     .insert(schemas.schedules)
@@ -675,31 +614,30 @@ export async function startSchedules(): Promise<void> {
       updated_at: now,
     })
     .onConflictDoNothing();
-  timer = setInterval(() => {
-    if (ticking) return;
-    ticking = true;
-    void (async () => {
-      await tickSchedules();
-      if (Date.now() - lastPrunedAt > 60_000) {
-        await pruneHistory();
-        lastPrunedAt = Date.now();
-      }
-    })()
-      .catch((error: unknown) =>
-        logger.error(
-          { event: 'schedule.tick_failed', err: error },
-          '计划调度失败，将在下一轮重试',
-        ),
-      )
-      .finally(() => {
-        ticking = false;
-      });
-  }, 1000);
-  timer.unref();
+  // 仅在启动时处理停机留下的触发点，不轮询到期计划，也不回放停机期间的全部次数。
+  const overdue = await db
+    .select()
+    .from(schemas.schedules)
+    .where(
+      and(
+        eq(schemas.schedules.enabled, true),
+        eq(schemas.schedules.deleted, false),
+        lte(schemas.schedules.next_run_at, now),
+      ),
+    );
+  for (const plan of overdue) {
+    await triggerSchedule(
+      plan.id,
+      plan.cron,
+      plan.timezone,
+      plan.next_run_at!,
+      now,
+    );
+  }
+  await startScheduleJobs(triggerSchedule);
 }
 
-/** 停止轮询，不取消已入队任务，供优雅关闭和集成验证使用。 */
+/** 停止 Croner 计时器与配置订阅，不取消已经入队的任务。 */
 export function stopSchedules(): void {
-  clearInterval(timer);
-  timer = undefined;
+  stopScheduleJobs();
 }

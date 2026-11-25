@@ -39,7 +39,6 @@ export const adminMenu: AdminMenuItem[] = [
       helperRouterName('system.app-log'),
       helperRouterName('system.user-log'),
       helperRouterName('system.task'),
-      helperRouterName('system.table'),
     ],
   },
   {
@@ -48,8 +47,8 @@ export const adminMenu: AdminMenuItem[] = [
     shell: 'monitor',
     children: [
       helperRouterName('monitor.schedule'),
-      helperRouterName('monitor.runs'),
       helperRouterName('monitor.cache'),
+      helperRouterName('monitor.table'),
     ],
   },
 ];

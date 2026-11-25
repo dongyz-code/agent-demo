@@ -2,7 +2,7 @@ import { upload } from '@/hooks/upload/index.js';
 import type { TaskRunContext } from '@/hooks/tasks/types.js';
 
 /**
- * 上传清理仅接受空参数，执行日志由任务中心持久化。
+ * 在任务子进程中清理过期上传；仅接受空参数，执行日志由任务中心持久化。
  * @param _data 空参数对象。
  * @param context 任务执行上下文。
  */

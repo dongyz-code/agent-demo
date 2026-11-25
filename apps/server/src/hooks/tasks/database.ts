@@ -9,12 +9,14 @@ import {
   inArray,
   lt,
   lte,
+  notInArray,
   or,
   sql,
 } from 'drizzle-orm';
 
 import { db, pgAdvisoryXactLock, schemas } from '@/database/index.js';
 import { uuidv7 } from '@/utils/index.js';
+import { notifyTaskChange } from './events.js';
 import type {
   TaskAttemptStatus,
   TaskLogLevel,
@@ -166,6 +168,7 @@ export class TaskDatabase {
         end_timestamp: null,
         last_update_timestamp: now,
       });
+      await notifyTaskChange(transaction, taskId);
       await this.appendTaskLog(
         {
           taskId,
@@ -400,6 +403,7 @@ export class TaskDatabase {
         return false;
       }
       const now = new Date();
+      await notifyTaskChange(tx, taskId);
       const errorCode = options.errorCode ?? 'TASK_CANCELED';
       const message = options.message ?? '任务已取消';
       await tx
@@ -456,18 +460,19 @@ export class TaskDatabase {
    * 暂时不可领取的任务占满。
    *
    * @param limit 最大候选数量。
+   * @param checkedAt 本轮领取和后续等待共用的时间界限，避免查询之间漏掉刚到期的重试。
    * @returns 按创建时间排列的候选任务。
    */
   async listRunnableTaskCandidates(
     limit: number,
+    checkedAt = new Date(),
   ): Promise<RunnableTaskCandidate[]> {
     if (limit <= 0) return [];
-    const now = new Date();
     const runnable = or(
       eq(schemas.tasks.status, 'queued'),
       and(
         eq(schemas.tasks.status, 'retrying'),
-        lte(schemas.tasks.next_run_at, now),
+        lte(schemas.tasks.next_run_at, checkedAt),
       ),
     );
     // 原始 sql 片段里的别名表只会输出别名，子查询必须带上真实表名。
@@ -494,13 +499,11 @@ export class TaskDatabase {
    *
    * @param taskId 候选任务标识。
    * @param dispatcherId 当前持有任务 lease 的服务调度实例标识。
-   * @param leaseDurationMs 单次 lease 有效期。
    * @returns 领取成功后的监督快照；状态或分组并发不允许时返回 undefined。
    */
   async claimTask(
     taskId: string,
     dispatcherId: string,
-    leaseDurationMs: number,
   ): Promise<ClaimedTask | undefined> {
     return await this.connection.transaction(async (tx) => {
       const now = new Date();
@@ -515,6 +518,7 @@ export class TaskDatabase {
         .select({
           groupName: schemas.tasks.group_name,
           concurrency: schemas.tasks.concurrency,
+          timeoutMs: schemas.tasks.timeout_ms,
         })
         .from(schemas.tasks)
         .where(and(eq(schemas.tasks.task_id, taskId), runnable))
@@ -534,7 +538,10 @@ export class TaskDatabase {
       if ((running?.value ?? 0) >= candidate.concurrency) return;
       const attemptId = uuidv7();
       const leaseId = uuidv7();
-      const leaseExpiresAt = new Date(now.getTime() + leaseDurationMs);
+      // 执行权覆盖本次允许的运行时长和退出宽限期，无需周期心跳续租。
+      const leaseExpiresAt = new Date(
+        now.getTime() + candidate.timeoutMs + 5000,
+      );
       const [claimed] = await tx
         .update(schemas.tasks)
         .set({
@@ -580,6 +587,8 @@ export class TaskDatabase {
         start_timestamp: now,
         end_timestamp: null,
       });
+      // 其他实例收到领取结果后才能安排该任务的到期恢复等待。
+      await notifyTaskChange(tx, taskId);
       return {
         taskId,
         scriptPath: claimed.scriptPath,
@@ -616,31 +625,6 @@ export class TaskDatabase {
         ),
       )
       .returning({ attemptId: schemas.task_attempts.attempt_id });
-    return Boolean(updated);
-  }
-
-  /**
-   * 延长当前 Dispatcher 持有的任务 lease。
-   *
-   * @param taskId 通用任务标识。
-   * @param leaseId 当前领取生成的 lease。
-   * @param leaseDurationMs 新 lease 有效期。
-   * @returns 任务仍为当前 lease 所有时返回 true。
-   */
-  async renewTaskLease(
-    taskId: string,
-    leaseId: string,
-    leaseDurationMs: number,
-  ): Promise<boolean> {
-    const now = new Date();
-    const [updated] = await this.connection
-      .update(schemas.tasks)
-      .set({
-        lease_expires_at: new Date(now.getTime() + leaseDurationMs),
-        last_update_timestamp: now,
-      })
-      .where(this.activeLeaseWhere(taskId, leaseId))
-      .returning({ taskId: schemas.tasks.task_id });
     return Boolean(updated);
   }
 
@@ -779,6 +763,7 @@ export class TaskDatabase {
         return { settled: false, retryScheduled: false };
       }
       const now = new Date();
+      await notifyTaskChange(tx, input.taskId);
       if (input.outcome === 'succeeded') {
         let result: unknown = null;
         if (input.result !== undefined) {
@@ -940,6 +925,37 @@ export class TaskDatabase {
       )
       .orderBy(asc(schemas.tasks.lease_expires_at))
       .limit(limit);
+  }
+
+  /**
+   * 读取真实存在的下一次重试或执行截止时间，供调度器安排单次唤醒。
+   * @param supervisedTaskIds 本实例已监督的任务，由子进程超时和退出事件负责，无需重复等待。
+   * @param checkedAt 本轮领取查询的时间界限；此后到期的重试仍需一次唤醒。
+   * @returns 没有等待重试或运行任务时返回 null，空闲时不创建计时器。
+   */
+  async nextTaskWakeAt(
+    supervisedTaskIds: string[] = [],
+    checkedAt = new Date(),
+  ): Promise<Date | null> {
+    const runningConditions = [eq(schemas.tasks.status, 'running')];
+    if (supervisedTaskIds.length) {
+      runningConditions.push(
+        notInArray(schemas.tasks.task_id, supervisedTaskIds),
+      );
+    }
+    const [result] = await this.connection
+      .select({
+        at: sql<string | null>`min(case
+        when ${schemas.tasks.status} = 'retrying' and ${schemas.tasks.next_run_at} > ${checkedAt} then ${schemas.tasks.next_run_at}
+        when ${schemas.tasks.status} = 'running' then ${schemas.tasks.lease_expires_at}
+      end)`,
+      })
+      .from(schemas.tasks)
+      .where(
+        or(eq(schemas.tasks.status, 'retrying'), and(...runningConditions)),
+      );
+    if (!result?.at) return null;
+    return new Date(result.at);
   }
 
   // 共享 SQL 守卫：只保留多处复用且影响并发安全的条件。

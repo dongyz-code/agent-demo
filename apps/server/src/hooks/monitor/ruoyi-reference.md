@@ -47,3 +47,18 @@
 ## 结论
 
 可直接参考若依的任务状态管理、手动执行、执行日志、缓存概览及按范围清理等功能概念；权限应在服务端执行。当前项目更适合以已注册任务和已注册缓存为边界，保留进程内运行事实，避免动态代码调用、SDK 值泄露以及假 Redis 指标。导出、任务编辑、持久化调度和跨实例协调需要独立需求，不属于完成这两个监控入口的必要条件。
+
+## 补充：若依与 Quartz 的后台检查机制
+
+核对日期：2026-11-25。若依取官方 `master`，Quartz 内部机制以官方 `v2.5.1` 源码为依据；后者用于说明机制，不表示已核实若依最终依赖解析得到该版本。
+
+**若依没有在应用业务层实现“每 2 秒查任务 + 每 2 秒更新运行心跳 + 每 10 秒恢复”的三组循环。** [SysJobServiceImpl.init](https://github.com/yangzongzhuan/RuoYi-Vue/blob/master/ruoyi-quartz/src/main/java/com/ruoyi/quartz/service/impl/SysJobServiceImpl.java) 启动时读取任务表并注册任务；新增、修改、暂停和恢复通过 Quartz 的 `Scheduler` API 同步。[ScheduleUtils.createScheduleJob](https://github.com/yangzongzhuan/RuoYi-Vue/blob/master/ruoyi-quartz/src/main/java/com/ruoyi/quartz/util/ScheduleUtils.java) 根据 Cron 创建 Trigger 并调用 `scheduler.scheduleJob`，同时映射任务的 misfire 策略。业务层把调度交给 Quartz，不需要自己按固定间隔重新扫描业务任务表。
+
+但是，“交给 Quartz”不能表述为“整个系统没有定时等待或周期检查”：
+
+- [QuartzSchedulerThread](https://github.com/quartz-scheduler/quartz/blob/v2.5.1/quartz/src/main/java/org/quartz/core/QuartzSchedulerThread.java) 调用 `JobStore.acquireNextTriggers` 获取后续 Trigger，按最近触发时间执行可被调度变更信号唤醒的等待；无 Trigger 时也会等待后再检查，源码中的基础空闲等待值为 30 秒并加入随机变化。这不是业务层每 2 秒全量查任务，但仍然存在内部循环和超时等待。
+- 若依当前 [ScheduleConfig](https://github.com/yangzongzhuan/RuoYi-Vue/blob/master/ruoyi-quartz/src/main/java/com/ruoyi/quartz/config/ScheduleConfig.java) **整个类已被注释**，注释说明默认走内存；不能把其中的集群参数当作默认生效配置。Quartz 的[默认配置文件](https://github.com/quartz-scheduler/quartz/blob/v2.5.1/quartz/src/main/resources/org/quartz/quartz.properties) 使用 `RAMJobStore`，其 [acquireNextTriggers/applyMisfire](https://github.com/quartz-scheduler/quartz/blob/v2.5.1/quartz/src/main/java/org/quartz/simpl/RAMJobStore.java) 在获取 Trigger 时处理 misfire。该默认模式不启动 JDBC JobStore 的集群 check-in 线程。
+- 若启用若依上述 JDBC 集群配置，示例参数为 `isClustered=true`、`clusterCheckinInterval=15000`、`misfireThreshold=12000`。Quartz [JobStoreSupport](https://github.com/quartz-scheduler/quartz/blob/v2.5.1/quartz/src/main/java/org/quartz/impl/jdbcjobstore/JobStoreSupport.java) 会启动 `MisfireHandler`，周期扫描错过的 Trigger；没有更多积压时，其等待按 misfire 阈值扣除处理耗时计算，有积压和错误时另有等待规则。`misfireThreshold` 是判断迟到的阈值，不能简单解释为保证每隔固定秒数执行的业务恢复周期。
+- 同一 [JobStoreSupport](https://github.com/quartz-scheduler/quartz/blob/v2.5.1/quartz/src/main/java/org/quartz/impl/jdbcjobstore/JobStoreSupport.java) 仅在集群模式启动 `ClusterManager`，按 check-in 间隔更新调度器实例状态、检查失联实例，并在需要时执行 `clusterRecover`；不是按每个正在运行的任务写业务心跳。故障判定还包含记录的 check-in 间隔、当前节点检查延迟及额外容差，不能把 15 秒 check-in 等同于 15 秒内必然完成恢复。非集群 JDBC 模式在启动时执行 `recoverJobs`。
+
+因此，若依能支持的参考结论是：**应用层注册和更新任务，调度框架内部负责等待、获取 Trigger、misfire 及可选的集群协调。** 当前项目的任务扫描、运行心跳和失联恢复周期属于自身调度器的实现选择；可以据需求简化或交由适合的框架，但不能以“若依完全没有周期检查”为依据直接删掉。

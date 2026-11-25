@@ -6,7 +6,7 @@ import { listScheduleRuns } from '@/hooks/schedules/index.js';
 const { api } = routerHandler({
   url: '/sys/schedule/runs',
   method: 'POST',
-  permission: adminPermissionKey('pages.monitor.runs'),
+  permission: adminPermissionKey('pages.monitor.schedule'),
   schema: {
     body: {
       type: 'object',

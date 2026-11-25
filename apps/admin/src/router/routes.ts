@@ -45,7 +45,7 @@ export const routes: RouteItem<RouteName, Meta>[] = [
           },
         ],
       },
-      /** ============ 系统管理相关 ============ */
+      /** ============ 系统监控相关 ============ */
       {
         path: 'monitor',
         name: 'monitor',
@@ -60,12 +60,6 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             },
           },
           {
-            path: 'runs',
-            name: 'monitor.runs',
-            component: () => import('@/pages/monitor/runs/index.vue'),
-            meta: { permissions: [adminPermissionKey('pages.monitor.runs')] },
-          },
-          {
             path: 'cache',
             name: 'monitor.cache',
             component: () => import('@/pages/monitor/cache/index.vue'),
@@ -73,8 +67,17 @@ export const routes: RouteItem<RouteName, Meta>[] = [
               permissions: [adminPermissionKey('pages.monitor.cache')],
             },
           },
+          {
+            path: 'table',
+            name: 'monitor.table',
+            component: () => import('@/pages/system/table/index.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.sys.sys.table')],
+            },
+          },
         ],
       },
+      /** ============ 系统管理相关 ============ */
       {
         path: 'system',
         name: 'system',
@@ -134,14 +137,6 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             component: () => import('@/pages/system/task/index.vue'),
             meta: {
               permissions: [adminPermissionKey('pages.sys.sys.task')],
-            },
-          },
-          {
-            path: 'table',
-            name: 'system.table',
-            component: () => import('@/pages/system/table/index.vue'),
-            meta: {
-              permissions: [adminPermissionKey('pages.sys.sys.table')],
             },
           },
         ],

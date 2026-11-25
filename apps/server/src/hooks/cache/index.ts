@@ -1,6 +1,6 @@
 import { createClient } from 'redis';
 import { ROOT, logger } from '@/configs/index.js';
-import type { CacheInfo, RedisOverview } from '@repo/types';
+import type { CacheInfo, RedisStatus } from '@repo/types';
 
 /** 只允许应用自行声明空间，不接受管理请求注册任意键前缀。 */
 export const cacheSpaces: CacheInfo[] = [
@@ -170,54 +170,22 @@ export async function invalidateCache(
 }
 
 /**
- * 把 Redis INFO 协议解析为平面字段。
- * @param info Redis 原始信息。
- * @returns 字段字典。
+ * 通过有超时限制的 PING 检查连接，不再读取实例 INFO 或要求其权限。
+ * @returns 连接是否可用及不包含凭据的故障提示；离线时业务缓存会回源。
  */
-export function parseRedisInfo(info: string): Record<string, string> {
-  const fields: Record<string, string> = {};
-  for (const line of info.split('\r\n')) {
-    const index = line.indexOf(':');
-    if (index > 0 && !line.startsWith('#'))
-      fields[line.slice(0, index)] = line.slice(index + 1);
-  }
-  return fields;
-}
-
-/**
- * 获取安全白名单指标，指标统计范围为整个 Redis 实例。
- * @returns 健康与资源快照。
- */
-export async function redisOverview(): Promise<RedisOverview> {
-  const result: RedisOverview = {
+export async function redisStatus(): Promise<RedisStatus> {
+  const result: RedisStatus = {
     connected: false,
     error: null,
-    prefix: cachePrefix,
-    collectedAt: new Date().toISOString(),
-    metrics: {},
   };
   if (!redis.isReady)
     return { ...result, error: 'Redis 尚未连接，业务缓存当前回源读取' };
   try {
-    const info = parseRedisInfo(await redis.info());
-    const keys = [
-      'redis_version',
-      'uptime_in_seconds',
-      'used_memory',
-      'used_memory_human',
-      'maxmemory',
-      'maxmemory_human',
-      'connected_clients',
-      'keyspace_hits',
-      'keyspace_misses',
-      'evicted_keys',
-      'expired_keys',
-      'instantaneous_ops_per_sec',
-    ];
-    for (const key of keys) result.metrics[key] = info[key] ?? '0';
+    await redis.ping();
     result.connected = true;
   } catch {
-    result.error = 'Redis 指标读取失败，请检查连接及 INFO 权限';
+    result.error =
+      'Redis 连接检查失败，业务缓存当前回源读取，请恢复连接后重新扫描';
   }
   return result;
 }

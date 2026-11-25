@@ -1,5 +1,5 @@
 import { dayJsformat } from '@repo/utils-browser';
-import type { ScheduleRunInfo } from '@/types';
+import type { CacheInfo, ScheduleRunInfo } from '@/types';
 import type { SchemaFormColumn, TableRow } from '@repo/ui';
 import type {
   ScheduleSearchForm,
@@ -19,13 +19,13 @@ export const cronPresets = [
 export const scheduleSearchColumns: SchemaFormColumn<ScheduleSearchForm>[] = [
   {
     dataIndex: 'search',
-    title: '计划名称',
+    title: '任务名称',
     valueType: 'text',
-    fieldProps: { clearable: true, placeholder: '搜索计划名称' },
+    fieldProps: { clearable: true },
   },
   {
     dataIndex: 'enabled',
-    title: '调度状态',
+    title: '状态',
     valueType: 'select',
     valueEnum: { true: '已启用', false: '已暂停' },
     fieldProps: { clearable: true },
@@ -42,11 +42,11 @@ export const runLabels: Record<ScheduleRunInfo['status'], string> = {
   canceled: '已取消',
   skipped: '已跳过',
 };
-/** 执行记录独立筛选，可直接定位失败与人工操作。 */
+/** 记录抽屉支持查询全部计划，或仅筛选当前计划的执行结果。 */
 export const runSearchColumns: SchemaFormColumn<RunSearchForm>[] = [
   {
     dataIndex: 'search',
-    title: '计划名称',
+    title: '任务名称',
     valueType: 'text',
     fieldProps: { clearable: true },
   },
@@ -73,38 +73,72 @@ export const runSearchColumns: SchemaFormColumn<RunSearchForm>[] = [
 ];
 /** 计划列表聚焦调度配置和最近结果，详细参数放入编辑抽屉。 */
 export const scheduleRows: TableRow[] = [
-  { label: '计划名称', value: 'name', slot: 'name', minWidth: 210 },
+  { label: '任务名称', value: 'name', slot: 'name', minWidth: 210 },
   { label: '执行周期', value: 'cron', slot: 'cron', minWidth: 170 },
-  { label: '调度', value: 'enabled', slot: 'enabled', width: 90 },
+  { label: '状态', value: 'enabled', slot: 'enabled', width: 100 },
   { label: '最近执行', value: 'lastRun', slot: 'lastRun', minWidth: 150 },
   { label: '下次执行', value: 'nextRunAt', slot: 'nextRunAt', minWidth: 180 },
-  { label: '操作', value: 'actions', slot: 'actions', minWidth: 230 },
+  {
+    label: '操作',
+    value: 'actions',
+    slot: 'actions',
+    width: 240,
+    fixed: 'right',
+  },
 ];
 /** 执行台账保留跳过记录，并展示重试次数。 */
 export const runRows: TableRow[] = [
-  { label: '计划名称', value: 'scheduleName', minWidth: 180 },
+  { label: '任务名称', value: 'scheduleName', minWidth: 180 },
   { label: '计划时间', value: 'plannedAt', slot: 'plannedAt', minWidth: 180 },
   { label: '触发方式', value: 'trigger', slot: 'trigger', width: 110 },
   { label: '状态', value: 'status', slot: 'status', width: 110 },
   { label: '执行次数', value: 'attempts', width: 95 },
   { label: '说明', value: 'message', minWidth: 230 },
-  { label: '操作', value: 'actions', slot: 'actions', width: 90 },
-];
-/** Redis 键查询不接受原始 glob。 */
-export const cacheSearchColumns: SchemaFormColumn<CacheSearchForm>[] = [
   {
-    dataIndex: 'search',
-    title: '缓存键',
-    valueType: 'text',
-    fieldProps: { clearable: true, placeholder: '按键名关键字查找' },
+    label: '操作',
+    value: 'actions',
+    slot: 'actions',
+    width: 90,
+    fixed: 'right',
   },
 ];
-/** Redis 列表只返回键名、实际类型和 TTL。 */
+/**
+ * 按已注册目录声明缓存查询条件，与其他列表页共用搜索表单布局。
+ * @param spaces 服务端声明的缓存类型，禁止输入任意 Redis 前缀。
+ * @returns 缓存类型与键名字段，类型必选且不提供清空选项。
+ */
+export function getCacheSearchColumns(
+  spaces: CacheInfo[],
+): SchemaFormColumn<CacheSearchForm>[] {
+  return [
+    {
+      dataIndex: 'name',
+      title: '缓存类型',
+      valueType: 'select',
+      valueEnum: Object.fromEntries(
+        spaces.map((space) => [space.name, space.label]),
+      ),
+      fieldProps: { clearable: false },
+    },
+    {
+      dataIndex: 'search',
+      title: '缓存键',
+      valueType: 'text',
+      fieldProps: { clearable: true },
+    },
+  ];
+}
+/** 缓存列表只展示键名、有效期和操作，不暴露不影响管理的类型细节。 */
 export const cacheRows: TableRow[] = [
-  { label: '缓存键', value: 'key', minWidth: 220 },
-  { label: '类型', value: 'type', width: 100 },
-  { label: '剩余有效期', value: 'ttl', slot: 'ttl', minWidth: 130 },
-  { label: '操作', value: 'actions', slot: 'actions', width: 140 },
+  { label: '缓存键', value: 'key', minWidth: 90 },
+  { label: '剩余有效期', value: 'ttl', slot: 'ttl', minWidth: 100 },
+  {
+    label: '操作',
+    value: 'actions',
+    slot: 'actions',
+    width: 90,
+    fixed: 'right',
+  },
 ];
 
 /**
@@ -122,7 +156,7 @@ export function monitorTime(value?: string | null): string {
  * @returns 周期描述。
  */
 export function cronText(cron: string): string {
-  return cronPresets.find((item) => item.value === cron)?.label ?? '自定义周期';
+  return cronPresets.find((item) => item.value === cron)?.label ?? cron;
 }
 /**
  * 执行状态颜色，跳过与取消不使用失败色。

@@ -164,7 +164,7 @@ export type ScheduleManagementAction = ApiMultAction<{
     }; /** 管理端直接使用的响应数据。 */
     resp: string[];
   };
-  /** 独立执行记录查询。 */
+  /** 定时任务记录抽屉的分页查询。 */
   runs: {
     /** 通过后端 schema 验证的请求数据。 */
     req: {
@@ -233,18 +233,12 @@ export interface CacheEntryInfo {
   ttl: number;
 }
 
-/** Redis 实例概览；命中等指标属于实例而非本应用。 */
-export interface RedisOverview {
+/** 仅用于判断业务缓存是否可用，不采集实例运行指标。 */
+export interface RedisStatus {
   /** 是否连接成功。 */
   connected: boolean;
   /** 安全错误提示，不包含连接凭据。 */
   error: string | null;
-  /** 当前应用环境前缀。 */
-  prefix: string;
-  /** 采集时间。 */
-  collectedAt: string;
-  /** 允许展示的 Redis INFO 字段。 */
-  metrics: Record<string, string>;
 }
 
 /** Redis 缓存管理只接受已注册空间及当前应用前缀。 */
@@ -255,11 +249,11 @@ export type CacheManagementAction = ApiMultAction<{
     req: Record<string, never>; /** 管理端直接使用的响应数据。 */
     resp: CacheInfo[];
   };
-  /** 实例健康和资源概览。 */
-  overview: {
+  /** 通过 PING 检查业务缓存连接。 */
+  status: {
     /** 通过后端 schema 验证的请求数据。 */
     req: Record<string, never>; /** 管理端直接使用的响应数据。 */
-    resp: RedisOverview;
+    resp: RedisStatus;
   };
   /** 有扫描预算的游标分页，不承诺匹配总数。 */
   entries: {
