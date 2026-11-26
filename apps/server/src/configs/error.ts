@@ -174,6 +174,11 @@ export const { ROOT_ERROR, ROOT_ERROR_DEFAULT_CODE } = initRootError({
       key: '定时任务正在执行',
       code: ROOT_ERROR_CODE_CONFLICT,
     },
+    { key: '字典不存在', code: ROOT_ERROR_CODE_NOT_FOUND },
+    { key: '字典项不存在', code: ROOT_ERROR_CODE_NOT_FOUND },
+    { key: '字典编码或字典值已存在', code: ROOT_ERROR_CODE_CONFLICT },
+    { key: '字典编码不能修改', code: ROOT_ERROR_CODE_BAD_REQUEST },
+    { key: '请先删除该字典下的字典项', code: ROOT_ERROR_CODE_CONFLICT },
     {
       key: '受管缓存不存在',
       code: ROOT_ERROR_CODE_NOT_FOUND,

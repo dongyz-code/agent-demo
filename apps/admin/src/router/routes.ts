@@ -108,6 +108,14 @@ export const routes: RouteItem<RouteName, Meta>[] = [
             },
           },
           {
+            path: 'dictionary',
+            name: 'system.dictionary',
+            component: () => import('@/pages/system/dictionary/index.vue'),
+            meta: {
+              permissions: [adminPermissionKey('pages.sys.sys.dictionary')],
+            },
+          },
+          {
             path: 'app',
             name: 'system.app',
             component: () => import('@/pages/system/app/index.vue'),

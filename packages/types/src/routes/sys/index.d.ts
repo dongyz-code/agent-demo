@@ -1,3 +1,4 @@
+import type { DictionaryAction } from './dictionary.js';
 import type { ApiMultAction } from '../../common/index.js';
 import type {
   ApiLogItem,
@@ -13,6 +14,7 @@ import type {
   ScheduleManagementAction,
 } from './monitor.js';
 
+export type * from './dictionary.js';
 export type * from './task.js';
 export type * from './table.js';
 export type * from './monitor.js';
@@ -322,6 +324,9 @@ export type GroupAction = ApiMultAction<{
 }>;
 
 export type Sys = {
+  /** 字典类型、字典项与业务选项。 */
+  [key in keyof DictionaryAction as `dictionary/${key}`]: DictionaryAction[key];
+} & {
   /** 持久化定时计划与触发记录。 */
   [key in keyof ScheduleManagementAction as `schedule/${key}`]: ScheduleManagementAction[key];
 } & {

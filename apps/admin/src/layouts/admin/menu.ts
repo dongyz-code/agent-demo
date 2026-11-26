@@ -35,6 +35,7 @@ export const adminMenu: AdminMenuItem[] = [
       helperRouterName('system.user'),
       helperRouterName('system.role'),
       helperRouterName('system.group'),
+      helperRouterName('system.dictionary'),
       helperRouterName('system.app'),
       helperRouterName('system.app-log'),
       helperRouterName('system.user-log'),

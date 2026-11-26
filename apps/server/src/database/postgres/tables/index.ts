@@ -9,3 +9,4 @@ export * from './document.js';
 export * from './group.js';
 export * from './library.js';
 export * from './schedule.js';
+export * from './dictionary.js';

@@ -15,6 +15,7 @@ export const routeNameMap = {
   'system.user': '用户管理',
   'system.role': '角色管理',
   'system.group': '用户组',
+  'system.dictionary': '字典管理',
   'system.app': '接口管理',
   'system.app-log': '接口日志',
   'system.user-log': '操作日志',

@@ -129,6 +129,27 @@ export const adminPermissionTree = [
             ],
           },
           {
+            key: 'pages.sys.sys.dictionary',
+            label: '字典管理',
+            type: 'page',
+            icon: 'book-open',
+            route: 'system.dictionary',
+            children: [
+              {
+                key: 'actions.dictionary.edit',
+                label: '新增及编辑字典',
+                type: 'button',
+                icon: 'edit',
+              },
+              {
+                key: 'actions.dictionary.delete',
+                label: '删除字典',
+                type: 'button',
+                icon: 'trash',
+              },
+            ],
+          },
+          {
             key: 'pages.sys.sys.app',
             label: '接口管理',
             type: 'page',
