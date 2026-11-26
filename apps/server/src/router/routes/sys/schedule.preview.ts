@@ -1,6 +1,6 @@
 import { adminPermissionKey } from '@repo/shared/permission';
 import { routerHandler } from '@/router/utils.js';
-import { monitorIdSchema } from '@/hooks/monitor/index.js';
+import { monitorIdSchema } from '@/router/monitor.js';
 import { nextScheduleDates } from '@/hooks/schedules/policy.js';
 import { ROOT_ERROR } from '@/configs/index.js';
 /** 保存前验证表达式并统一报告可读配置错误。 @param cron 表达式。 @param timezone 时区。 @returns 五次触发的 ISO 时间。 */

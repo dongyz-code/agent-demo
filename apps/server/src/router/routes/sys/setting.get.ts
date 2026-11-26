@@ -2,15 +2,15 @@ import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 import { SYS_CONF_ID } from './setting.set.js';
-import { loadCached } from '@/hooks/cache/index.js';
+import { settingsCache } from '@/router/settings.js';
 import { eq } from 'drizzle-orm';
 
 const { api } = routerHandler({
   url: '/sys/setting/get',
   method: 'POST',
   permission: adminPermissionKey('actions.setting.set'),
-  handler: async ({}) => {
-    return await loadCached('system.settings', 'current', async () => {
+  handler: async () => {
+    return await settingsCache.wrap('current', async () => {
       const [item] = await db
         .select({ data: schemas.sys_conf.data })
         .from(schemas.sys_conf)

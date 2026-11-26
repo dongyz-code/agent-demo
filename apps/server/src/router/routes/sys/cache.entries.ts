@@ -1,9 +1,6 @@
 import { adminPermissionKey } from '@repo/shared/permission';
 import { routerHandler } from '@/router/utils.js';
-import {
-  cacheOperation,
-  cacheRequestProperties,
-} from '@/hooks/monitor/index.js';
+import { cacheOperation, cacheRequestProperties } from '@/router/monitor.js';
 import { scanCache } from '@/hooks/cache/index.js';
 
 const { api } = routerHandler({

@@ -4,7 +4,7 @@
 
 ## Redis 配置与业务接入
 
-使用官方 `redis` 客户端。配置文件增加以下节点，生产环境必须为不同应用、环境指定不同的 `prefix`：
+使用 `cache-manager`、Keyv 和 `@keyv/redis` 管理缓存，各业务空间与管理接口共用一个官方 Node Redis 客户端连接。配置文件增加以下节点，生产环境必须为不同应用、环境指定不同的 `prefix`：
 
 ```json
 {
@@ -20,13 +20,34 @@
 }
 ```
 
-用户名、密码、TLS 和 database 均可省略。应用数据键形如 `agent-demo:dev:cache:system.settings:current`；空间失效版本使用独立的 `generation` 键。未配置前缀时按 APP_PROD 使用 `agent-demo:dev` 或 `agent-demo:prod`，共享 Redis 的部署应显式覆盖。
+用户名、密码、TLS 和 database 均可省略。应用数据键形如 `agent-demo:dev:cache:system.settings:current`。未配置前缀时按 APP_PROD 使用 `agent-demo:dev` 或 `agent-demo:prod`，共享 Redis 的部署应显式覆盖。
 
-- `cacheSpaces` 声明允许管理的业务空间、用途、默认 TTL 和是否允许查看值。
-- `loadCached(name, key, load)` 读取 JSON，未命中时回源，同进程合并并发加载；源数据错误正常抛出。Redis 故障和损坏 JSON 均回源，命令等待上限为 2 秒，不启用离线命令队列。
-- `invalidateCache` 用于业务更新后失效。失效版本与 Lua 比较写入防止已经开始的回源在清理后重新写回旧值。该模块是数据缓存，不提供数据库与 Redis 间的强一致事务；失效失败时通过 TTL 收敛。
+- 业务在自己的 `cache.ts` 中调用 `defineCache<T>({ name, label, ttl, inspectable })`，模块加载时创建 `CacheSpace<T>` 实例并自动登记管理信息，不再单独维护空间清单。空间名必须唯一。
+- 实例提供 `get`、`set`、`del`、`clear` 和 `wrap`。TTL 声明单位统一为毫秒；管理接口继续返回秒，与 Redis TTL 展示一致。`get` 未命中返回 `undefined`，`null` 是有效缓存值。
+- `wrap(key, load)` 直接使用 cache-manager 的回源能力，在线时合并同实例、同键的并发加载；真实数据源错误原样抛出。Redis 离线时直接回源，损坏缓存视为未命中；Redis 写入故障不会丢弃成功的回源结果。命令等待上限为 2 秒，不启用离线命令队列。
+- 数据库更新后使用实例的 `del(key)`，配合 TTL 保持缓存最终一致。删除、清理或主动写入都不会取消已开始的回源，旧查询可能再次写入缓存，直到 TTL 到期；该模块不提供数据库与 Redis 间的强一致事务。`get`、`set` 和 `del` 对 Redis 故障降级；`clear` 需要明确清理结果，失败时抛出错误。
 - 当前实际接入 `sys/setting/get` / `set`，系统配置缓存 TTL 为 30 秒，更新后失效。配置可能包含内部数据，因此不开放值查看。
 - AI SDK 句柄恢复为业务进程内 Map，不在缓存监控中冒充共享数据缓存。
+
+公共缓存能力集中在 `hooks/cache/`，业务缓存声明跟随实际使用它的业务模块，不集中维护所有业务缓存。当前系统配置只有读写接口，缓存定义放在 `router/settings.ts`，不为单个声明创建业务目录。监控接口共用的请求字段和错误转换放在 `router/monitor.ts`。业务调用示例：
+
+```ts
+import { defineCache } from '@/hooks/cache/index.js';
+
+/** 用户摘要缓存；TTL 为一分钟，管理端默认不允许查看值。 */
+export const userSummaryCache = defineCache<UserSummary>({
+  name: 'user.summary',
+  label: '用户摘要',
+  ttl: 60_000,
+});
+
+const summary = await userSummaryCache.wrap(userId, async () => {
+  return await readUserSummary(userId);
+});
+await userSummaryCache.del(userId);
+```
+
+`hooks/cache/redis.ts` 负责共享连接、前缀和错误日志；`space.ts` 中的 `CacheSpace<T>` 类封装空间状态、业务读写、回源、值解码和分批清理；`index.ts` 负责实例创建、空间注册与管理操作。Keyv 和 cache-manager 实例均为类的私有字段。Redis 中保存 Keyv 序列化数据，值查看接口解码后只展示脱敏业务值，不展示内部存储信息。
 
 缓存页面直接展示业务空间及键管理，不提供 Redis 实例概览。`/sys/cache/status` 仅通过有超时限制的 PING 检查连接，连接不可用时提示业务缓存回源，不读取 INFO 或采集实例指标。键浏览使用 SCAN，每批 COUNT 为 100，最多推进 10 次，不使用 KEYS，不把匹配批次计为键总数。列表按游标继续，前端按键去重并限制最多展示 1000 个键。TTL 是扫描时快照。
 

@@ -2,7 +2,7 @@ import { db, schemas } from '@/database/index.js';
 import { routerHandler } from '@/router/utils.js';
 import { adminPermissionKey } from '@repo/shared/permission';
 
-import { invalidateCache } from '@/hooks/cache/index.js';
+import { settingsCache } from '@/router/settings.js';
 
 /** 唯一的系统配置记录标识。 */
 export const SYS_CONF_ID = 0;
@@ -27,7 +27,7 @@ const { api } = routerHandler({
         },
       });
 
-    await invalidateCache('system.settings', 'current');
+    await settingsCache.del('current');
     return 'ok';
   },
 });

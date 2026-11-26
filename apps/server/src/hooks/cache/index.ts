@@ -1,172 +1,88 @@
-import { createClient } from 'redis';
-import { ROOT, logger } from '@/configs/index.js';
+import { cachePrefix, getCacheKey, redis } from './redis.js';
+import { CacheSpace } from './space.js';
 import type { CacheInfo, RedisStatus } from '@repo/types';
+import type { CacheOptions } from './types.js';
 
-/** 只允许应用自行声明空间，不接受管理请求注册任意键前缀。 */
-export const cacheSpaces: CacheInfo[] = [
-  {
-    name: 'system.settings',
-    label: '系统配置',
-    description:
-      '系统配置读取缓存；修改后失效，最长 30 秒回源。可能含内部配置，不开放值查看。',
-    ttl: 30,
-    inspectable: false,
-  },
-];
+export { startRedis, redis } from './redis.js';
+export type { CacheOptions } from './types.js';
 
-/** 环境前缀必须唯一且不含 Redis glob 字符，防止扫描或清理越界。 */
-function getPrefix(): string {
-  const prefix =
-    ROOT.redis.prefix ?? `agent-demo:${ROOT.APP_PROD ? 'prod' : 'dev'}`;
-  if (!/^[\w:.-]+$/.test(prefix))
-    throw new Error('Redis 前缀只能包含字母、数字、冒号、点、横线和下划线');
-  return `${prefix}:cache:`;
+/** 已声明的业务空间及其管理入口，管理端不能动态注册。 */
+interface RegisteredCache {
+  /** 管理端使用的空间信息，TTL 单位沿用接口约定的秒。 */
+  info: CacheInfo;
+  /** 类实例隐藏存储细节，管理接口复用其解码与分批清理能力。 */
+  cache: CacheSpace<unknown>;
 }
+/** 定义缓存时自动登记，业务不再维护第二份空间清单。 */
+const registry = new Map<string, RegisteredCache>();
 
-/** 当前应用专属数据前缀。 */
-export const cachePrefix = getPrefix();
-/** 官方客户端不离线排队，故障时业务及时回源。 */
-export const redis = createClient({
-  socket: {
-    host: ROOT.redis.host,
-    port: ROOT.redis.port,
-    connectTimeout: 1500,
-    reconnectStrategy: (retries) => Math.min(250 * (retries + 1), 3000),
-    ...(ROOT.redis.tls ? { tls: true as const } : {}),
-  },
-  username: ROOT.redis.username,
-  password: ROOT.redis.password,
-  database: ROOT.redis.database ?? 0,
-  disableOfflineQueue: true,
-  commandOptions: { timeout: 2000, rejectInFlight: true },
-});
-/** 节流故障日志，防止 Redis 长期离线持续刷屏。 */
-let lastErrorAt = 0;
-redis.on('error', () => {
-  if (Date.now() - lastErrorAt < 30_000) return;
-  lastErrorAt = Date.now();
-  logger.warn(
-    { event: 'cache.redis_unavailable' },
-    'Redis 暂不可用，数据缓存将回源',
-  );
-});
-
-/** 后台连接，不让可降级的数据缓存阻塞主服务启动。 */
-export function startRedis(): void {
-  if (!redis.isOpen) void redis.connect().catch(() => {});
+/** 返回当前进程已加载的业务缓存清单。 */
+export function listCacheSpaces(): CacheInfo[] {
+  return [...registry.values()].map((entry) => ({ ...entry.info }));
 }
 
 /**
- * 仅允许访问声明过的业务空间。
- * @param name 空间标识。
- * @returns 空间声明。
+ * 仅允许访问代码中已经定义的缓存空间。
+ * @param name 稳定业务空间标识。
+ * @returns 管理端展示及访问控制信息。
  */
 export function requireCacheSpace(name: string): CacheInfo {
-  const space = cacheSpaces.find((item) => item.name === name);
-  if (!space) throw new Error('CACHE_SPACE_NOT_FOUND');
-  return space;
+  const entry = registry.get(name);
+  if (!entry) {
+    throw new Error('CACHE_SPACE_NOT_FOUND');
+  }
+  return entry.info;
 }
 
 /**
- * 校验业务键并组成实际 Redis 键。
- * @param name 已注册空间。
- * @param key 不带环境前缀的业务键。
- * @returns 完整键。
+ * 校验业务键并构造 Redis 物理键；业务实例无需手动拼接前缀。
+ * @param name 已声明的业务空间。
+ * @param key 不包含环境前缀的业务键。
+ * @returns 用于管理扫描和删除的完整 Redis 键。
  */
 export function cacheKey(name: string, key: string): string {
   requireCacheSpace(name);
-  if (!key || key.length > 256 || /[\x00-\x1f]/.test(key))
-    throw new Error('CACHE_KEY_INVALID');
-  return `${cachePrefix}${name}:${key}`;
-}
-
-/** 同一进程内合并并发回源；不宣称提供分布式业务锁。 */
-const pendingLoads = new Map<string, Promise<unknown>>();
-
-/**
- * 读取 JSON 缓存，离线或格式损坏时回源；业务工厂错误原样抛出。
- * @typeParam T 可序列化的业务数据类型。
- * @param name 已注册的业务空间。
- * @param key 公开业务键，不能携带凭据。
- * @param load 未命中时查询真实数据的函数。
- * @returns 缓存值或真实数据。
- */
-export async function loadCached<T>(
-  name: string,
-  key: string,
-  load: () => Promise<T>,
-): Promise<T> {
-  const fullKey = cacheKey(name, key);
-  if (redis.isReady) {
-    try {
-      const value = await redis.get(fullKey);
-      if (value !== null) return JSON.parse(value) as T;
-    } catch {
-      /* 缓存故障不改变业务读取结果。 */
-    }
-  }
-  const pending = pendingLoads.get(fullKey);
-  if (pending) return pending as Promise<T>;
-  const operation = (async () => {
-    let generation: string | null = null;
-    if (redis.isReady) {
-      try {
-        generation = await redis.get(`${cachePrefix}generation:${name}`);
-      } catch {
-        /* 离线时只回源。 */
-      }
-    }
-    const value = await load();
-    if (redis.isReady) {
-      try {
-        // 比较失效版本再写入，避免清理期间尚未完成的回源重新填入旧值。
-        await redis.eval(
-          "if redis.call('GET', KEYS[1]) == ARGV[1] or (not redis.call('GET', KEYS[1]) and ARGV[1] == '') then return redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[3]) end return 0",
-          {
-            keys: [`${cachePrefix}generation:${name}`, fullKey],
-            arguments: [
-              generation ?? '',
-              JSON.stringify(value),
-              String(requireCacheSpace(name).ttl),
-            ],
-          },
-        );
-      } catch {
-        /* 写缓存失败不覆盖真实数据。 */
-      }
-    }
-    return value;
-  })();
-  pendingLoads.set(fullKey, operation);
-  try {
-    return await operation;
-  } finally {
-    pendingLoads.delete(fullKey);
-  }
+  return getCacheKey(name, key);
 }
 
 /**
- * 失效一个业务键，同时禁止已有回源写回旧值。
- * @param name 已注册空间。
- * @param key 业务键。
+ * 将受限体积的存储内容解码为业务值，不把 Keyv 内部过期信息展示到页面。
+ * @param name 已声明并允许查看的缓存空间。
+ * @param raw 管理接口原子读取的序列化数据。
+ * @returns 实际业务值；条目无效或过期时返回 undefined。
  */
-export async function invalidateCache(
+export async function decodeCacheValue(
   name: string,
-  key: string,
-): Promise<void> {
-  if (!redis.isReady) return;
-  try {
-    await redis
-      .multi()
-      .incr(`${cachePrefix}generation:${name}`)
-      .unlink(cacheKey(name, key))
-      .exec();
-  } catch {
-    logger.warn(
-      { event: 'cache.invalidate_failed', space: name },
-      '缓存失效失败，将在 TTL 到期后回源',
-    );
+  raw: string,
+): Promise<unknown> {
+  requireCacheSpace(name);
+  return await registry.get(name)!.cache.decode(raw);
+}
+
+/**
+ * 声明类型化 JSON 缓存并自动登记管理信息；空间只能定义一次。
+ * @typeParam T 当前业务空间内所有键共用的可 JSON 序列化数据类型。
+ * @param options 空间标识、展示信息和以毫秒计的默认 TTL。
+ * @returns 隐藏连接与前缀细节的 get、set、del、clear、wrap 操作。
+ */
+export function defineCache<T>(options: CacheOptions): CacheSpace<T> {
+  if (registry.has(options.name)) {
+    throw new Error('CACHE_SPACE_ALREADY_DEFINED');
   }
+  // 固定声明快照，调用方修改原对象不能让实际 TTL 与管理信息漂移。
+  const { name, ttl } = options;
+  const cache = new CacheSpace<T>(name, ttl);
+  registry.set(name, {
+    info: {
+      name,
+      label: options.label,
+      description: options.description ?? '',
+      ttl: Math.ceil(ttl / 1000),
+      inspectable: options.inspectable ?? false,
+    },
+    cache,
+  });
+  return cache;
 }
 
 /**
@@ -178,8 +94,9 @@ export async function redisStatus(): Promise<RedisStatus> {
     connected: false,
     error: null,
   };
-  if (!redis.isReady)
+  if (!redis.isReady) {
     return { ...result, error: 'Redis 尚未连接，业务缓存当前回源读取' };
+  }
   try {
     await redis.ping();
     result.connected = true;
@@ -199,7 +116,9 @@ export async function redisStatus(): Promise<RedisStatus> {
  */
 export async function scanCache(name: string, cursor = '0', search = '') {
   requireCacheSpace(name);
-  if (!redis.isReady) throw new Error('CACHE_UNAVAILABLE');
+  if (!redis.isReady) {
+    throw new Error('CACHE_UNAVAILABLE');
+  }
   const prefix = `${cachePrefix}${name}:`;
   const list: { key: string; type: string; ttl: number }[] = [];
   let scanned = 0;
@@ -210,11 +129,17 @@ export async function scanCache(name: string, cursor = '0', search = '') {
     scanned += batch.keys.length;
     for (const key of batch.keys) {
       const shortKey = key.slice(prefix.length);
-      if (!shortKey.includes(search)) continue;
+      if (!shortKey.includes(search)) {
+        continue;
+      }
       const [type, ttl] = await Promise.all([redis.type(key), redis.ttl(key)]);
-      if (ttl !== -2) list.push({ key: shortKey, type, ttl });
+      if (ttl !== -2) {
+        list.push({ key: shortKey, type, ttl });
+      }
     }
-    if (next === '0' || list.length >= 100) break;
+    if (next === '0' || list.length >= 100) {
+      break;
+    }
   }
   return { list, cursor: next, scanned };
 }
@@ -228,15 +153,11 @@ export async function scanCache(name: string, cursor = '0', search = '') {
  */
 export async function clearCache(name: string, key?: string, cursor = '0') {
   requireCacheSpace(name);
-  if (!redis.isReady) throw new Error('CACHE_UNAVAILABLE');
-  await redis.incr(`${cachePrefix}generation:${name}`);
-  if (key !== undefined)
+  if (!redis.isReady) {
+    throw new Error('CACHE_UNAVAILABLE');
+  }
+  if (key !== undefined) {
     return { removed: await redis.unlink(cacheKey(name, key)), cursor: '0' };
-  const batch = await redis.scan(cursor, {
-    MATCH: `${cachePrefix}${name}:*`,
-    COUNT: 200,
-  });
-  let removed = 0;
-  if (batch.keys.length) removed = await redis.unlink(batch.keys);
-  return { removed, cursor: batch.cursor };
+  }
+  return await registry.get(name)!.cache.clearBatch(cursor);
 }

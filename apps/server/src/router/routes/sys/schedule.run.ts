@@ -1,6 +1,6 @@
 import { adminPermissionKey } from '@repo/shared/permission';
 import { routerHandler } from '@/router/utils.js';
-import { monitorIdSchema } from '@/hooks/monitor/index.js';
+import { monitorIdSchema } from '@/router/monitor.js';
 import { runSchedule } from '@/hooks/schedules/index.js';
 
 const { api } = routerHandler({

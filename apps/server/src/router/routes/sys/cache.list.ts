@@ -1,6 +1,6 @@
 import { adminPermissionKey } from '@repo/shared/permission';
 import { routerHandler } from '@/router/utils.js';
-import { cacheSpaces } from '@/hooks/cache/index.js';
+import { listCacheSpaces } from '@/hooks/cache/index.js';
 
 const { api } = routerHandler({
   url: '/sys/cache/list',
@@ -14,7 +14,7 @@ const { api } = routerHandler({
     },
   },
   handler: async () => {
-    return cacheSpaces;
+    return listCacheSpaces();
   },
 });
 export default api;

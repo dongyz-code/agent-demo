@@ -37,11 +37,15 @@ export async function cacheOperation<T>(
   try {
     return await operation();
   } catch (error) {
-    if (error instanceof Error && error.message === 'CACHE_SPACE_NOT_FOUND')
+    if (error instanceof Error && error.message === 'CACHE_SPACE_NOT_FOUND') {
       throw new ROOT_ERROR('受管缓存不存在');
-    if (error instanceof Error && error.message === 'CACHE_KEY_INVALID')
+    }
+    if (error instanceof Error && error.message === 'CACHE_KEY_INVALID') {
       throw new ROOT_ERROR('非法参数');
-    if (error instanceof ROOT_ERROR) throw error;
+    }
+    if (error instanceof ROOT_ERROR) {
+      throw error;
+    }
     throw new ROOT_ERROR(
       'Redis 不可用',
       'Redis 操作失败，请检查连接、权限或稍后重试',

@@ -1,6 +1,6 @@
 import { adminPermissionKey } from '@repo/shared/permission';
 import { routerHandler } from '@/router/utils.js';
-import { monitorLimitSchema } from '@/hooks/monitor/index.js';
+import { monitorLimitSchema } from '@/router/monitor.js';
 import { listSchedules } from '@/hooks/schedules/index.js';
 
 const { api } = routerHandler({
